@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \":*)",
+      "Bash(node -e \"require\\(''''./node_modules/typescript/bin/tsc''''\\)\")",
+      "Bash(npx tsc:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(find /c/Users/mirac/Documents/shopprhq/shopprhq_backend -name client_model.py -o -name client*.py)",
+      "Bash(find /c/Users/mirac/Documents/shopprhq/shopprhq_frontend -type f \\\\\\(-name *.ts -o -name *.tsx -o -name *.js -o -name *.mjs -o -name *.config.* \\\\\\))",
+      "Bash(find /c/Users/mirac/Documents/shopprhq/shopprhq_backend -type f \\\\\\(-name *.py -o -name *.conf -o -name *.ini -o -name *.json \\\\\\))",
+      "Bash(find /c/Users/mirac/Documents/shopprhq/shopprhq_frontend -type f \\\\\\(-name .env* -o -name Dockerfile* -o -name docker* \\\\\\))",
+      "Bash(rsync --version)",
+      "Bash(python3:*)",
+      "Bash(py --version)",
+      "Bash(python3.11 --version)",
+      "Bash(python:*)"
+    ]
+  }
+}

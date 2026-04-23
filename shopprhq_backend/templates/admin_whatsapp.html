@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ShopprHQ — WhatsApp Onboarding</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --wa: #25D366; --wa-dark: #128C7E;
+  --ink: #111110; --ink-2: #3A3A36; --ink-3: #7A7A75;
+  --border: #E4E3DD; --bg: #F5F4F0; --white: #FFFFFF;
+  --red: #D94F3D; --r: 12px;
+}
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg);
+  min-height: 100vh;
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* LOGIN */
+#login-screen {
+  min-height: 100vh;
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+}
+.login-card {
+  background: var(--white); border: 1px solid var(--border);
+  border-radius: 20px; padding: 40px;
+  width: 100%; max-width: 380px;
+  box-shadow: 0 4px 24px rgba(0,0,0,.07);
+}
+.brand {
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-size: 22px; font-weight: 700; color: var(--ink); margin-bottom: 4px;
+}
+.brand-sub { font-size: 13px; color: var(--ink-3); margin-bottom: 28px; }
+
+/* MAIN */
+#main-screen { display: none; }
+header {
+  background: var(--white); border-bottom: 1px solid var(--border);
+  padding: 0 32px; height: 60px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.header-brand {
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-size: 18px; font-weight: 700;
+}
+.header-sub { font-size: 13px; color: var(--ink-3); }
+.btn-out {
+  font-size: 13px; color: var(--ink-3); background: none;
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 6px 14px; cursor: pointer; font-family: inherit;
+}
+.btn-out:hover { color: var(--red); border-color: var(--red); }
+
+.page { max-width: 660px; margin: 40px auto; padding: 0 24px 80px; }
+
+/* STEP TABS */
+.tabs {
+  display: flex; gap: 2px; background: var(--border);
+  border-radius: 12px; overflow: hidden; margin-bottom: 28px;
+}
+.tab {
+  flex: 1; padding: 10px 6px; background: var(--white);
+  text-align: center; font-size: 12px; font-weight: 600;
+  color: var(--ink-3);
+}
+.tab.active { background: var(--ink); color: #fff; }
+.tab.done   { background: var(--wa); color: #fff; }
+
+/* CARD */
+.card {
+  background: var(--white); border: 1px solid var(--border);
+  border-radius: 16px; padding: 28px 32px; margin-bottom: 16px;
+}
+.card-title {
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-size: 18px; font-weight: 700; margin-bottom: 6px;
+}
+.card-sub { font-size: 13px; color: var(--ink-3); line-height: 1.65; margin-bottom: 24px; }
+
+/* FIELDS */
+.field { margin-bottom: 16px; }
+.f-label {
+  display: block; font-size: 11px; font-weight: 600;
+  letter-spacing: .05em; text-transform: uppercase;
+  color: var(--ink-3); margin-bottom: 6px;
+}
+.f-input, .f-select {
+  width: 100%; padding: 10px 14px;
+  border: 1.5px solid var(--border); border-radius: var(--r);
+  font-family: 'DM Sans', sans-serif; font-size: 14px;
+  background: var(--bg); color: var(--ink); outline: none;
+  transition: border-color .15s, background .15s;
+}
+.f-input:focus, .f-select:focus { border-color: var(--wa); background: var(--white); }
+.f-hint { font-size: 12px; color: var(--ink-3); margin-top: 5px; }
+
+/* BUTTONS */
+.btn {
+  padding: 11px 22px; border: none; border-radius: var(--r);
+  font-family: 'DM Sans', sans-serif; font-size: 14px;
+  font-weight: 600; cursor: pointer; transition: background .15s;
+}
+.btn-dark  { background: var(--ink); color: #fff; }
+.btn-dark:hover  { background: #2a2a2a; }
+.btn-dark:disabled  { opacity: .5; cursor: not-allowed; }
+.btn-green { background: var(--wa); color: #fff; }
+.btn-green:hover { background: var(--wa-dark); }
+.btn-green:disabled { opacity: .5; cursor: not-allowed; }
+.btn-ghost {
+  background: none; color: var(--ink-2);
+  border: 1.5px solid var(--border);
+}
+.btn-ghost:hover { border-color: var(--ink-3); }
+
+/* STATUS */
+.status {
+  border-radius: 10px; padding: 12px 16px;
+  font-size: 13px; line-height: 1.6; margin-top: 14px; display: none;
+}
+.s-ok   { background: #DCFCE7; color: #15803D; border: 1px solid #86EFAC; }
+.s-err  { background: #FEE2E2; color: #B91C1C; border: 1px solid #FCA5A5; }
+.s-info { background: #EFF6FF; color: #1D4ED8; border: 1px solid #93C5FD; }
+
+.chip {
+  display: inline-block; background: var(--bg);
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 5px 12px; font-size: 13px; font-weight: 600;
+  font-family: monospace; color: var(--ink); margin-top: 6px;
+}
+
+/* OTP METHOD PICKER */
+.otp-row { display: flex; gap: 10px; margin-bottom: 16px; }
+.otp-opt {
+  flex: 1; padding: 12px; border: 1.5px solid var(--border);
+  border-radius: var(--r); text-align: center; cursor: pointer;
+  font-size: 14px; font-weight: 500; color: var(--ink-2);
+  background: var(--bg); transition: all .15s;
+}
+.otp-opt.on { border-color: var(--wa); background: #E8F5EE; color: var(--wa-dark); }
+.otp-opt .ic { font-size: 22px; display: block; margin-bottom: 4px; }
+
+.row { display: flex; gap: 10px; margin-top: 20px; }
+.err-msg { color: var(--red); font-size: 13px; margin-top: 8px; display: none; }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="brand">ShopprHQ Admin</div>
+    <div class="brand-sub">WhatsApp Onboarding — Internal Use Only</div>
+    <div class="field">
+      <label class="f-label">Admin Secret</label>
+      <input class="f-input" id="pw" type="password" placeholder="Enter admin secret"
+        onkeydown="if(event.key==='Enter') doLogin()">
+    </div>
+    <button class="btn btn-dark" style="width:100%;margin-top:4px" onclick="doLogin()">Continue</button>
+    <div class="err-msg" id="pw-err">Incorrect secret. Try again.</div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div id="main-screen">
+  <header>
+    <div>
+      <div class="header-brand">WhatsApp Onboarding</div>
+      <div class="header-sub">Connect a store's WhatsApp number to ShopprHQ</div>
+    </div>
+    <button class="btn-out" onclick="doSignOut()">Sign Out</button>
+  </header>
+
+  <div class="page">
+
+    <div class="tabs">
+      <div class="tab active" id="t1">1. Store & Number</div>
+      <div class="tab" id="t2">2. Request OTP</div>
+      <div class="tab" id="t3">3. Verify OTP</div>
+      <div class="tab" id="t4">4. Activate</div>
+      <div class="tab" id="t5">5. Save</div>
+    </div>
+
+    <!-- STEP 1 -->
+    <div id="s1">
+      <div class="card">
+        <div class="card-title">Store & Number Details</div>
+        <div class="card-sub">
+          Select the store, enter the merchant's WhatsApp number and a display name customers will see.
+          The number must not currently be on WhatsApp or WhatsApp Business App.
+        </div>
+        <div class="field">
+          <label class="f-label">Store</label>
+          <select class="f-select" id="s1-client">
+            <option value="">Loading stores…</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="f-label">Phone Number</label>
+          <input class="f-input" id="s1-phone" type="tel" placeholder="2348012345678"
+            oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+          <div class="f-hint">International format without + e.g. 2348012345678</div>
+        </div>
+        <div class="field">
+          <label class="f-label">Display Name</label>
+          <input class="f-input" id="s1-name" type="text" placeholder="e.g. Mama Tee's Store">
+          <div class="f-hint">What customers see when this number messages them.</div>
+        </div>
+        <div class="status" id="st1"></div>
+        <div class="row">
+          <button class="btn btn-dark" id="b1" onclick="step1()">Continue →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 2 -->
+    <div id="s2" style="display:none">
+      <div class="card">
+        <div class="card-title">Request Verification Code</div>
+        <div class="card-sub">
+          Choose how Meta sends the OTP to <strong id="s2-num"></strong>.
+          The merchant needs access to that phone right now.
+        </div>
+        <div class="otp-row">
+          <div class="otp-opt on" id="opt-sms" onclick="pickOtp('sms')">
+            <span class="ic">💬</span>SMS
+          </div>
+          <div class="otp-opt" id="opt-voice" onclick="pickOtp('voice')">
+            <span class="ic">📞</span>Voice Call
+          </div>
+        </div>
+        <div class="status" id="st2"></div>
+        <div class="row">
+          <button class="btn btn-ghost" onclick="go(1)">← Back</button>
+          <button class="btn btn-green" id="b2" onclick="step2()">Send Code</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 3 -->
+    <div id="s3" style="display:none">
+      <div class="card">
+        <div class="card-title">Enter Verification Code</div>
+        <div class="card-sub">
+          Ask the merchant for the 6-digit code sent to <strong id="s3-num"></strong>.
+        </div>
+        <div class="field">
+          <label class="f-label">6-Digit Code</label>
+          <input class="f-input" id="s3-code" type="text" inputmode="numeric"
+            maxlength="6" placeholder="000000"
+            style="font-size:26px;font-weight:700;letter-spacing:.2em;text-align:center"
+            oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+        </div>
+        <div class="status" id="st3"></div>
+        <div class="row">
+          <button class="btn btn-ghost" onclick="go(2)">← Resend</button>
+          <button class="btn btn-dark" id="b3" onclick="step3()">Verify →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 4 -->
+    <div id="s4" style="display:none">
+      <div class="card">
+        <div class="card-title">Activate on Cloud API</div>
+        <div class="card-sub">
+          Number verified. This registers it on Meta's Cloud API and subscribes your webhook —
+          ShopprHQ will start receiving messages from this number.
+        </div>
+        <div style="background:var(--bg);border-radius:10px;padding:16px 20px;margin-bottom:4px">
+          <div style="font-size:12px;color:var(--ink-3);margin-bottom:4px">Phone Number ID</div>
+          <div class="chip" id="s4-pid">—</div>
+          <div style="font-size:12px;color:var(--ink-3);margin-top:10px;margin-bottom:4px">Number</div>
+          <div class="chip" id="s4-num">—</div>
+        </div>
+        <div class="status" id="st4"></div>
+        <div class="row">
+          <button class="btn btn-green" id="b4" onclick="step4()">Register & Subscribe Webhook →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 5 -->
+    <div id="s5" style="display:none">
+      <div class="card">
+        <div class="card-title">Save to ShopprHQ</div>
+        <div class="card-sub">Final step — save the Phone Number ID to the store's record.</div>
+        <div style="background:var(--bg);border-radius:10px;padding:16px 20px;margin-bottom:4px;display:grid;gap:10px">
+          <div>
+            <div style="font-size:12px;color:var(--ink-3)">Store</div>
+            <div style="font-weight:600;font-size:14px" id="s5-store">—</div>
+          </div>
+          <div>
+            <div style="font-size:12px;color:var(--ink-3)">Phone Number</div>
+            <div class="chip" id="s5-num">—</div>
+          </div>
+          <div>
+            <div style="font-size:12px;color:var(--ink-3)">Phone Number ID</div>
+            <div class="chip" id="s5-pid">—</div>
+          </div>
+        </div>
+        <div class="status" id="st5"></div>
+        <div class="row">
+          <button class="btn btn-green" id="b5" onclick="step5()">Save & Go Live ✓</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- DONE -->
+    <div id="s-done" style="display:none">
+      <div class="card" style="text-align:center;padding:48px 32px">
+        <div style="font-size:56px;margin-bottom:16px">✅</div>
+        <div class="card-title" style="font-size:22px;margin-bottom:8px">Store is Live!</div>
+        <div style="font-size:14px;color:var(--ink-3);line-height:1.7;margin-bottom:28px">
+          <strong id="done-store"></strong> is now connected to WhatsApp.<br>
+          Customers can message <strong id="done-num"></strong> to start ordering.
+        </div>
+        <button class="btn btn-dark" onclick="reset()">Connect Another Number</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const S = {
+  clientId: null, clientName: null,
+  phone: null, displayName: null,
+  phoneNumberId: null, otpMethod: 'sms',
+};
+
+// ── AUTH ────────────────────────────────────────────────────────────────────
+function doLogin() {
+  const pw = document.getElementById('pw').value;
+  const er = document.getElementById('pw-err');
+  er.style.display = 'none';
+
+  fetch('/admin/whatsapp-setup/verify-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: pw }),
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.ok) {
+      sessionStorage.setItem('atok', d.token);
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('main-screen').style.display  = 'block';
+      loadClients();
+    } else {
+      er.style.display = 'block';
+    }
+  })
+  .catch(() => { er.style.display = 'block'; });
+}
+
+function doSignOut() {
+  sessionStorage.removeItem('atok');
+  location.reload();
+}
+
+function H() {
+  return {
+    'Content-Type':  'application/json',
+    'X-Admin-Token': sessionStorage.getItem('atok') || '',
+  };
+}
+
+// ── CLIENTS ──────────────────────────────────────────────────────────────────
+async function loadClients() {
+  try {
+    const r = await fetch('/admin/whatsapp-setup/clients', { headers: H() });
+    const d = await r.json();
+    const s = document.getElementById('s1-client');
+    if (!d.clients || !d.clients.length) {
+      s.innerHTML = '<option value="">No stores found</option>';
+      return;
+    }
+    s.innerHTML = '<option value="">— Select a store —</option>' +
+      d.clients.map(c =>
+        `<option value="${c.id}" data-name="${c.store_name}">${c.merchant_name} — ${c.store_name} (${c.id})</option>`
+      ).join('');
+  } catch(e) { console.error(e); }
+}
+
+// ── NAVIGATION ───────────────────────────────────────────────────────────────
+function go(n) {
+  for (let i = 1; i <= 5; i++) {
+    const el = document.getElementById(`s${i}`);
+    if (el) el.style.display = i === n ? 'block' : 'none';
+  }
+  document.getElementById('s-done').style.display = 'none';
+  for (let i = 1; i <= 5; i++) {
+    const t = document.getElementById(`t${i}`);
+    t.className = 'tab' + (i < n ? ' done' : i === n ? ' active' : '');
+  }
+}
+
+function st(id, msg, type) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.className   = `status s-${type}`;
+  el.style.display = 'block';
+}
+
+function loading(id, on, label) {
+  const b = document.getElementById(id);
+  b.disabled    = on;
+  b.textContent = on ? 'Please wait…' : label;
+}
+
+function pickOtp(m) {
+  S.otpMethod = m;
+  document.getElementById('opt-sms').classList.toggle('on',   m === 'sms');
+  document.getElementById('opt-voice').classList.toggle('on', m === 'voice');
+}
+
+// ── STEP 1 ───────────────────────────────────────────────────────────────────
+async function step1() {
+  const sel   = document.getElementById('s1-client');
+  const phone = document.getElementById('s1-phone').value.trim();
+  const name  = document.getElementById('s1-name').value.trim();
+
+  if (!sel.value)                       return st('st1', 'Select a store.', 'err');
+  if (!phone || !/^\d{10,15}$/.test(phone)) return st('st1', 'Phone must be 10–15 digits, no + or spaces.', 'err');
+  if (!name)                            return st('st1', 'Enter a display name.', 'err');
+
+  S.clientId    = sel.value;
+  S.clientName  = sel.options[sel.selectedIndex].getAttribute('data-name');
+  S.phone       = phone;
+  S.displayName = name;
+
+  loading('b1', true, 'Continue →');
+  try {
+    const r = await fetch('/admin/whatsapp-setup/add-number', {
+      method: 'POST', headers: H(),
+      body: JSON.stringify({ phone, display_name: name }),
+    });
+    const d = await r.json();
+    if (!r.ok) return st('st1', d.detail || 'Meta error — check logs.', 'err');
+
+    S.phoneNumberId = d.phone_number_id;
+    document.getElementById('s2-num').textContent = '+' + phone;
+    go(2);
+  } catch(e) {
+    st('st1', 'Network error. Check your connection.', 'err');
+  } finally {
+    loading('b1', false, 'Continue →');
+  }
+}
+
+// ── STEP 2 ───────────────────────────────────────────────────────────────────
+async function step2() {
+  loading('b2', true, 'Send Code');
+  try {
+    const r = await fetch('/admin/whatsapp-setup/request-otp', {
+      method: 'POST', headers: H(),
+      body: JSON.stringify({ phone_number_id: S.phoneNumberId, method: S.otpMethod }),
+    });
+    const d = await r.json();
+    if (!r.ok) return st('st2', d.detail || 'Failed to send OTP.', 'err');
+
+    st('st2', `Code sent via ${S.otpMethod === 'sms' ? 'SMS' : 'voice call'}. Ask the merchant for the 6 digits.`, 'ok');
+    document.getElementById('s3-num').textContent = '+' + S.phone;
+    setTimeout(() => go(3), 1200);
+  } catch(e) {
+    st('st2', 'Network error.', 'err');
+  } finally {
+    loading('b2', false, 'Send Code');
+  }
+}
+
+// ── STEP 3 ───────────────────────────────────────────────────────────────────
+async function step3() {
+  const code = document.getElementById('s3-code').value.trim();
+  if (!code || !/^\d{6}$/.test(code)) return st('st3', 'Enter the 6-digit code.', 'err');
+
+  loading('b3', true, 'Verify →');
+  try {
+    const r = await fetch('/admin/whatsapp-setup/verify-otp', {
+      method: 'POST', headers: H(),
+      body: JSON.stringify({ phone_number_id: S.phoneNumberId, code }),
+    });
+    const d = await r.json();
+    if (!r.ok) return st('st3', d.detail || 'Verification failed. Check the code.', 'err');
+
+    document.getElementById('s4-pid').textContent = S.phoneNumberId;
+    document.getElementById('s4-num').textContent = '+' + S.phone;
+    go(4);
+  } catch(e) {
+    st('st3', 'Network error.', 'err');
+  } finally {
+    loading('b3', false, 'Verify →');
+  }
+}
+
+// ── STEP 4 ───────────────────────────────────────────────────────────────────
+async function step4() {
+  loading('b4', true, 'Register & Subscribe Webhook →');
+  try {
+    const r = await fetch('/admin/whatsapp-setup/activate', {
+      method: 'POST', headers: H(),
+      body: JSON.stringify({ phone_number_id: S.phoneNumberId }),
+    });
+    const d = await r.json();
+    if (!r.ok) return st('st4', d.detail || 'Activation failed.', 'err');
+
+    document.getElementById('s5-store').textContent = S.clientName;
+    document.getElementById('s5-num').textContent   = '+' + S.phone;
+    document.getElementById('s5-pid').textContent   = S.phoneNumberId;
+    go(5);
+  } catch(e) {
+    st('st4', 'Network error.', 'err');
+  } finally {
+    loading('b4', false, 'Register & Subscribe Webhook →');
+  }
+}
+
+// ── STEP 5 ───────────────────────────────────────────────────────────────────
+async function step5() {
+  loading('b5', true, 'Save & Go Live ✓');
+  try {
+    const r = await fetch('/admin/whatsapp-setup/save', {
+      method: 'POST', headers: H(),
+      body: JSON.stringify({
+        client_id:       S.clientId,
+        phone_number_id: S.phoneNumberId,
+        whatsapp_number: S.phone,
+      }),
+    });
+    const d = await r.json();
+    if (!r.ok) return st('st5', d.detail || 'Failed to save.', 'err');
+
+    document.getElementById('done-store').textContent = S.clientName;
+    document.getElementById('done-num').textContent   = '+' + S.phone;
+    document.getElementById('s5').style.display       = 'none';
+    document.getElementById('s-done').style.display   = 'block';
+    for (let i = 1; i <= 5; i++) document.getElementById(`t${i}`).className = 'tab done';
+  } catch(e) {
+    st('st5', 'Network error.', 'err');
+  } finally {
+    loading('b5', false, 'Save & Go Live ✓');
+  }
+}
+
+// ── RESET ────────────────────────────────────────────────────────────────────
+function reset() {
+  Object.assign(S, { clientId: null, clientName: null, phone: null, displayName: null, phoneNumberId: null, otpMethod: 'sms' });
+  ['s1-phone','s1-name','s3-code'].forEach(id => document.getElementById(id).value = '');
+  document.querySelectorAll('.status').forEach(el => el.style.display = 'none');
+  loadClients();
+  go(1);
+}
+
+// Boot
+if (sessionStorage.getItem('atok')) {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('main-screen').style.display  = 'block';
+  loadClients();
+}
+</script>
+</body>
+</html>

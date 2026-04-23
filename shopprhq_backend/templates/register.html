@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Create your store · ShopprHQ</title>
+<link rel="icon" type="image/png" href="/static/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --wa:      #25D366;
+  --wa-dark: #128C7E;
+  --ink:     #0D0D0C;
+  --ink-2:   #2C2C29;
+  --ink-3:   #6B6B66;
+  --ink-4:   #9E9E99;
+  --border:  #E8E7E2;
+  --bg:      #F7F6F2;
+  --red:     #C94136;
+  --r:       13px;
+}
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg);
+  min-height: 100vh;
+  display: flex; align-items: center; justify-content: center;
+  padding: 32px 20px;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "ss01";
+}
+
+.wrap { width: 100%; max-width: 432px; }
+
+.brand {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 28px; justify-content: center;
+  text-decoration: none;
+}
+.logo {
+  width: 40px; height: 40px;
+  background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
+  border-radius: 11px; display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 2px 10px rgba(37,211,102,.28);
+}
+.logo svg { width: 21px; height: 21px; }
+.wordmark {
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-size: 22px; font-weight: 800;
+  letter-spacing: -.03em; color: var(--ink);
+}
+.wordmark .hq { color: var(--wa-dark); }
+
+.card {
+  background: #fff;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  box-shadow: 0 2px 8px rgba(0,0,0,.05), 0 10px 32px rgba(0,0,0,.07);
+  padding: 36px 36px 32px;
+}
+.card-title {
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-size: 23px; font-weight: 800;
+  letter-spacing: -.03em; margin-bottom: 5px; color: var(--ink);
+}
+.card-sub {
+  font-size: 14px; color: var(--ink-4);
+  margin-bottom: 26px; line-height: 1.5; font-weight: 400;
+}
+
+.field { margin-bottom: 16px; }
+.field label {
+  display: block; font-size: 11px; font-weight: 600;
+  letter-spacing: .06em; text-transform: uppercase;
+  color: var(--ink-3); margin-bottom: 7px;
+}
+.field input {
+  width: 100%; padding: 11px 14px;
+  border: 1.5px solid var(--border); border-radius: var(--r);
+  font-family: 'DM Sans', sans-serif; font-size: 14px;
+  background: var(--bg); color: var(--ink); outline: none;
+  transition: border-color .15s, background .15s, box-shadow .15s;
+}
+.field input:focus {
+  border-color: var(--wa);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(37,211,102,.12);
+}
+.field-hint { font-size: 12px; color: var(--ink-4); margin-top: 5px; line-height: 1.5; }
+
+.warn-box {
+  background: #FFFBEB; border: 1px solid #FDE68A;
+  border-radius: 10px; padding: 12px 14px;
+  margin-bottom: 18px; font-size: 12.5px; color: #92400E; line-height: 1.55;
+}
+.warn-box strong { font-weight: 600; }
+
+.btn-submit {
+  width: 100%; padding: 13px;
+  background: var(--wa); color: #fff; border: none;
+  border-radius: var(--r); font-family: 'DM Sans', sans-serif;
+  font-size: 15px; font-weight: 600; cursor: pointer;
+  transition: background .15s, transform .12s, box-shadow .15s;
+  box-shadow: 0 2px 10px rgba(37,211,102,.28);
+  letter-spacing: -.01em;
+}
+.btn-submit:hover {
+  background: var(--wa-dark);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(37,211,102,.28);
+}
+.btn-submit:disabled { opacity: .6; cursor: not-allowed; transform: none; box-shadow: none; }
+
+.err {
+  margin-top: 12px; padding: 11px 14px;
+  background: #FEF2F2; color: var(--red);
+  border: 1px solid #FECACA; border-radius: var(--r);
+  font-size: 13px; display: none; line-height: 1.45;
+}
+
+/* SUCCESS STATE */
+.success { text-align: center; display: none; padding: 4px 0 8px; }
+.success-icon {
+  width: 58px; height: 58px;
+  background: linear-gradient(135deg, #DCFCE7, #BBF7D0);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 18px; font-size: 26px;
+  box-shadow: 0 4px 16px rgba(37,211,102,.15);
+}
+.success h2 {
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-size: 21px; font-weight: 800; letter-spacing: -.025em;
+  margin-bottom: 8px; color: var(--ink);
+}
+.success p { font-size: 14px; color: var(--ink-3); line-height: 1.6; }
+.mid-chip {
+  display: inline-block; background: var(--bg);
+  border: 1.5px solid var(--border); border-radius: 10px;
+  padding: 9px 24px; margin: 14px 0;
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-size: 26px; font-weight: 800; letter-spacing: .07em; color: var(--ink);
+}
+
+.btn-dash {
+  display: block; width: 100%; padding: 13px;
+  background: var(--wa); color: #fff; border: none;
+  border-radius: var(--r); font-family: 'DM Sans', sans-serif;
+  font-size: 15px; font-weight: 600; cursor: pointer;
+  transition: background .15s; text-decoration: none; text-align: center;
+  box-shadow: 0 2px 10px rgba(37,211,102,.25); letter-spacing: -.01em;
+  margin-top: 4px;
+}
+.btn-dash:hover { background: var(--wa-dark); }
+
+.signin-link {
+  text-align: center; margin-top: 18px;
+  font-size: 13px; color: var(--ink-4);
+}
+.signin-link a { color: var(--wa-dark); font-weight: 600; text-decoration: none; }
+.signin-link a:hover { text-decoration: underline; }
+
+@media (max-width: 480px) {
+  body { padding: 24px 16px; }
+  .card { padding: 26px 22px 24px; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <a href="/" class="brand">
+    <div class="logo">
+      <svg viewBox="0 0 20 20" fill="none">
+        <path d="M10 2C5.58 2 2 5.58 2 10c0 1.42.37 2.75 1.02 3.9L2 18l4.25-1.1A7.94 7.94 0 0010 18c4.42 0 8-3.58 8-8s-3.58-8-8-8z" fill="white" opacity=".95"/>
+      </svg>
+    </div>
+    <span class="wordmark">Shoppr<span class="hq">HQ</span></span>
+  </a>
+
+  <!-- Registration form -->
+  <div class="card" id="form-card">
+    <div class="card-title">Create your store</div>
+    <div class="card-sub">Open your WhatsApp store in minutes. No technical setup needed.</div>
+
+    <div class="field">
+      <label>Business Name</label>
+      <input id="r-name" type="text" placeholder="e.g. Altekflo Enterprises" autocomplete="organization">
+    </div>
+    <div class="field">
+      <label>Email Address</label>
+      <input id="r-email" type="email" placeholder="you@example.com" autocomplete="email">
+      <div class="field-hint">Your Merchant ID and sign-in details arrive here.</div>
+    </div>
+    <div class="field">
+      <label>4-Digit PIN</label>
+      <input id="r-pin" type="password" placeholder="••••" maxlength="4" inputmode="numeric" autocomplete="new-password">
+      <div class="field-hint">This is your login PIN. Keep it memorable.</div>
+    </div>
+    <div class="field">
+      <label>Confirm PIN</label>
+      <input id="r-pin2" type="password" placeholder="••••" maxlength="4" inputmode="numeric" autocomplete="new-password">
+    </div>
+    <div class="field">
+      <label>Store WhatsApp Number <span style="font-weight:400;color:var(--ink-4);font-size:11px;text-transform:none;letter-spacing:0">(optional — add later)</span></label>
+      <input id="r-wa" type="tel" placeholder="e.g. 2348012345678" inputmode="numeric" autocomplete="tel">
+      <div class="field-hint">The number your customers will message to order. International format, no + sign.</div>
+    </div>
+    <div class="warn-box">
+      ⚠️ <strong>Important:</strong> This number must <strong>not</strong> be active on WhatsApp or WhatsApp Business App. If it is, you'll need to remove it first. Your onboarding specialist will walk you through this.
+    </div>
+
+    <button class="btn-submit" id="r-btn" onclick="doRegister()">Create account</button>
+    <div class="err" id="r-err"></div>
+  </div>
+
+  <!-- Success state -->
+  <div class="card success" id="success-card">
+    <div class="success-icon">✉️</div>
+    <h2>Check your email</h2>
+    <p>We sent a 6-digit verification code to<br><strong style="color:var(--ink)" id="s-email"></strong></p>
+    <div class="mid-chip" id="s-mid"></div>
+    <p style="font-size:13px;color:var(--ink-4);margin-bottom:20px;line-height:1.6">
+      This is your Merchant ID — save it. You'll use it every time you sign in.
+    </p>
+    <p style="font-size:13px;color:var(--ink-3);margin-bottom:20px;line-height:1.6">
+      Verify your email from the dashboard, then <strong>add your products</strong> while you wait. Once you set your operator number in Settings, your onboarding specialist will reach out to activate your WhatsApp store.
+    </p>
+    <a href="/dashboard" class="btn-dash">Go to dashboard →</a>
+    <p style="font-size:12px;color:var(--ink-4);margin-top:14px;line-height:1.5">
+      Didn't get the code? <a href="/dashboard" style="color:var(--wa-dark);font-weight:600;text-decoration:none">Sign in</a> and click <em>Resend code</em> from your dashboard.
+    </p>
+  </div>
+
+  <div class="signin-link">
+    Already have an account? <a href="/dashboard">Sign in →</a>
+  </div>
+
+</div>
+
+<script>
+const BASE = (
+  window.location.hostname === 'localhost' ||
+  window.location.hostname === '127.0.0.1'
+) ? 'http://localhost:8000' : '';
+
+async function doRegister() {
+  const name  = document.getElementById('r-name').value.trim();
+  const email = document.getElementById('r-email').value.trim();
+  const pin   = document.getElementById('r-pin').value.trim();
+  const pin2  = document.getElementById('r-pin2').value.trim();
+  const waRaw = document.getElementById('r-wa').value.trim();
+  const wa    = waRaw.replace(/^\+/, '').replace(/\s+/g, '') || null;
+  const btn   = document.getElementById('r-btn');
+  const err   = document.getElementById('r-err');
+
+  err.style.display = 'none';
+
+  if (!name)                          return showErr('Enter your business name.');
+  if (!email || !email.includes('@')) return showErr('Enter a valid email address.');
+  if (!/^\d{4}$/.test(pin))           return showErr('PIN must be exactly 4 digits.');
+  if (pin !== pin2)                   return showErr('PINs do not match.');
+  if (wa && !/^\d{7,15}$/.test(wa))   return showErr('WhatsApp number must be 7–15 digits, no spaces or + sign.');
+
+  btn.disabled = true; btn.textContent = 'Creating account…';
+
+  try {
+    const res  = await fetch(`${BASE}/api/v1/merchants/`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ name, email, password: pin, whatsapp_number: wa }),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      showErr(data.detail || 'Registration failed — please try again.');
+      return;
+    }
+
+    document.getElementById('form-card').style.display   = 'none';
+    document.getElementById('success-card').style.display = 'block';
+    document.getElementById('s-email').textContent = email;
+    document.getElementById('s-mid').textContent   = data.id;
+
+  } catch {
+    showErr('Connection error — please check your internet and try again.');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Create account';
+  }
+}
+
+function showErr(msg) {
+  const el = document.getElementById('r-err');
+  el.textContent = msg; el.style.display = 'block';
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter') doRegister();
+});
+</script>
+</body>
+</html>

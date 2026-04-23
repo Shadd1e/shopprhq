@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>ShopprHQ — Dashboard</title>
+<link rel="icon" type="image/png" href="/static/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/dashboard/css/main.css">
+<style>
+  .logo-img { width: 100%; height: 100%; object-fit: contain; border-radius: inherit; }
+  .logo-fallback { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+</style>
+</head>
+<body>
+
+<!-- ── SVG ICON DEFS (reusable, milk on green via CSS) ───────────────────── -->
+<svg style="display:none" xmlns="http://www.w3.org/2000/svg">
+  <symbol id="ic-grid" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="2" y="2" width="7" height="7" rx="1.5"/><rect x="11" y="2" width="7" height="7" rx="1.5"/>
+    <rect x="2" y="11" width="7" height="7" rx="1.5"/><rect x="11" y="11" width="7" height="7" rx="1.5"/>
+  </symbol>
+  <symbol id="ic-box" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M16 7l-6-4-6 4v6l6 4 6-4V7z"/><path d="M10 3v10M4.5 6.5l5.5 3.5 5.5-3.5"/>
+  </symbol>
+  <symbol id="ic-tag" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M3 3h6l8 8a2 2 0 010 2.83l-3.17 3.17a2 2 0 01-2.83 0L3 9V3z"/><circle cx="7" cy="7" r="1" fill="currentColor" stroke="none"/>
+  </symbol>
+  <symbol id="ic-receipt" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M5 2h10a1 1 0 011 1v14l-2.5-1.5L11 17l-1.5-1.5L8 17l-1.5-1.5L4 17V3a1 1 0 011-1z"/>
+    <path d="M7 7h6M7 10h4"/>
+  </symbol>
+  <symbol id="ic-settings" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="10" cy="10" r="2.5"/>
+    <path d="M10 3v1.5M10 15.5V17M3 10h1.5M15.5 10H17M4.93 4.93l1.06 1.06M14.01 14.01l1.06 1.06M4.93 15.07l1.06-1.06M14.01 5.99l1.06-1.06"/>
+  </symbol>
+  <symbol id="ic-logout" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M13 10H3M10 7l3 3-3 3"/><path d="M8 4H5a1 1 0 00-1 1v10a1 1 0 001 1h3"/>
+  </symbol>
+  <!-- ShopprHQ wordmark icon — white O on green -->
+  <symbol id="ic-shopprhq" viewBox="0 0 20 20" fill="none">
+    <circle cx="10" cy="10" r="5.5" stroke="white" stroke-width="2"/>
+    <circle cx="10" cy="10" r="2" fill="white"/>
+  </symbol>
+  <!-- Hamburger -->
+  <symbol id="ic-menu" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+    <path d="M3 5h14M3 10h14M3 15h14"/>
+  </symbol>
+  <!-- Close -->
+  <symbol id="ic-close" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+    <path d="M5 5l10 10M15 5L5 15"/>
+  </symbol>
+</svg>
+
+<!-- ════════════════════════════════════════════
+     AUTH
+════════════════════════════════════════════ -->
+<div id="auth">
+  <div class="auth-wrap">
+    <div class="auth-brand fade">
+      <div class="auth-logo">
+        <svg><use href="#ic-shopprhq"/></svg>
+      </div>
+      <span class="auth-wordmark">ShopprHQ</span>
+    </div>
+    <!-- Shown when user arrives from email verification link -->
+    <div id="verified-login-banner" style="display:none;margin-bottom:16px;
+      background:#DCFCE7;border:1.5px solid #22C55E;border-radius:12px;
+      padding:14px 18px;font-size:14px;color:#15803D;font-weight:600;
+      text-align:center;line-height:1.5">
+      ✅ Email verified!<br>
+      <span style="font-weight:400;font-size:13px">Sign in below to access your dashboard.</span>
+    </div>
+
+    <div class="auth-card fade" style="animation-delay:.07s">
+      <div class="auth-h">Sign in</div>
+      <div class="auth-sub">Enter your Merchant ID and 4-digit PIN</div>
+      <div class="field">
+        <label>Merchant ID</label>
+        <input id="l-mid" type="text" placeholder="e.g. ME0001" autocomplete="username" style="text-transform:uppercase">
+      </div>
+      <div class="field">
+        <label>PIN</label>
+        <input id="l-pass" type="password" placeholder="••••" maxlength="4" inputmode="numeric" autocomplete="current-password">
+      </div>
+      <button class="btn-login" id="l-btn" onclick="doLogin()">Sign in</button>
+      <div class="auth-err" id="l-err"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     APP
+════════════════════════════════════════════ -->
+<div id="app">
+
+  <!-- Sidebar backdrop (mobile) -->
+  <div class="sb-overlay" id="sb-overlay" onclick="closeSidebar()"></div>
+
+  <div class="layout">
+
+    <!-- ── SIDEBAR ─────────────────────────────── -->
+    <nav class="sidebar" id="sidebar">
+      <div class="sb-top">
+        <div class="sb-brand">
+          <div class="sb-logo">
+            <img src="/static/logo.png" alt="ShopprHQ" class="logo-img" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+            <span class="logo-fallback" style="display:none"><svg><use href="#ic-shopprhq"/></svg></span>
+          </div>
+          <span class="sb-wordmark">ShopprHQ</span>
+        </div>
+
+        <div class="sb-section">Overview</div>
+        <button class="sb-link on" onclick="nav('overview',this);closeSidebar()">
+          <svg width="16" height="16"><use href="#ic-grid"/></svg>Dashboard
+        </button>
+
+        <div class="sb-section">Store</div>
+        <button class="sb-link" onclick="nav('products',this);closeSidebar()">
+          <svg width="16" height="16"><use href="#ic-box"/></svg>Products
+        </button>
+        <button class="sb-link" onclick="nav('inventory',this);closeSidebar()">
+          <svg width="16" height="16"><use href="#ic-tag"/></svg>Inventory
+        </button>
+        <button class="sb-link" onclick="nav('orders',this);closeSidebar()">
+          <svg width="16" height="16"><use href="#ic-receipt"/></svg>Orders
+        </button>
+
+        <div class="sb-section">Account</div>
+        <button class="sb-link" onclick="nav('settings',this);closeSidebar()">
+          <svg width="16" height="16"><use href="#ic-settings"/></svg>Settings
+        </button>
+      </div>
+
+      <div class="sb-foot">
+        <div class="sb-merchant">
+          <div class="sb-avatar" id="s-av">M</div>
+          <div class="sb-merchant-info">
+            <div class="sb-merchant-name" id="s-name">Merchant</div>
+            <div class="sb-merchant-id" id="s-id">—</div>
+          </div>
+          <button class="btn-out" onclick="openModal('m-logout')" title="Sign out">
+            <svg><use href="#ic-logout"/></svg>
+          </button>
+        </div>
+      </div>
+    </nav>
+
+    <!-- ── MAIN ────────────────────────────────── -->
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column;">
+
+      <!-- Mobile topbar -->
+      <header class="topbar">
+        <div class="topbar-brand">
+          <div class="topbar-logo">
+            <img src="/static/logo.png" alt="ShopprHQ" class="logo-img" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+            <span class="logo-fallback" style="display:none"><svg><use href="#ic-shopprhq"/></svg></span>
+          </div>
+          <span class="topbar-wordmark">ShopprHQ</span>
+        </div>
+        <button class="hamburger" id="hamburger" onclick="openSidebar()" aria-label="Open menu">
+          <svg width="22" height="22"><use href="#ic-menu"/></svg>
+        </button>
+      </header>
+
+      <main class="main">
+
+        <!-- OVERVIEW -->
+        <div class="page on" id="pg-overview">
+          <div class="page-head fade">
+            <div>
+              <div class="page-title">Good <span id="g-time">morning</span>, <span id="g-name">there</span></div>
+              <div class="page-sub">Here's what's happening in your stores.</div>
+            </div>
+          </div>
+
+          <!-- Email verification banner — shown until email_verified=true -->
+        <div id="email-verify-banner" style="display:none;margin-bottom:16px">
+          <div style="background:#EFF6FF;border:1.5px solid #3B82F6;border-radius:12px;
+            padding:20px 24px">
+            <div style="display:flex;align-items:flex-start;gap:14px;margin-bottom:16px">
+              <div style="font-size:20px;flex-shrink:0;margin-top:2px">✉️</div>
+              <div style="flex:1">
+                <div style="font-weight:600;font-size:14px;color:#1E40AF;margin-bottom:3px">
+                  Verify your email address
+                </div>
+                <div style="font-size:13px;color:#3B82F6;line-height:1.5">
+                  We sent a 6-digit code to <strong id="ev-email-display"></strong>.
+                  Enter it below to activate your account.
+                </div>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap">
+              <input id="ev-code-input" type="text" inputmode="numeric" maxlength="6"
+                placeholder="000000"
+                style="width:130px;padding:10px 14px;border:1.5px solid #93C5FD;border-radius:8px;
+                  font-size:20px;font-weight:700;letter-spacing:.18em;text-align:center;
+                  font-family:inherit;color:#1E40AF;background:#fff;outline:none"
+                oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+              <button onclick="submitVerificationCode()"
+                style="padding:10px 18px;background:#3B82F6;color:#fff;border:none;
+                  border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">
+                Verify
+              </button>
+              <button id="ev-resend-btn" onclick="resendVerification()"
+                style="padding:10px 14px;background:none;border:1.5px solid #93C5FD;color:#1E40AF;
+                  border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">
+                Resend Code
+              </button>
+              <button onclick="openChangeEmail()"
+                style="padding:10px 14px;background:none;border:none;color:#6B7280;
+                  font-size:13px;cursor:pointer;font-family:inherit">
+                Wrong email?
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- WABA activation banner — shown until WhatsApp is live -->
+        <div id="waba-banner" style="display:none;margin-bottom:20px;background:#FFF8E1;
+          border:1.5px solid #F59E0B;border-radius:12px;padding:14px 18px;
+          display:flex;align-items:flex-start;gap:12px">
+          <div style="font-size:20px;flex-shrink:0">⏳</div>
+          <div>
+            <div style="font-weight:600;font-size:14px;color:#92400E;margin-bottom:3px">
+              WhatsApp activation pending
+            </div>
+            <div style="font-size:13px;color:#B45309;line-height:1.5">
+              Your onboarding specialist will reach out on your operator number once you set it.
+              Make sure your store WhatsApp number is <strong>not</strong> currently active on
+              WhatsApp or WhatsApp Business App — if it is, delete it from your phone settings first.
+              Questions? <a href="mailto:hello@shopprhq.com" style="color:#92400E">hello@shopprhq.com</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Setup checklist — hidden once all steps complete -->
+        <div id="setup-checklist" style="display:none;margin-bottom:20px">
+          <div id="checklist-items"></div>
+        </div>
+
+        <div class="stats stagger fade">
+            <!-- Revenue -->
+            <div class="stat g">
+              <div class="stat-label">Today's Revenue</div>
+              <div class="stat-num" id="st-rev-num">—</div>
+              <div class="stat-sub" id="st-rev-sub">— this month</div>
+            </div>
+            <!-- Orders -->
+            <div class="stat a">
+              <div class="stat-label">Today's Orders</div>
+              <div class="stat-num" id="st-ord-num">—</div>
+              <div class="stat-sub" id="st-ord-sub">— this month</div>
+            </div>
+            <!-- Pending -->
+            <div class="stat b">
+              <div class="stat-label">Pending Payment</div>
+              <div class="stat-num" id="st-pend">—</div>
+              <div class="stat-sub">Awaiting card payment</div>
+            </div>
+            <!-- Pickup -->
+            <div class="stat r">
+              <div class="stat-label">Awaiting Pickup</div>
+              <div class="stat-num" id="st-cash">—</div>
+              <div class="stat-sub">Cash orders to confirm</div>
+            </div>
+          </div>
+
+          <div class="card fade">
+            <div class="card-head">
+              <span class="card-title">Recent Orders</span>
+              <button class="btn btn-ghost" style="font-size:12px" onclick="nav('orders',document.querySelector('[onclick*=orders]'))">View all →</button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Code</th><th>Customer</th><th>Amount</th><th>Method</th><th>Status</th><th>Date</th><th></th></tr></thead>
+                <tbody id="r-orders"><tr><td class="loading-cell" colspan="7">Loading…</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- PRODUCTS -->
+        <div class="page" id="pg-products">
+          <div class="page-head fade">
+            <div>
+              <div class="page-title">Products</div>
+              <div class="page-sub">Manage your catalogue across all stores</div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn btn-ghost" onclick="openCsvUpload()">Upload CSV</button>
+              <button class="btn btn-wa" onclick="openAddProduct()">+ Add Product</button>
+            </div>
+          </div>
+          <div class="card fade">
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Name</th><th>Price</th><th>Stock</th><th>Store</th><th></th></tr></thead>
+                <tbody id="t-products"><tr><td class="loading-cell" colspan="5">Loading…</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- INVENTORY -->
+        <div class="page" id="pg-inventory">
+          <div class="page-head fade">
+            <div>
+              <div class="page-title">Inventory</div>
+              <div class="page-sub">Adjust stock levels and low-stock thresholds</div>
+            </div>
+          </div>
+          <div class="card fade">
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Product</th><th>Store</th><th>Stock</th><th>Threshold</th><th></th></tr></thead>
+                <tbody id="t-inventory"><tr><td class="loading-cell" colspan="5">Loading…</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- ORDERS -->
+        <div class="page" id="pg-orders">
+          <div class="page-head fade">
+            <div>
+              <div class="page-title">Orders</div>
+              <div class="page-sub">All orders across your stores</div>
+            </div>
+            <select id="o-filter" class="btn btn-ghost" onchange="loadOrders()" style="cursor:pointer">
+              <option value="">All statuses</option>
+              <option value="PENDING_PAYMENT">Pending Payment</option>
+              <option value="AWAITING_PICKUP">Awaiting Pickup</option>
+              <option value="PAID">Paid</option>
+              <option value="FULFILLED">Fulfilled</option>
+              <option value="CANCELLED">Cancelled</option>
+            </select>
+          </div>
+          <div class="card fade">
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Code</th><th>Customer</th><th>Amount</th><th>Method</th><th>Status</th><th>Date</th><th></th></tr></thead>
+                <tbody id="t-orders"><tr><td class="loading-cell" colspan="7">Loading…</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- SETTINGS -->
+        <div class="page" id="pg-settings">
+          <div class="page-head fade">
+            <div>
+              <div class="page-title">Settings</div>
+              <div class="page-sub">Store configuration and notification setup</div>
+            </div>
+          </div>
+          <div class="card fade">
+            <div class="card-head" style="display:flex;align-items:center;justify-content:space-between">
+            <span class="card-title">Your Stores</span>
+            <button id="add-store-btn" class="btn btn-wa" style="font-size:13px;padding:8px 14px;display:none" onclick="openAddStoreModal()">+ Add Store</button>
+          </div>
+            <div id="stores-list" style="display:flex;flex-direction:column;gap:0">
+              <div style="padding:24px;text-align:center;color:var(--ink-3);font-size:14px">Loading…</div>
+            </div>
+          </div>
+        </div>
+
+      </main>
+    </div><!-- end flex col -->
+  </div><!-- end layout -->
+</div><!-- end app -->
+
+<!-- ════════════════════════════════════════════
+     MODALS
+════════════════════════════════════════════ -->
+
+<!-- Add Product -->
+<div class="overlay" id="m-product">
+  <div class="modal">
+    <div class="modal-head"><span class="modal-title">Add Product</span><button class="btn-x" onclick="closeModal('m-product')">×</button></div>
+    <div class="m-body">
+      <div class="m-row">
+        <div><label class="f-label">Name *</label><input class="f-input" id="p-name" placeholder="e.g. Coca-Cola 50cl"></div>
+        <div><label class="f-label">Price ₦ *</label><input class="f-input" id="p-price" type="number" placeholder="500" inputmode="decimal"></div>
+      </div>
+      <div class="m-row full"><div><label class="f-label">Description</label><input class="f-input" id="p-desc" placeholder="Optional"></div></div>
+      <div class="m-row">
+        <div><label class="f-label">Store *</label><select class="f-input" id="p-client"></select></div>
+        <div><label class="f-label">Initial Stock</label><input class="f-input" id="p-stock" type="number" placeholder="0" min="0" inputmode="numeric"></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('m-product')">Cancel</button>
+      <button class="btn btn-wa" onclick="submitProduct()">Add Product</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Product -->
+<div class="overlay" id="m-edit-product">
+  <div class="modal">
+    <div class="modal-head"><span class="modal-title">Edit Product</span><button class="btn-x" onclick="closeModal('m-edit-product')">×</button></div>
+    <input type="hidden" id="ep-id"><input type="hidden" id="ep-cid">
+    <div class="m-body">
+      <div class="m-row full"><div><label class="f-label">Product Name *</label><input class="f-input" id="ep-name" placeholder="e.g. Coca-Cola 50cl"></div></div>
+      <div class="m-row">
+        <div><label class="f-label">Price (₦) *</label><input class="f-input" id="ep-price" type="number" min="0.01" step="0.01" placeholder="500" inputmode="decimal"></div>
+        <div><label class="f-label">Category</label><input class="f-input" id="ep-cat" placeholder="e.g. Beverages"></div>
+      </div>
+      <div class="m-row full"><div><label class="f-label">Description</label><input class="f-input" id="ep-desc" placeholder="Optional"></div></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('m-edit-product')">Cancel</button>
+      <button class="btn btn-wa" onclick="submitEditProduct()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- Adjust Stock -->
+<div class="overlay" id="m-stock">
+  <div class="modal">
+    <div class="modal-head"><span class="modal-title">Adjust Stock</span><button class="btn-x" onclick="closeModal('m-stock')">×</button></div>
+    <input type="hidden" id="as-pid"><input type="hidden" id="as-cid"><input type="hidden" id="as-mid">
+    <div class="m-body">
+      <div class="m-row">
+        <div><label class="f-label">Product</label><input class="f-input" id="as-name" readonly></div>
+        <div><label class="f-label">Current Stock</label><input class="f-input" id="as-cur" readonly></div>
+      </div>
+      <div class="m-row">
+        <div><label class="f-label">Set Stock To</label><input class="f-input" id="as-new" type="number" min="0" placeholder="New quantity" inputmode="numeric"></div>
+        <div><label class="f-label">Low Stock Threshold</label><input class="f-input" id="as-thresh" type="number" min="0" placeholder="e.g. 5 (blank = off)" inputmode="numeric"></div>
+      </div>
+      <div class="f-note">Operator gets a WhatsApp alert when stock hits the threshold.</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('m-stock')">Cancel</button>
+      <button class="btn btn-wa" onclick="submitStock()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Store Address -->
+<div class="overlay" id="m-address">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-head"><span class="modal-title">Store Address</span><button class="btn-x" onclick="closeModal('m-address')">×</button></div>
+    <input type="hidden" id="addr-cid">
+    <div class="m-body">
+      <div class="m-row full"><div>
+        <label class="f-label">Address</label>
+        <input class="f-input" id="addr-val" placeholder="e.g. 14 Rumuola Road, Port Harcourt">
+        <div class="f-note" style="margin-top:8px">This address appears on PDF receipts for this store.</div>
+      </div></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('m-address')">Cancel</button>
+      <button class="btn btn-wa" onclick="submitAddress()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- AI Assistant Persona -->
+<div class="overlay" id="m-persona">
+  <div class="modal" style="max-width:500px">
+    <div class="modal-head">
+      <span class="modal-title">AI Assistant Persona</span>
+      <button class="btn-x" onclick="closeModal('m-persona')">×</button>
+    </div>
+    <input type="hidden" id="persona-cid">
+    <div class="m-body">
+      <div class="m-row full"><div>
+        <label class="f-label">Assistant Name <span style="color:var(--ink-3);font-weight:400">(optional)</span></label>
+        <input class="f-input" id="persona-name" placeholder="e.g. Amara, Chef Tunde, Support Bot"
+               oninput="_updatePersonaPreview()" maxlength="80">
+        <div class="f-note" style="margin-top:6px">
+          Customers will see this name in greetings. Leave blank to use a generic assistant name.
+        </div>
+      </div></div>
+
+      <div class="m-row full" style="margin-top:16px"><div>
+        <label class="f-label">Personality Style</label>
+        <select class="f-input" id="persona-style" onchange="_updatePersonaPreview()">
+          <option value="friendly_casual">Friendly &amp; Casual</option>
+          <option value="professional">Professional</option>
+          <option value="warm_enthusiastic">Warm &amp; Enthusiastic</option>
+        </select>
+      </div></div>
+
+      <div style="margin-top:16px;padding:14px;background:var(--surface-2,#f8f8f8);border-radius:10px;border:1px solid var(--border,#e8e8e8)">
+        <div style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);margin-bottom:8px">Preview</div>
+        <div style="font-size:14px;font-weight:600;color:var(--ink)" id="persona-preview-name">Assistant</div>
+        <div style="font-size:13px;color:var(--ink-3);margin-top:4px;line-height:1.5" id="persona-preview-style"></div>
+      </div>
+    </div>
+    <div class="modal-foot" style="justify-content:space-between">
+      <button class="btn btn-ghost" style="color:var(--red);border-color:var(--red)" onclick="clearPersona()">Clear Persona</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost" onclick="closeModal('m-persona')">Cancel</button>
+        <button class="btn btn-wa" id="persona-submit" onclick="submitPersona()">Save Persona</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Operator Phone -->
+<div class="overlay" id="m-opphone">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-head"><span class="modal-title">Set Operator Number</span><button class="btn-x" onclick="closeModal('m-opphone')">×</button></div>
+    <input type="hidden" id="op-cid">
+    <div class="m-body">
+      <div style="background:#F0FDF4;border:1px solid #86EFAC;border-radius:10px;padding:13px 16px;margin-bottom:16px">
+        <div style="font-weight:600;font-size:13px;color:#16A34A;margin-bottom:4px">&#128241; This triggers your onboarding</div>
+        <div style="font-size:13px;color:#15803D;line-height:1.5">
+          Once you save your operator number, your assigned ShopprHQ specialist will reach
+          out to you on this number via WhatsApp to complete your store activation.
+          Make sure it's a number you actively use.
+        </div>
+      </div>
+      <div class="m-row full">
+        <div>
+          <label class="f-label">Your WhatsApp Number (no + prefix)</label>
+          <input class="f-input" id="op-phone" placeholder="e.g. 2348012345678" inputmode="tel">
+          <div class="f-note" style="margin-top:6px">
+            This number receives order alerts and confirms cash pickups by replying
+            <strong>confirm ORDERCODE</strong>. One number per store.
+          </div>
+        </div>
+      </div>
+      <div style="background:#FFF8E1;border:1px solid #F59E0B;border-radius:8px;padding:11px 14px;margin-top:12px">
+        <div style="font-size:12px;color:#92400E;line-height:1.5">
+          &#9888;&#65039; <strong>Before your specialist contacts you</strong> — make sure the WhatsApp number
+          you submitted for your <em>store</em> is not currently active on WhatsApp or
+          WhatsApp Business App. If it is, you&#39;ll need to delete it as a WhatsApp account
+          from your phone settings first.
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('m-opphone')">Cancel</button>
+      <button class="btn btn-wa" onclick="submitOpPhone()">Save &amp; Notify Specialist</button>
+    </div>
+  </div>
+</div>
+
+<!-- Store Detail -->
+<div class="overlay" id="m-store-detail">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-head">
+      <span class="modal-title" id="sd-title">Store Settings</span>
+      <button class="btn-x" onclick="closeModal('m-store-detail')">×</button>
+    </div>
+    <input type="hidden" id="sd-cid">
+    <div style="padding:20px 22px;display:flex;flex-direction:column;gap:16px;max-height:70vh;overflow-y:auto">
+
+      <!-- Identity -->
+      <div style="padding:14px 16px;background:var(--bg);border-radius:10px;border:1px solid var(--border)">
+        <div style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);margin-bottom:10px">Store Info</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div style="display:flex;justify-content:space-between;font-size:13px">
+            <span style="color:var(--ink-3)">Store ID</span>
+            <span id="sd-id" style="font-family:monospace;font-weight:600;color:var(--ink)">—</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:13px">
+            <span style="color:var(--ink-3)">WhatsApp</span>
+            <span id="sd-wa" style="color:var(--ink)">—</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Operator Phone -->
+      <div style="padding:14px 16px;background:var(--bg);border-radius:10px;border:1px solid var(--border)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <div style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)">Operator Phone</div>
+          <button class="btn-xs" id="sd-op-btn" onclick="openOpPhoneFromDetail()">Set</button>
+        </div>
+        <div id="sd-op-val" style="font-size:14px;color:var(--ink-3)">Not set</div>
+        <div style="font-size:12px;color:var(--ink-4);margin-top:4px;line-height:1.4">Receives new-order alerts &amp; low-stock warnings. Can confirm cash orders by sending <code>confirm ORDERCODE</code> on WhatsApp. Setting this also triggers your onboarding specialist to activate your store.</div>
+      </div>
+
+      <!-- Address -->
+      <div style="padding:14px 16px;background:var(--bg);border-radius:10px;border:1px solid var(--border)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <div style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)">Store Address</div>
+          <button class="btn-xs" id="sd-addr-btn" onclick="openAddressFromDetail()">Set</button>
+        </div>
+        <div id="sd-addr-val" style="font-size:14px;color:var(--ink-3)">Not set</div>
+        <div style="font-size:12px;color:var(--ink-4);margin-top:4px">Appears on customer receipts.</div>
+      </div>
+
+      <!-- AI Persona -->
+      <div style="padding:14px 16px;background:var(--bg);border-radius:10px;border:1px solid var(--border)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <div style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)">AI Assistant Persona</div>
+          <button class="btn-xs" id="sd-persona-btn" onclick="openPersonaFromDetail()">Set</button>
+        </div>
+        <div id="sd-persona-name" style="font-size:14px;color:var(--ink-3)">Default</div>
+        <div id="sd-persona-style" style="font-size:12px;color:var(--ink-4);margin-top:4px"></div>
+      </div>
+
+      <!-- Bank Account -->
+      <div style="padding:14px 16px;background:var(--bg);border-radius:10px;border:1px solid var(--border)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <div style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)">Bank Account</div>
+          <div id="sd-bank-btn-wrap"></div>
+        </div>
+        <div id="sd-bank-val" style="font-size:14px;color:var(--ink-3)">Not connected</div>
+        <div style="font-size:12px;color:var(--ink-4);margin-top:4px">Card payments settle directly to this account.</div>
+      </div>
+
+      <!-- Delivery Settings -->
+      <div style="padding:14px 16px;background:var(--bg);border-radius:10px;border:1px solid var(--border)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <div style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)">Delivery</div>
+          <button class="btn-xs" id="sd-delivery-btn" onclick="openDeliveryFromDetail()">Configure</button>
+        </div>
+        <div id="sd-delivery-val" style="font-size:14px;color:var(--ink-3)">Disabled</div>
+        <div style="font-size:12px;color:var(--ink-4);margin-top:4px;line-height:1.4">When enabled, customers can choose delivery at checkout. Port Harcourt only.</div>
+      </div>
+
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('m-store-detail')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Order Detail -->
+<div class="overlay" id="m-order-detail">
+  <div class="modal" style="max-width:600px">
+    <div class="modal-head">
+      <span class="modal-title">Order Details</span>
+      <button class="btn-x" onclick="closeModal('m-order-detail')">×</button>
+    </div>
+    <div id="od-body" style="padding:20px 22px;max-height:60vh;overflow-y:auto"></div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('m-order-detail')">Close</button>
+      <button class="btn btn-ghost" id="od-print-btn" style="display:none" onclick="printOrderReceipt()">🖨 Print</button>
+      <button class="btn btn-ghost" id="od-deliver-btn" style="display:none;border-color:var(--wa);color:var(--wa-dark)" onclick="markOutForDeliveryFromModal()">Out for Delivery</button>
+      <button class="btn btn-wa" id="od-confirm-btn" style="display:none" onclick="confirmOrderFromModal()">Confirm Payment Received</button>
+    </div>
+  </div>
+</div>
+
+<!-- Change Email Modal -->
+<div class="overlay" id="m-change-email">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-head">
+      <span class="modal-title">Change Email Address</span>
+      <button class="btn-x" onclick="closeModal('m-change-email')">×</button>
+    </div>
+    <div class="m-body">
+      <div class="f-note" style="margin-bottom:16px">
+        Current email: <strong id="cev-current"></strong><br>
+        Once verified, your email cannot be changed.
+      </div>
+      <div>
+        <label class="f-label">New Email Address</label>
+        <input class="f-input" id="cev-input" type="email" placeholder="new@example.com">
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('m-change-email')">Cancel</button>
+      <button class="btn btn-wa" id="cev-submit" onclick="submitChangeEmail()">
+        Update &amp; Resend
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Onboarding Guide Modal -->
+<div class="overlay" id="m-guide">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-head">
+      <span class="modal-title">Getting started with ShopprHQ</span>
+      <button class="btn-x" onclick="closeModal('m-guide')">×</button>
+    </div>
+    <div style="padding:0 22px 22px;max-height:70vh;overflow-y:auto">
+
+      <div style="display:grid;gap:12px;padding-top:20px">
+
+        <div style="display:flex;gap:14px;padding:16px;background:var(--bg);border-radius:10px" id="guide-step-1">
+          <div style="width:32px;height:32px;background:var(--wa);border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:14px;flex-shrink:0">1</div>
+          <div>
+            <div style="font-weight:600;font-size:14px;margin-bottom:3px">Add your products</div>
+            <div style="font-size:13px;color:var(--ink-3);line-height:1.5">Go to <strong>Products</strong> and add everything you sell — name, price, and initial stock. You can also bulk upload via CSV.</div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:14px;padding:16px;background:var(--bg);border-radius:10px" id="guide-step-2">
+          <div style="width:32px;height:32px;background:var(--wa);border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:14px;flex-shrink:0">2</div>
+          <div>
+            <div style="font-weight:600;font-size:14px;margin-bottom:3px">Set your operator number</div>
+            <div style="font-size:13px;color:var(--ink-3);line-height:1.5">Go to <strong>Settings</strong> and set your operator phone number. This number will receive new order alerts and can confirm cash pickups by sending <code>confirm ORDERCODE</code> on WhatsApp.</div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:14px;padding:16px;background:var(--bg);border-radius:10px" id="guide-step-3">
+          <div style="width:32px;height:32px;background:var(--wa);border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:14px;flex-shrink:0">3</div>
+          <div>
+            <div style="font-weight:600;font-size:14px;margin-bottom:3px">Connect your bank account</div>
+            <div style="font-size:13px;color:var(--ink-3);line-height:1.5">Go to <strong>Settings → Connect Bank</strong> to add your account number. Card payments will settle directly to you. ShopprHQ takes 1%.</div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:14px;padding:16px;background:#FFF8E1;border:1px solid #F59E0B;border-radius:10px" id="guide-step-4">
+          <div style="width:32px;height:32px;background:#F59E0B;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:14px;flex-shrink:0">4</div>
+          <div>
+            <div style="font-weight:600;font-size:14px;margin-bottom:3px;color:#92400E">Connect your WhatsApp number</div>
+            <div style="font-size:13px;color:#B45309;line-height:1.5">
+              Message us the WhatsApp number your customers will use to order from you. We'll activate it within 24 hours.<br><br>
+              <strong>⚠️ Important:</strong> The number must <em>not</em> be currently registered on the WhatsApp Business App. It must be a fresh number or one you're willing to migrate from the app.
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:14px;padding:16px;background:var(--bg);border-radius:10px">
+          <div style="width:32px;height:32px;background:var(--wa);border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:14px;flex-shrink:0">5</div>
+          <div>
+            <div style="font-weight:600;font-size:14px;margin-bottom:3px">You're live!</div>
+            <div style="font-size:13px;color:var(--ink-3);line-height:1.5">Once your number is connected, customers can message it on WhatsApp and order directly. Your dashboard will show all orders in real time.</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('m-guide')">Close</button>
+      <button class="btn btn-wa" onclick="closeModal('m-guide')">Got it!</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- Logout confirmation modal -->
+<div class="overlay" id="m-logout">
+  <div class="modal" style="max-width:360px">
+    <div class="modal-head">
+      <span class="modal-title">Sign out?</span>
+      <button class="btn-x" onclick="closeModal('m-logout')">×</button>
+    </div>
+    <div style="padding:20px 24px 24px">
+      <p style="font-size:14px;color:var(--ink-2);line-height:1.6;margin-bottom:20px">
+        You'll need your Merchant ID and PIN to sign back in.
+      </p>
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button class="btn btn-ghost" onclick="closeModal('m-logout')">Cancel</button>
+        <button class="btn" style="background:var(--red);color:#fff;border-color:var(--red)"
+          onclick="confirmLogout()">Sign Out</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- Bank Account (Subaccount) Modal -->
+<div class="overlay" id="m-bank">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-head">
+      <span class="modal-title">Connect Bank Account</span>
+      <button class="btn-x" onclick="closeModal('m-bank')">×</button>
+    </div>
+    <div style="padding:20px 24px 28px">
+      <input type="hidden" id="bk-cid">
+      <input type="hidden" id="bk-verified-acct-name">
+
+      <p style="font-size:13px;color:var(--ink-3);line-height:1.6;margin-bottom:20px">
+        Card payments from your customers will settle directly into this account.
+        ShopprHQ takes 1% — the rest is yours.
+      </p>
+
+      <div class="field" style="margin-bottom:14px">
+        <label style="display:block;font-size:11px;font-weight:600;letter-spacing:.05em;
+          text-transform:uppercase;color:var(--ink-3);margin-bottom:6px">Bank</label>
+        <select id="bk-bank"
+          style="width:100%;padding:10px 14px;border:1.5px solid var(--border);
+            border-radius:10px;font-family:inherit;font-size:14px;
+            background:var(--bg);color:var(--ink);outline:none">
+          <option value="">Loading banks…</option>
+        </select>
+      </div>
+
+      <div class="field" style="margin-bottom:14px">
+        <label style="display:block;font-size:11px;font-weight:600;letter-spacing:.05em;
+          text-transform:uppercase;color:var(--ink-3);margin-bottom:6px">Account Number</label>
+        <div style="display:flex;gap:8px">
+          <input id="bk-account-num" type="text" inputmode="numeric" maxlength="10"
+            placeholder="0123456789"
+            style="flex:1;padding:10px 14px;border:1.5px solid var(--border);
+              border-radius:10px;font-family:inherit;font-size:14px;
+              background:var(--bg);color:var(--ink);outline:none"
+            oninput="this.value=this.value.replace(/[^0-9]/g,'')"
+            onfocus="this.style.borderColor='var(--wa)'"
+            onblur="this.style.borderColor='var(--border)'">
+          <button id="bk-verify-btn" onclick="verifyBankAccount()"
+            style="padding:10px 16px;background:var(--ink);color:#fff;border:none;
+              border-radius:10px;font-family:inherit;font-size:13px;font-weight:600;
+              cursor:pointer;white-space:nowrap">
+            Verify Account
+          </button>
+        </div>
+      </div>
+
+      <!-- Verified account name — shown after successful verification -->
+      <div id="bk-verified-name" style="display:none;margin-bottom:16px"></div>
+
+      <!-- Connect button — shown after verification -->
+      <button id="bk-submit" onclick="submitBankAccount()"
+        style="display:none;width:100%;padding:12px;background:var(--wa);color:#fff;
+          border:none;border-radius:10px;font-family:inherit;font-size:15px;
+          font-weight:600;cursor:pointer;align-items:center;justify-content:center;gap:8px">
+        Connect Bank Account
+      </button>
+
+      <button onclick="closeModal('m-bank')"
+        style="width:100%;margin-top:10px;padding:11px;background:none;
+          border:1.5px solid var(--border);border-radius:10px;
+          font-family:inherit;font-size:14px;color:var(--ink-3);cursor:pointer">
+        Cancel
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Store -->
+<div class="overlay" id="m-add-store">
+  <div class="modal">
+    <div class="modal-head">
+      <span class="modal-title">Add Store</span>
+      <button class="btn-x" onclick="closeModal('m-add-store')">×</button>
+    </div>
+    <div class="m-body">
+      <div style="margin-bottom:14px;padding:12px 14px;background:#FFF8E1;border:1px solid #F59E0B;border-radius:8px;font-size:13px;color:#92400E;line-height:1.5">
+        ⚡ Your <strong>Store ID</strong> is assigned automatically by the system and sent to your email. A ShopprHQ agent will contact you to complete WhatsApp onboarding.
+      </div>
+      <div class="m-row">
+        <div style="grid-column:1/-1">
+          <label class="f-label">Store Name *</label>
+          <input class="f-input" id="as-name" placeholder="e.g. Lekki Branch">
+        </div>
+      </div>
+      <div class="m-row full">
+        <div>
+          <label class="f-label">WhatsApp Number</label>
+          <input class="f-input" id="as-wa" placeholder="+2348012345678">
+          <div class="f-note">Must not be an active WhatsApp Business number. Leave blank to add later.</div>
+        </div>
+      </div>
+      <div class="m-row">
+        <div>
+          <label class="f-label">Store Password *</label>
+          <input class="f-input" id="as-pass" type="password" placeholder="Min 6 characters">
+          <div class="f-note">Store staff use this to log into the store dashboard.</div>
+        </div>
+        <div>
+          <label class="f-label">Confirm Password *</label>
+          <input class="f-input" id="as-pass2" type="password" placeholder="Repeat password">
+        </div>
+      </div>
+      <div id="as-err" style="display:none;padding:10px 12px;background:#FEF2F2;border-radius:8px;
+        font-size:13px;color:var(--red);border:1px solid #FECACA;margin-top:4px"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('m-add-store')">Cancel</button>
+      <button class="btn btn-wa" id="as-submit" onclick="submitAddStore()">Create Store</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delivery Settings Modal -->
+<div class="overlay" id="m-delivery">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-head">
+      <span class="modal-title">Delivery Settings</span>
+      <button class="btn-x" onclick="closeModal('m-delivery')">×</button>
+    </div>
+    <div class="m-body">
+      <input type="hidden" id="dlv-cid">
+      <div style="margin-bottom:16px;padding:12px 14px;background:#FFF8E1;border:1px solid #F59E0B;border-radius:8px;font-size:13px;color:#92400E;line-height:1.5">
+        📍 Delivery is currently available within <strong>Port Harcourt</strong> only. Customers outside PH will not be able to select delivery.
+      </div>
+      <div class="m-row full">
+        <div>
+          <label class="f-label">Delivery</label>
+          <div style="display:flex;align-items:center;gap:12px;margin-top:4px">
+            <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer">
+              <input type="radio" name="dlv-toggle" id="dlv-on" value="on" onchange="onDeliveryToggleChange()">
+              Enable
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer">
+              <input type="radio" name="dlv-toggle" id="dlv-off" value="off" onchange="onDeliveryToggleChange()" checked>
+              Disable
+            </label>
+          </div>
+          <div class="f-note">When enabled, customers see a delivery option at checkout.</div>
+        </div>
+      </div>
+      <div class="m-row full" id="dlv-fee-row" style="display:none">
+        <div>
+          <label class="f-label">Flat Delivery Fee (₦) *</label>
+          <input class="f-input" id="dlv-fee" type="number" min="0" step="50" placeholder="e.g. 1500">
+          <div class="f-note">This fee is added to every delivery order automatically.</div>
+        </div>
+      </div>
+      <div id="dlv-err" style="display:none;padding:10px 12px;background:#FEF2F2;border-radius:8px;
+        font-size:13px;color:var(--red);border:1px solid #FECACA;margin-top:4px"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('m-delivery')">Cancel</button>
+      <button class="btn btn-wa" id="dlv-submit" onclick="submitDelivery()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<!-- CSV Upload -->
+<div class="overlay" id="m-csv-upload">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-head">
+      <span class="modal-title">Bulk Upload Products</span>
+      <button class="btn-x" onclick="closeModal('m-csv-upload')">×</button>
+    </div>
+    <div class="m-body">
+      <div class="m-row full"><div><label class="f-label">Store *</label><select class="f-input" id="csv-store"></select></div></div>
+      <div class="m-row full">
+        <div>
+          <label class="f-label">CSV File *</label>
+          <input class="f-input" type="file" accept=".csv" id="csv-file" onchange="onCsvFileChange(this)">
+        </div>
+      </div>
+      <div class="f-note">
+        Columns: <strong>name</strong>, <strong>price</strong>, description (optional), initial_stock (optional).<br>
+        <button onclick="downloadCsvTemplate()" style="background:none;border:none;color:var(--wa-dark);font-size:12px;cursor:pointer;padding:0;font-family:var(--font-ui);font-weight:600;margin-top:6px">Download template →</button>
+      </div>
+      <div id="csv-preview"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('m-csv-upload')">Cancel</button>
+      <button class="btn btn-wa" id="csv-submit-btn" style="display:none" onclick="submitCsvUpload()">Upload Products</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     SCRIPTS
+════════════════════════════════════════════ -->
+<script src="/dashboard/js/api.js"></script>
+<script src="/dashboard/js/utils.js"></script>
+<script src="/dashboard/js/auth.js"></script>
+<script src="/dashboard/js/nav.js"></script>
+<script src="/dashboard/js/orders.js"></script>
+<script src="/dashboard/js/settings.js"></script>
+<script src="/dashboard/js/inventory.js"></script>
+<script src="/dashboard/js/products.js"></script>
+<script src="/dashboard/js/overview.js"></script>
+
+<script>
+// ── Hamburger sidebar ──────────────────────────────────────────────────────
+function openSidebar() {
+  document.getElementById('sidebar').classList.add('open');
+  document.getElementById('sb-overlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sb-overlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+// Close on Escape key
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSidebar(); });
+</script>
+
+</body>
+</html>

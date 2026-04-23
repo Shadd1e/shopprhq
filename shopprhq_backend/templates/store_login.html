@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Store Sign In · ShopprHQ</title>
+<link rel="icon" type="image/png" href="/static/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --wa:      #25D366;
+  --wa-dark: #128C7E;
+  --ink:     #0D0D0C;
+  --ink-2:   #2C2C29;
+  --ink-3:   #6B6B66;
+  --ink-4:   #9E9E99;
+  --border:  #E8E7E2;
+  --bg:      #F7F6F2;
+  --red:     #C94136;
+  --r:       13px;
+}
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg);
+  min-height: 100vh;
+  display: flex; align-items: center; justify-content: center;
+  padding: 32px 20px;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "ss01";
+}
+
+.wrap { width: 100%; max-width: 400px; }
+
+.brand {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 28px; justify-content: center;
+  text-decoration: none;
+}
+.logo {
+  width: 38px; height: 38px;
+  background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
+  border-radius: 10px; display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 2px 10px rgba(37,211,102,.28);
+}
+.logo svg { width: 19px; height: 19px; }
+.wordmark {
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-size: 21px; font-weight: 800;
+  letter-spacing: -.03em; color: var(--ink);
+}
+.wordmark .hq { color: var(--wa-dark); }
+
+.card {
+  background: #fff;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  box-shadow: 0 2px 8px rgba(0,0,0,.05), 0 10px 32px rgba(0,0,0,.07);
+  padding: 36px 36px 32px;
+}
+.card-title {
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-size: 22px; font-weight: 800;
+  letter-spacing: -.03em; margin-bottom: 5px; color: var(--ink);
+}
+.card-sub {
+  font-size: 14px; color: var(--ink-4);
+  margin-bottom: 26px; line-height: 1.5; font-weight: 400;
+}
+
+.field { margin-bottom: 16px; }
+.field label {
+  display: block; font-size: 11px; font-weight: 600;
+  letter-spacing: .06em; text-transform: uppercase;
+  color: var(--ink-3); margin-bottom: 7px;
+}
+.field input {
+  width: 100%; padding: 12px 14px;
+  border: 1.5px solid var(--border); border-radius: var(--r);
+  font-size: 15px; font-family: 'DM Sans', sans-serif;
+  color: var(--ink); background: var(--bg);
+  transition: border-color .15s, background .15s, box-shadow .15s;
+  outline: none;
+}
+.field input:focus {
+  border-color: var(--wa);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(37,211,102,.12);
+}
+.field input::placeholder { color: #C5C4BE; }
+
+.btn {
+  width: 100%; padding: 13px;
+  background: var(--ink); color: #fff;
+  border: none; border-radius: var(--r);
+  font-size: 15px; font-weight: 600;
+  font-family: 'DM Sans', sans-serif;
+  cursor: pointer;
+  transition: background .15s, transform .12s;
+  margin-top: 4px; letter-spacing: -.01em;
+}
+.btn:hover   { background: var(--ink-2); transform: translateY(-1px); }
+.btn:disabled { opacity: .6; cursor: not-allowed; transform: none; }
+
+.err-msg {
+  display: none; margin-top: 12px; padding: 11px 14px;
+  background: #FEF2F2; border-radius: var(--r);
+  font-size: 13px; color: var(--red); border: 1px solid #FECACA;
+  line-height: 1.45;
+}
+
+.footer-note {
+  margin-top: 16px; text-align: center;
+  font-size: 13px; color: var(--ink-4);
+}
+.footer-note a {
+  color: var(--wa-dark); font-weight: 600; text-decoration: none;
+}
+.footer-note a:hover { text-decoration: underline; }
+
+@media (max-width: 480px) {
+  body { padding: 24px 16px; }
+  .card { padding: 26px 22px 24px; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <a href="/" class="brand">
+    <div class="logo">
+      <svg viewBox="0 0 20 20" fill="none">
+        <path d="M10 2C5.58 2 2 5.58 2 10c0 1.42.37 2.75 1.02 3.9L2 18l4.25-1.1A7.94 7.94 0 0010 18c4.42 0 8-3.58 8-8s-3.58-8-8-8z" fill="white" opacity=".95"/>
+      </svg>
+    </div>
+    <span class="wordmark">Shoppr<span class="hq">HQ</span></span>
+  </a>
+
+  <div class="card">
+    <div class="card-title">Store sign in</div>
+    <div class="card-sub">Enter your Store ID and password to access your store.</div>
+
+    <div class="field">
+      <label for="l-cid">Store ID</label>
+      <input id="l-cid" type="text" placeholder="e.g. ST1001" autocomplete="username" autocapitalize="characters" spellcheck="false">
+    </div>
+    <div class="field">
+      <label for="l-pass">Password</label>
+      <input id="l-pass" type="password" placeholder="Your store password" autocomplete="current-password">
+    </div>
+
+    <button class="btn" id="l-btn" onclick="doLogin()">Sign in</button>
+    <div class="err-msg" id="l-err"></div>
+  </div>
+
+  <div class="footer-note">
+    Merchant? <a href="/dashboard">Go to merchant dashboard →</a>
+  </div>
+  <div class="footer-note" style="margin-top:8px">
+    Lost your Store ID? <a href="mailto:hello@shopprhq.com">hello@shopprhq.com</a>
+  </div>
+
+</div>
+
+<script>
+const BASE = (
+  window.location.hostname === 'localhost' ||
+  window.location.hostname === '127.0.0.1'
+) ? 'http://localhost:8000' : '';
+
+if (localStorage.getItem('tok') && localStorage.getItem('cid')) {
+  window.location.replace('/store-dashboard');
+}
+
+function showError(msg) {
+  const el = document.getElementById('l-err');
+  el.textContent = msg; el.style.display = 'block';
+}
+
+async function doLogin() {
+  const clientId = document.getElementById('l-cid').value.trim().toUpperCase();
+  const password = document.getElementById('l-pass').value;
+  const btn      = document.getElementById('l-btn');
+  const errEl    = document.getElementById('l-err');
+
+  errEl.style.display = 'none';
+  if (!clientId) { showError('Enter your Store ID.'); return; }
+  if (!password) { showError('Enter your password.'); return; }
+
+  btn.disabled = true; btn.textContent = 'Signing in…';
+
+  try {
+    const res = await fetch(`${BASE}/api/v1/clients/login`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ client_id: clientId, password }),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      showError(data.detail || 'Invalid Store ID or password');
+      return;
+    }
+
+    localStorage.setItem('tok',   data.access_token);
+    localStorage.setItem('cid',   data.client_id);
+    localStorage.setItem('cname', data.store_name);
+    localStorage.setItem('mid',   data.merchant_id);
+
+    window.location.replace('/store-dashboard');
+
+  } catch {
+    showError('Connection failed — please try again.');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Sign in';
+  }
+}
+
+document.getElementById('l-pass').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doLogin();
+});
+document.getElementById('l-cid').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('l-pass').focus();
+});
+</script>
+</body>
+</html>
