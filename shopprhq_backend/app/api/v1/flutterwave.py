@@ -328,8 +328,10 @@ async def flutterwave_webhook(request: Request):
         logger.warning("Redis dedup mark failed: %s", e)
 
     logger.info(
-        "Flutterwave payment finalized — tx_ref=%s tx_id=%s order=%s",
-        tx_ref, tx_id, order_code,
+        "[PAYMENT_SUCCESS] merchant_id=%s order_code=%s tx_ref=%s tx_id=%s "
+        "amount=%.2f client_id=%s",
+        order.merchant_id, order_code, tx_ref, tx_id,
+        order_total, client_id,
     )
 
     # ==================================================
@@ -374,6 +376,14 @@ async def flutterwave_webhook(request: Request):
 
     # Low stock warnings
     for warning in low_stock_warnings:
+        _event = "[OUT_OF_STOCK]" if warning["remaining"] == 0 else "[LOW_STOCK]"
+        logger.info(
+            "%s merchant_id=%s order_code=%s product=%r remaining=%s threshold=%s client_id=%s",
+            _event,
+            order.merchant_id, order_code,
+            warning["product_name"], warning["remaining"], warning["threshold"],
+            client_id,
+        )
         try:
             op_notifier = OperatorNotificationService(
                 operator_phone=warning["operator_phone"],

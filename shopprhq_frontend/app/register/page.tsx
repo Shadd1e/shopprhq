@@ -50,7 +50,7 @@ function ErrorBox({ msg }: { msg: string }) {
 
 // ── Success state ──────────────────────────────────────────────────────────
 
-function SuccessCard({ mid, email }: { mid: string; email: string }) {
+function SuccessCard({ mid, email, storeName }: { mid: string; email: string; storeName: string }) {
   return (
     <div className="min-h-screen flex items-center justify-center p-5">
       <div className="w-full max-w-md py-8">
@@ -59,16 +59,19 @@ function SuccessCard({ mid, email }: { mid: string; email: string }) {
         </div>
 
         <div className="bg-white rounded-3xl border border-border shadow-lg p-10 text-center">
-          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-green-100 to-green-200
+          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-wa/20 to-wa/10
             flex items-center justify-center mx-auto mb-6 text-3xl shadow-sm">
-            ✉️
+            🎉
           </div>
 
-          <h2 className="font-display font-extrabold text-2xl tracking-tight text-ink mb-2">
-            Check your email
+          <h2 className="font-display font-extrabold text-2xl tracking-tight text-ink mb-1">
+            Welcome to ShopprHQ, {storeName}!
           </h2>
+          <p className="text-sm text-ink-3 mb-5">
+            Let's get your store set up.
+          </p>
           <p className="text-sm text-ink-3 leading-relaxed mb-6">
-            We sent a 6-digit verification code to<br />
+            We sent a 6-digit verification code to{' '}
             <strong className="text-ink">{email}</strong>
           </p>
 
@@ -90,12 +93,12 @@ function SuccessCard({ mid, email }: { mid: string; email: string }) {
           </p>
 
           <Link
-            href="/dashboard"
+            href="/dashboard/setup"
             className="flex items-center justify-center gap-2 bg-wa text-white font-semibold
               text-sm py-3.5 px-6 rounded-2xl shadow-wa hover:bg-wa-dark
               transition-all hover:-translate-y-0.5"
           >
-            Go to dashboard →
+            Set up your store →
           </Link>
 
           <p className="mt-5 text-xs text-ink-4">
@@ -123,7 +126,7 @@ export default function RegisterPage() {
   })
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState('')
-  const [success, setSuccess] = useState<{ mid: string; email: string } | null>(null)
+  const [success, setSuccess] = useState<{ mid: string; email: string; storeName: string } | null>(null)
 
   function set(field: keyof typeof form) {
     return (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -152,7 +155,7 @@ export default function RegisterPage() {
         password: pin,
         whatsapp_number: waClean,
       })
-      setSuccess({ mid: data.id, email })
+      setSuccess({ mid: data.id, email, storeName: name })
     } catch (err: any) {
       setError(err.detail ?? 'Registration failed — please try again.')
     } finally {

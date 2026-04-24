@@ -378,6 +378,14 @@ class CheckoutOrchestrator:
             logger.exception("Checkout failed", exc_info=_checkout_err)
             return Humanizer.checkout_failed()
 
+        # ── STRUCTURED LOG — searchable in Railway ────────────────────────────
+        logger.info(
+            "[ORDER_PLACED] merchant_id=%s order_code=%s payment_method=%s "
+            "total=%.2f client_id=%s customer=%s",
+            self.merchant_id, result.order_code, payment_method,
+            result.total_amount, self.client_id, self.user_id,
+        )
+
         # ── OPERATOR PING (ALL PAYMENT METHODS) ──────────────────────────────
         # Fire a simple one-line alert the moment any order is placed.
         # Operator replies with just the order code to pull up full details.

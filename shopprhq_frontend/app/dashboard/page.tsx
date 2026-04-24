@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Logo from '@/components/Logo'
 import {
@@ -2205,6 +2205,7 @@ const TABS: { id: Tab; label: string; Icon: () => JSX.Element }[] = [
 
 function DashboardView({ token, onLogout }: { token: string; onLogout: () => void }) {
   const params     = useSearchParams()
+  const router     = useRouter()
   const isVerified = params?.get('verified') === '1'
 
   const [tab,     setTab]     = useState<Tab>('overview')
@@ -2281,6 +2282,23 @@ function DashboardView({ token, onLogout }: { token: string; onLogout: () => voi
   }, [token, onLogout])
 
   useEffect(() => { loadData() }, [loadData])
+
+  // Honour ?tab=inventory etc. links from the setup page
+  useEffect(() => {
+    const t = params?.get('tab')
+    if (t && ['overview', 'inventory', 'orders', 'settings'].includes(t)) {
+      setTab(t as Tab)
+    }
+  }, [params])
+
+  // Redirect brand-new merchants (0 products + no WhatsApp configured) to setup flow
+  useEffect(() => {
+    if (loading || loadError) return
+    const noWhatsapp = clients.every(c => !c.whatsapp_number)
+    if (products.length === 0 && noWhatsapp) {
+      router.push('/dashboard/setup')
+    }
+  }, [loading, loadError, products, clients, router])
 
   async function handleResend() {
     setResendLoading(true)

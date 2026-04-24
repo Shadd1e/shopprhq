@@ -71,6 +71,16 @@ async def global_exception_handler(request: Request, exc: Exception):
         "Unhandled exception: %s %s — %s",
         request.method, request.url.path, exc, exc_info=True,
     )
+    try:
+        from app.infrastructure.alerting.slack import alert
+        asyncio.create_task(alert(
+            title="Unhandled 500 Error",
+            detail=f"`{request.method} {request.url.path}` raised an unhandled exception.",
+            level="critical",
+            fields={"error": str(exc)[:300]},
+        ))
+    except Exception:
+        pass
     return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 @app.middleware("http")
