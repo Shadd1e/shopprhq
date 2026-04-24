@@ -70,6 +70,8 @@ function logout() {
   localStorage.removeItem('email_verified');
   localStorage.removeItem('waba_active');
 
+  resetNavState();
+
   document.getElementById('auth').style.display = 'flex';
   document.getElementById('app').style.display  = 'none';
 }
@@ -85,6 +87,8 @@ function showApp() {
   document.getElementById('s-name').textContent = mname;
   document.getElementById('s-id').textContent   = mid;
 
+  // Mark overview as loaded so nav() doesn't re-fetch when the user clicks the sidebar.
+  _loadedPages.add('overview');
   loadOverview();
   loadClients();
 }

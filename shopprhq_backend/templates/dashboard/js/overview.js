@@ -123,10 +123,22 @@ async function submitChangeEmail() {
   }
 }
 
+function dismissChecklist() {
+  localStorage.setItem('checklist_dismissed', '1');
+  const container = document.getElementById('setup-checklist');
+  if (container) container.style.display = 'none';
+}
+
 async function renderChecklist() {
   const container = document.getElementById('setup-checklist');
   const itemsEl   = document.getElementById('checklist-items');
   if (!container || !itemsEl) return;
+
+  // Respect the merchant's manual dismissal — don't re-show on every data reload.
+  if (localStorage.getItem('checklist_dismissed') === '1') {
+    container.style.display = 'none';
+    return;
+  }
 
   let status = null;
   try {
@@ -143,8 +155,12 @@ async function renderChecklist() {
   if (banner) banner.style.display = waba_active ? 'none' : 'flex';
 
   const allDone = has_products && has_operator && has_bank && waba_active;
-  container.style.display = allDone ? 'none' : 'block';
-  if (allDone) return;
+  if (allDone) {
+    // All steps complete — auto-dismiss permanently and hide.
+    localStorage.setItem('checklist_dismissed', '1');
+    container.style.display = 'none';
+    return;
+  }
 
   const items = [
     {

@@ -236,8 +236,12 @@
           </div>
         </div>
 
-        <!-- Setup checklist — hidden once all steps complete -->
-        <div id="setup-checklist" style="display:none;margin-bottom:20px">
+        <!-- Setup checklist — hidden once all steps complete or manually dismissed -->
+        <div id="setup-checklist" style="display:none;margin-bottom:20px;position:relative">
+          <button onclick="dismissChecklist()" title="Dismiss"
+            style="position:absolute;top:8px;right:10px;background:none;border:none;
+              cursor:pointer;font-size:16px;color:var(--ink-3);line-height:1;padding:2px 6px"
+            aria-label="Dismiss checklist">✕</button>
           <div id="checklist-items"></div>
         </div>
 
