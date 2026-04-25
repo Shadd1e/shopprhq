@@ -381,6 +381,7 @@ async function submitBankAccount() {
     closeModal('m-bank');
     await loadSettings();
     openStoreDetail(clientId);
+    if (typeof refreshSetupBadge === 'function') refreshSetupBadge();
   } else {
     const err = res ? await res.json() : null;
     toast(err?.detail || 'Failed to connect bank account', 'err');

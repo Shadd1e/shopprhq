@@ -1,17 +1,10 @@
 /**
  * overview.js
- * Dashboard overview: stats, email verification (code-based), revenue/orders summary.
- *
- * ONBOARDING (checklist, guide modal, WABA banner) — commented out for MVP.
- * Search for "MVP-COMMENTED" to find and restore when needed.
+ * Dashboard overview: stats, email verification (code-based), revenue/orders summary,
+ * and the setup badge that tracks store onboarding progress.
  */
 
-// MVP-COMMENTED: const SUPPORT_WHATSAPP = '';
-// MVP-COMMENTED: function openOnboardingGuide() { openModal('m-guide'); }
-
 async function initOnboarding() {
-  // Store managers (cid in localStorage) share this dashboard but shouldn't
-  // see merchant-specific banners like email verification.
   const isStoreManager = !!localStorage.getItem('cid');
 
   // Fetch live email_verified status
@@ -26,7 +19,6 @@ async function initOnboarding() {
     }
   } catch (_) {}
 
-  // Hide banner by default, show only if unverified and not a store manager
   const emailBanner = document.getElementById('email-verify-banner');
   if (emailBanner) {
     if (!emailVerified && !isStoreManager) {
@@ -38,7 +30,7 @@ async function initOnboarding() {
     }
   }
 
-  await renderChecklist();
+  if (!isStoreManager) await _initSetupBadge();
 }
 
 // ── EMAIL VERIFICATION (CODE) ─────────────────────────────────────────────────
@@ -60,7 +52,6 @@ async function submitVerificationCode() {
   if (!res) return;
 
   if (res.ok) {
-    const data = await res.json();
     localStorage.setItem('email_verified', '1');
     const banner = document.getElementById('email-verify-banner');
     if (banner) banner.style.display = 'none';
@@ -123,20 +114,18 @@ async function submitChangeEmail() {
   }
 }
 
-function dismissChecklist() {
-  localStorage.setItem('checklist_dismissed', '1');
-  const container = document.getElementById('setup-checklist');
-  if (container) container.style.display = 'none';
-}
+// ── SETUP BADGE ───────────────────────────────────────────────────────────────
 
-async function renderChecklist() {
-  const container = document.getElementById('setup-checklist');
-  const itemsEl   = document.getElementById('checklist-items');
-  if (!container || !itemsEl) return;
+const _SETUP_STEPS = [
+  { key: 'waba_active',  label: 'Connect WhatsApp number', target: 'settings' },
+  { key: 'has_products', label: 'Add your first product',  target: 'products' },
+  { key: 'has_bank',     label: 'Connect bank account',    target: 'settings' },
+];
 
-  // Respect the merchant's manual dismissal — don't re-show on every data reload.
-  if (localStorage.getItem('checklist_dismissed') === '1') {
-    container.style.display = 'none';
+async function _initSetupBadge() {
+  // Once everything is done we permanently hide the badge — no further checks needed.
+  if (localStorage.getItem('setup_complete') === '1') {
+    _hideSetupBadges();
     return;
   }
 
@@ -148,77 +137,81 @@ async function renderChecklist() {
 
   if (!status) return;
 
-  const { has_products, has_operator, has_bank, waba_active } = status;
-
-  // Show or hide the WABA pending banner
-  const banner = document.getElementById('waba-banner');
-  if (banner) banner.style.display = waba_active ? 'none' : 'flex';
-
-  const allDone = has_products && has_operator && has_bank && waba_active;
-  if (allDone) {
-    // All steps complete — auto-dismiss permanently and hide.
-    localStorage.setItem('checklist_dismissed', '1');
-    container.style.display = 'none';
+  if (_SETUP_STEPS.every(s => !!status[s.key])) {
+    localStorage.setItem('setup_complete', '1');
+    _hideSetupBadges();
     return;
   }
 
-  const items = [
-    {
-      label:  'Add at least one product',
-      done:   has_products,
-      action: "nav('products', document.querySelector('[onclick*=products]'))",
-      hint:   'Products tab',
-    },
-    {
-      label:  'Set operator phone number',
-      done:   has_operator,
-      action: "nav('settings', document.querySelector('[onclick*=settings]'))",
-      hint:   'Settings — triggers your onboarding specialist',
-    },
-    {
-      label:  'Connect bank account',
-      done:   has_bank,
-      action: "nav('settings', document.querySelector('[onclick*=settings]'))",
-      hint:   'Settings → Connect Bank',
-    },
-    {
-      label:  'WhatsApp number activated',
-      done:   waba_active,
-      action: null,
-      hint:   'Your specialist handles this after you set your operator number',
-    },
-  ];
-
-  const pending = items.filter(i => !i.done);
-  const done    = items.filter(i =>  i.done);
-
-  itemsEl.innerHTML = `
-    <div style="font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;
-      color:var(--ink-3);margin-bottom:8px">Setup checklist</div>
-    <div style="display:grid;gap:6px">
-      ${pending.map(item => `
-        <div style="display:flex;align-items:center;gap:10px;padding:11px 14px;
-          background:var(--bg);border:1.5px solid var(--border);border-radius:8px;
-          ${item.action ? 'cursor:pointer' : ''}"
-          ${item.action ? `onclick="${item.action}"` : ''}>
-          <div style="width:20px;height:20px;border-radius:50%;border:2px solid #ccc;
-            background:#fff;flex-shrink:0"></div>
-          <div style="flex:1;min-width:0">
-            <div style="font-size:13px;font-weight:500;color:var(--ink)">${item.label}</div>
-            <div style="font-size:11px;color:var(--ink-3);margin-top:1px">${item.hint}</div>
-          </div>
-          ${item.action ? '<div style="font-size:12px;color:var(--ink-3)">→</div>' : ''}
-        </div>`).join('')}
-      ${done.map(item => `
-        <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;
-          background:#F0FAF5;border:1.5px solid var(--wa);border-radius:8px;opacity:.7">
-          <div style="width:20px;height:20px;border-radius:50%;background:var(--wa);
-            display:flex;align-items:center;justify-content:center;
-            font-size:11px;color:#fff;font-weight:700;flex-shrink:0">✓</div>
-          <div style="font-size:13px;color:var(--ink-3);text-decoration:line-through;flex:1">${item.label}</div>
-        </div>`).join('')}
-    </div>`;
+  _renderSetupBadge(status);
 }
+
+// Call this after any action that may complete a setup step (bank connect, product add, etc.)
+async function refreshSetupBadge() {
+  localStorage.removeItem('setup_complete');
+  await _initSetupBadge();
+}
+
+function _hideSetupBadges() {
+  const top = document.getElementById('setup-trigger-top');
+  const sb  = document.getElementById('setup-trigger-sb');
+  if (top) top.style.display = 'none';
+  if (sb)  sb.style.display  = 'none';
+}
+
+function _renderSetupBadge(status) {
+  const pending = _SETUP_STEPS.filter(s => !status[s.key]);
+  if (pending.length === 0) { _hideSetupBadges(); return; }
+
+  window._setupPending = pending;
+
+  const top    = document.getElementById('setup-trigger-top');
+  const sb     = document.getElementById('setup-trigger-sb');
+  const badgeT = document.getElementById('setup-badge-top');
+  const badgeSB = document.getElementById('setup-badge-sb');
+
+  if (top)    { top.style.display    = 'flex'; }
+  if (sb)     { sb.style.display     = 'flex'; }
+  if (badgeT)  badgeT.textContent  = pending.length;
+  if (badgeSB) badgeSB.textContent = pending.length;
+}
+
+function toggleSetupDropdown(e) {
+  e.stopPropagation();
+  const dd = document.getElementById('setup-dropdown');
+  if (!dd) return;
+
+  if (dd.style.display !== 'none') { dd.style.display = 'none'; return; }
+
+  const pending = window._setupPending || [];
+
+  if (pending.length === 0) {
+    dd.innerHTML = '<div class="setup-dd-done">✓ Store setup complete</div>';
+  } else {
+    dd.innerHTML =
+      `<div class="setup-dd-heading">Setup &mdash; ${pending.length} remaining</div>` +
+      pending.map(s =>
+        `<button class="setup-dd-item"
+           onclick="nav('${s.target}',document.querySelector('[onclick*=${s.target}]'));closeSetupDropdown()">
+           <span class="setup-dd-dot"></span>
+           <span class="setup-dd-label">${s.label}</span>
+           <span class="setup-dd-arrow">→</span>
+         </button>`
+      ).join('');
+  }
+
+  const rect = e.currentTarget.getBoundingClientRect();
+  dd.style.top  = (rect.bottom + 6) + 'px';
+  dd.style.left = Math.max(8, rect.right - 248) + 'px';
+  dd.style.display = 'block';
+}
+
+function closeSetupDropdown() {
+  const dd = document.getElementById('setup-dropdown');
+  if (dd) dd.style.display = 'none';
+}
+
+document.addEventListener('click', closeSetupDropdown);
 
 // ── OVERVIEW LOAD ─────────────────────────────────────────────────────────────
 

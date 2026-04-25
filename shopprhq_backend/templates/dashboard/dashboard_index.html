@@ -12,6 +12,38 @@
 <style>
   .logo-img { width: 100%; height: 100%; object-fit: contain; border-radius: inherit; }
   .logo-fallback { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+
+  /* ── Setup badge ── */
+  .setup-badge {
+    background: #EF4444; color: #fff; border-radius: 50%;
+    width: 18px; height: 18px; font-size: 10px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    line-height: 1; flex-shrink: 0;
+  }
+
+  /* ── Setup dropdown ── */
+  .setup-dd-heading {
+    padding: 10px 16px 6px;
+    font-size: 11px; font-weight: 700; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--ink-3);
+  }
+  .setup-dd-item {
+    display: flex; width: 100%; align-items: center; gap: 10px;
+    padding: 10px 16px; border: none; background: none; cursor: pointer;
+    text-align: left; font-family: inherit; font-size: 13px; color: var(--ink);
+    transition: background .12s;
+  }
+  .setup-dd-item:hover { background: var(--bg); }
+  .setup-dd-dot {
+    width: 16px; height: 16px; border-radius: 50%;
+    border: 2px solid var(--ink-3); flex-shrink: 0; display: inline-block;
+  }
+  .setup-dd-label { flex: 1; }
+  .setup-dd-arrow { font-size: 12px; color: var(--ink-3); }
+  .setup-dd-done {
+    padding: 14px 16px; display: flex; align-items: center; gap: 8px;
+    font-size: 13px; font-weight: 600; color: var(--wa-dark, #128C7E);
+  }
 </style>
 </head>
 <body>
@@ -135,6 +167,15 @@
       </div>
 
       <div class="sb-foot">
+        <!-- Setup trigger (desktop sidebar) — hidden until there are pending steps -->
+        <button id="setup-trigger-sb" onclick="toggleSetupDropdown(event)"
+          style="display:none;align-items:center;gap:8px;width:100%;
+            background:var(--bg);border:1.5px solid var(--border);border-radius:10px;
+            padding:9px 12px;cursor:pointer;font-size:13px;font-weight:600;
+            color:var(--ink);font-family:inherit;margin-bottom:10px">
+          🚀 Setup
+          <span id="setup-badge-sb" class="setup-badge" style="margin-left:auto;width:20px;height:20px;font-size:11px">0</span>
+        </button>
         <div class="sb-merchant">
           <div class="sb-avatar" id="s-av">M</div>
           <div class="sb-merchant-info">
@@ -160,9 +201,19 @@
           </div>
           <span class="topbar-wordmark">ShopprHQ</span>
         </div>
-        <button class="hamburger" id="hamburger" onclick="openSidebar()" aria-label="Open menu">
-          <svg width="22" height="22"><use href="#ic-menu"/></svg>
-        </button>
+        <div style="display:flex;align-items:center;gap:10px">
+          <!-- Setup trigger (mobile) — hidden until there are pending steps -->
+          <button id="setup-trigger-top" onclick="toggleSetupDropdown(event)"
+            style="display:none;align-items:center;gap:5px;background:var(--bg);
+              border:1.5px solid var(--border);border-radius:20px;padding:5px 10px 5px 8px;
+              cursor:pointer;font-size:12px;font-weight:600;color:var(--ink);font-family:inherit">
+            🚀 Setup
+            <span id="setup-badge-top" class="setup-badge">0</span>
+          </button>
+          <button class="hamburger" id="hamburger" onclick="openSidebar()" aria-label="Open menu">
+            <svg width="22" height="22"><use href="#ic-menu"/></svg>
+          </button>
+        </div>
       </header>
 
       <main class="main">
@@ -218,32 +269,6 @@
           </div>
         </div>
 
-        <!-- WABA activation banner — shown until WhatsApp is live -->
-        <div id="waba-banner" style="display:none;margin-bottom:20px;background:#FFF8E1;
-          border:1.5px solid #F59E0B;border-radius:12px;padding:14px 18px;
-          display:flex;align-items:flex-start;gap:12px">
-          <div style="font-size:20px;flex-shrink:0">⏳</div>
-          <div>
-            <div style="font-weight:600;font-size:14px;color:#92400E;margin-bottom:3px">
-              WhatsApp activation pending
-            </div>
-            <div style="font-size:13px;color:#B45309;line-height:1.5">
-              Your onboarding specialist will reach out on your operator number once you set it.
-              Make sure your store WhatsApp number is <strong>not</strong> currently active on
-              WhatsApp or WhatsApp Business App — if it is, delete it from your phone settings first.
-              Questions? <a href="mailto:hello@shopprhq.com" style="color:#92400E">hello@shopprhq.com</a>
-            </div>
-          </div>
-        </div>
-
-        <!-- Setup checklist — hidden once all steps complete or manually dismissed -->
-        <div id="setup-checklist" style="display:none;margin-bottom:20px;position:relative">
-          <button onclick="dismissChecklist()" title="Dismiss"
-            style="position:absolute;top:8px;right:10px;background:none;border:none;
-              cursor:pointer;font-size:16px;color:var(--ink-3);line-height:1;padding:2px 6px"
-            aria-label="Dismiss checklist">✕</button>
-          <div id="checklist-items"></div>
-        </div>
 
         <div class="stats stagger fade">
             <!-- Revenue -->
@@ -959,6 +984,12 @@
 <script src="/dashboard/js/products.js"></script>
 <script src="/dashboard/js/overview.js"></script>
 
+<!-- Setup dropdown panel — shared by topbar + sidebar triggers, positioned via JS -->
+<div id="setup-dropdown" style="display:none;position:fixed;z-index:300;
+  background:#fff;border:1px solid var(--border);border-radius:12px;
+  min-width:248px;max-width:288px;
+  box-shadow:0 8px 32px rgba(0,0,0,.12);overflow:hidden"></div>
+
 <script>
 // ── Hamburger sidebar ──────────────────────────────────────────────────────
 function openSidebar() {
@@ -972,7 +1003,12 @@ function closeSidebar() {
   document.body.style.overflow = '';
 }
 // Close on Escape key
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSidebar(); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeSidebar(); closeSetupDropdown(); }
+});
+
+// Migrate away from old checklist localStorage keys
+localStorage.removeItem('checklist_dismissed');
 </script>
 
 </body>
