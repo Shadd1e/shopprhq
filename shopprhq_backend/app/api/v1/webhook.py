@@ -25,7 +25,7 @@ META_VERIFY_TOKEN = os.getenv("META_VERIFY_TOKEN")
 # META VERIFY ENDPOINT
 # ==================================================
 
-@router.get("/webhook")
+@router.get("/webhook/whatsapp")
 async def verify_webhook(
     hub_mode: str = Query(..., alias="hub.mode"),
     hub_verify_token: str = Query(..., alias="hub.verify_token"),
@@ -77,7 +77,7 @@ def _verify_meta_signature(raw_body: bytes, signature_header: str) -> bool:
 # WHATSAPP MAIN WEBHOOK
 # ==================================================
 
-@router.post("/webhook")
+@router.post("/webhook/whatsapp")
 async def receive_webhook(request: Request):
     """
     Responsibilities:
