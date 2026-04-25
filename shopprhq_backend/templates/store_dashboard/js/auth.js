@@ -10,6 +10,8 @@ function storeDashLogout() {
   localStorage.removeItem('cname');
   localStorage.removeItem('mid');
 
+  resetNavState();
+
   window.location.replace('/store-login');
 }
 
@@ -33,11 +35,9 @@ function showStoreDash() {
   if (nameEl) nameEl.textContent = cname;
   if (idEl)   idEl.textContent   = cid;
 
-  // Kick off initial data loads
-  if (typeof loadOverview  === 'function') loadOverview();
-  if (typeof loadProducts  === 'function') loadProducts();
-  if (typeof loadOrders    === 'function') loadOrders();
-  if (typeof loadInventory === 'function') loadInventory();
+  // Load only the landing page; other pages load on first nav() visit.
+  _loadedPages.add('overview');
+  if (typeof loadOverview === 'function') loadOverview();
 }
 
 // ── BOOT ──────────────────────────────────────────────────────────────────────
