@@ -6,8 +6,8 @@ from pydantic import BaseModel, ConfigDict, StringConstraints, constr, field_val
 from typing import Annotated, Optional
 from datetime import datetime
 
-MerchantID = Annotated[str, StringConstraints(pattern=r'^[A-Z]{2}\d{4}$')]
-ClientID = Annotated[str, StringConstraints(pattern=r'^[A-Z]{2}\d{4}$')]
+MerchantID = Annotated[str, StringConstraints(pattern=r'^MX[A-Z0-9]{6}$')]
+ClientID = Annotated[str, StringConstraints(pattern=r'^ST[A-Z0-9]{6}$')]
 
 class WhatsAppMessageLogBase(BaseModel):
     merchant_id: MerchantID

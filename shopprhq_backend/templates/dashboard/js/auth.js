@@ -4,7 +4,7 @@
  *
  * LOGIN DETAILS:
  * - Endpoint: POST /api/v1/merchants/login
- * - Payload:  { merchant_id: "ME0001", password: "1234" }
+ * - Payload:  { merchant_id: "MXA1B2", password: "1234" }
  *   (password is a 4-digit PIN, not an email password)
  * - Returns:  { access_token, merchant_id, name }
  * - Token is stored in localStorage and sent as Bearer on every API call

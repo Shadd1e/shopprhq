@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, StringConstraints, constr, field_val
 from typing import Annotated, Optional
 from datetime import datetime
 
-ClientID = Annotated[str, StringConstraints(pattern=r'^[A-Z]{2}\d{4}$')]
+ClientID = Annotated[str, StringConstraints(pattern=r'^ST[A-Z0-9]{6}$')]
 
 class DeepSeekSettingBase(BaseModel):
     client_id: ClientID

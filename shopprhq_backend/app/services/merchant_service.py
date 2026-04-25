@@ -1,6 +1,7 @@
 from typing import Optional, List
 import random
 import secrets
+import string
 from datetime import datetime, timezone, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
@@ -26,31 +27,29 @@ class MerchantService:
         self.db = db
 
     async def _generate_merchant_id(self) -> str:
-        """Auto-generate next sequential Merchant ID e.g. ME0001, ME0002."""
-        result = await self.db.execute(select(func.count(Merchant.id)))
-        count  = result.scalar() or 0
-        for n in range(count + 1, count + 100):
-            candidate = f"ME{n:04d}"
+        """Generate a random Merchant ID e.g. MXA3F7K2."""
+        alphabet = string.ascii_uppercase + string.digits
+        for _ in range(20):
+            candidate = "MX" + "".join(secrets.choice(alphabet) for _ in range(6))
             exists = await self.db.execute(
                 select(Merchant.id).where(Merchant.id == candidate)
             )
             if not exists.scalar_one_or_none():
                 return candidate
-        return f"ME{secrets.randbelow(9000) + 1000}"
+        raise RuntimeError("Failed to generate unique merchant ID after 20 attempts")
 
     async def _generate_client_id(self) -> str:
-        """Auto-generate next sequential Store ID e.g. ST0001, ST0002."""
+        """Generate a random Store ID e.g. STA3F7K2."""
         from app.models.client_model import Client
-        result = await self.db.execute(select(func.count(Client.id)))
-        count  = result.scalar() or 0
-        for n in range(count + 1, count + 100):
-            candidate = f"ST{n:04d}"
+        alphabet = string.ascii_uppercase + string.digits
+        for _ in range(20):
+            candidate = "ST" + "".join(secrets.choice(alphabet) for _ in range(6))
             exists = await self.db.execute(
                 select(Client.id).where(Client.id == candidate)
             )
             if not exists.scalar_one_or_none():
                 return candidate
-        return f"ST{secrets.randbelow(9000) + 1000}"
+        raise RuntimeError("Failed to generate unique client ID after 20 attempts")
 
     async def create(self, payload: MerchantCreate) -> Optional[Merchant]:
         """

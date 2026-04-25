@@ -15,10 +15,10 @@ VALID_STATUSES = frozenset({"pending", "otp_sent", "otp_verified", "active"})
 class ClientWhatsAppCredentialCreate(BaseModel):
     client_id: str = Field(
         ...,
-        min_length=6,
-        max_length=6,
-        pattern=r'^[A-Z]{2}\d{4}$',
-        description="Client/Store ID (2 letters + 4 digits, e.g. ST0001)",
+        min_length=8,
+        max_length=8,
+        pattern=r'^ST[A-Z0-9]{6}$',
+        description="Client/Store ID (ST + 6 alphanumeric chars, e.g. STAB1234)",
     )
     phone_number_id: str = Field(
         ...,
@@ -59,7 +59,7 @@ class ClientWhatsAppCredentialCreate(BaseModel):
         extra="forbid",
         json_schema_extra={
             "example": {
-                "client_id":        "ST0001",
+                "client_id":        "STAB1234",
                 "phone_number_id":  "123456789012345",
                 "whatsapp_number":  "2348012345678",
                 "status":           "pending",
@@ -110,7 +110,7 @@ class ClientWhatsAppCredentialOut(BaseModel):
         from_attributes=True,
         json_schema_extra={
             "example": {
-                "client_id":        "ST0001",
+                "client_id":        "STAB1234",
                 "phone_number_id":  "123456789012345",
                 "whatsapp_number":  "2348012345678",
                 "status":           "otp_sent",

@@ -14,10 +14,10 @@ logger = logging.getLogger(__name__)
 class ClientBase(BaseModel):
     id: str = Field(
         ...,
-        min_length=6,
-        max_length=6,
-        pattern=r"^[A-Z]{2}\d{4}$",
-        description="Client ID (2 letters + 4 digits)"
+        min_length=8,
+        max_length=8,
+        pattern=r"^ST[A-Z0-9]{6}$",
+        description="Client ID (ST + 6 alphanumeric chars)"
     )
     name: str = Field(
         ...,
@@ -39,10 +39,10 @@ class ClientBase(BaseModel):
     )
     merchant_id: str = Field(
         ...,
-        min_length=6,
-        max_length=6,
-        pattern=r"^[A-Z]{2}\d{4}$",
-        description="Merchant ID (2 letters + 4 digits)"
+        min_length=8,
+        max_length=8,
+        pattern=r"^MX[A-Z0-9]{6}$",
+        description="Merchant ID (MX + 6 alphanumeric chars)"
     )
 
 
@@ -174,12 +174,12 @@ class ClientUpdate(BaseModel):
 # =====================================================
 class ClientLoginRequest(BaseModel):
     """Body for POST /clients/login"""
-    client_id: str = Field(..., description="Store ID (e.g. ST1001)")
+    client_id: str = Field(..., description="Store ID (e.g. STAB1234)")
     password: str  = Field(..., description="Store dashboard password")
 
     model_config = ConfigDict(
         json_schema_extra={
-            "example": {"client_id": "ST1001", "password": "securepass123"}
+            "example": {"client_id": "STAB1234", "password": "securepass123"}
         }
     )
 

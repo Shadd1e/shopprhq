@@ -25,22 +25,17 @@ class ClientService:
     # INTERNAL: Generate Store ID
     # -----------------------------
     async def _generate_store_id(self) -> str:
-        """
-        Auto-generate the next sequential Store ID (e.g. ST0001, ST0002).
-        Scans existing IDs with the ST prefix and finds the next available slot.
-        Falls back to a random suffix if the sequential scan exhausts 100 attempts.
-        """
-        result = await self.db.execute(select(func.count(Client.id)))
-        count = result.scalar() or 0
-        for n in range(count + 1, count + 200):
-            candidate = f"ST{n:04d}"
+        """Generate a random Store ID e.g. STA3F7K2."""
+        import secrets, string
+        alphabet = string.ascii_uppercase + string.digits
+        for _ in range(20):
+            candidate = "ST" + "".join(secrets.choice(alphabet) for _ in range(6))
             exists = await self.db.execute(
                 select(Client.id).where(Client.id == candidate)
             )
             if not exists.scalar_one_or_none():
                 return candidate
-        import secrets
-        return f"ST{secrets.randbelow(9000) + 1000}"
+        raise RuntimeError("Failed to generate unique store ID after 20 attempts")
 
     # -----------------------------
     # CREATE
