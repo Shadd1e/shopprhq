@@ -123,32 +123,23 @@ const _SETUP_STEPS = [
 ];
 
 async function _initSetupBadge() {
-  // Once everything is done we permanently hide the badge — no further checks needed.
-  if (localStorage.getItem('setup_complete') === '1') {
-    _hideSetupBadges();
-    return;
-  }
-
   let status = null;
   try {
     const res = await call('/api/v1/clients/checklist-status');
     if (res && res.ok) status = await res.json();
   } catch (_) {}
 
-  if (!status) return;
-
-  if (_SETUP_STEPS.every(s => !!status[s.key])) {
-    localStorage.setItem('setup_complete', '1');
-    _hideSetupBadges();
-    return;
+  // If the API call failed entirely, default to showing all steps pending
+  // so the badge is visible rather than silently broken.
+  if (!status) {
+    status = { waba_active: false, has_products: false, has_bank: false };
   }
 
   _renderSetupBadge(status);
 }
 
-// Call this after any action that may complete a setup step (bank connect, product add, etc.)
+// Call this after any action that may complete a setup step.
 async function refreshSetupBadge() {
-  localStorage.removeItem('setup_complete');
   await _initSetupBadge();
 }
 

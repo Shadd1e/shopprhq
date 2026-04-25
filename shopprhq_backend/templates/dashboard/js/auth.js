@@ -69,6 +69,8 @@ function logout() {
   localStorage.removeItem('memail');
   localStorage.removeItem('email_verified');
   localStorage.removeItem('waba_active');
+  localStorage.removeItem('cid');
+  localStorage.removeItem('setup_complete');
 
   resetNavState();
 
