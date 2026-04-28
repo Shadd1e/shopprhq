@@ -39,7 +39,9 @@ async def revenue_summary(
     count: override number of periods (0 = default)
     Accepts both merchant and client JWTs.
     """
-    _require_merchant(request)
+    authed_id = _require_merchant(request)
+    if merchant_id != authed_id:
+        raise HTTPException(status_code=403, detail="Access denied")
 
     from sqlalchemy import select, func, text as sa_text
     from app.models.order import Order, OrderStatus as OStatus
@@ -143,7 +145,9 @@ async def list_orders_route(
     limit: int = Query(200),
     db: AsyncSession = Depends(get_db)
 ):
-    _require_merchant(request)
+    authed_id = _require_merchant(request)
+    if merchant_id != authed_id:
+        raise HTTPException(status_code=403, detail="Access denied")
     service = OrderService(db)
     return await service.list(
         merchant_id=merchant_id,
@@ -168,7 +172,9 @@ async def get_order_detail(
     Returns full order detail including cart items, delivery fields,
     and timestamps. Used by the dashboard order detail modal.
     """
-    _require_merchant(request)
+    authed_id = _require_merchant(request)
+    if merchant_id != authed_id:
+        raise HTTPException(status_code=403, detail="Access denied")
     from sqlalchemy import select
     from sqlalchemy.orm import selectinload
     from app.models.order import Order
@@ -255,7 +261,9 @@ async def get_order_route(
     client_id: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db)
 ):
-    _require_merchant(request)
+    authed_id = _require_merchant(request)
+    if merchant_id != authed_id:
+        raise HTTPException(status_code=403, detail="Access denied")
     service = OrderService(db)
 
     order = await service.get(
@@ -277,10 +285,15 @@ async def get_order_route(
 async def update_order_status_route(
     order_id: str,
     new_status: OrderStatus,
+    request: Request,
     merchant_id: str = Query(...),
     client_id: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db)
 ):
+    authed_id = _require_merchant(request)
+    if merchant_id != authed_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+
     if new_status == OrderStatus.FULFILLED:
         raise HTTPException(
             status_code=400,
@@ -320,7 +333,9 @@ async def mark_out_for_delivery(
     Merchant marks a delivery order as dispatched (OUT_FOR_DELIVERY).
     Sends a WhatsApp notification to the customer.
     """
-    _require_merchant(request)
+    authed_id = _require_merchant(request)
+    if merchant_id != authed_id:
+        raise HTTPException(status_code=403, detail="Access denied")
     from app.services.order_fulfillment_service import OrderFulfillmentService
     from app.services.whatsapp_sender import send_whatsapp_message
     from app.conversation.humanizer import Humanizer
@@ -381,7 +396,9 @@ async def confirm_cash_order_dashboard(
     Accepts AWAITING_PICKUP (pickup) and OUT_FOR_DELIVERY (delivery).
     Marks FULFILLED and fires receipt to customer.
     """
-    _require_merchant(request)
+    authed_id = _require_merchant(request)
+    if merchant_id != authed_id:
+        raise HTTPException(status_code=403, detail="Access denied")
     from sqlalchemy import select
     from app.models.order import Order, OrderStatus
 
