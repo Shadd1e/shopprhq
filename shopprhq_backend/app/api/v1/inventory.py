@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Depends, Request, Header, HTTPException, status
-from typing import List, Optional
+from fastapi import APIRouter, Depends, Request, HTTPException, Query
+from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
@@ -11,40 +11,25 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/inventory", tags=["Inventory"])
 
 
-def get_tenant_context(
-    request: Request,
-    x_merchant_id: Optional[str] = Header(default=None, alias="X-Merchant-ID"),
-    x_client_id: Optional[str] = Header(default=None, alias="X-Client-ID"),
-):
-    # Require a valid JWT — X-Merchant-ID header alone is not sufficient
-    auth_header = request.headers.get("Authorization", "")
-    if not auth_header.startswith("Bearer "):
+def _require_merchant(request: Request) -> str:
+    """JWT guard — rejects unauthenticated requests with 401."""
+    merchant_id = getattr(request.state, "merchant_id", None)
+    if not merchant_id:
         raise HTTPException(status_code=401, detail="Authentication required")
-
-    merchant_id = x_merchant_id or getattr(request.state, "merchant_id", None)
-    client_id = x_client_id or getattr(request.state, "client_id", None)
-
-    if not merchant_id or not client_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Missing merchant or client ID",
-        )
-
-    return merchant_id, client_id
+    return merchant_id
 
 
 @router.get("/", response_model=List[ProductRead], response_model_exclude_none=True)
 async def list_inventory(
     request: Request,
+    client_id: str = Query(...),
     db: AsyncSession = Depends(get_db),
-    x_merchant_id: Optional[str] = Header(default=None, alias="X-Merchant-ID"),
-    x_client_id: Optional[str] = Header(default=None, alias="X-Client-ID"),
 ):
     """
     Return all products accessible to the client under the given merchant.
     Essentially a view of the inventory scoped by tenant.
     """
-    merchant_id, client_id = get_tenant_context(request, x_merchant_id, x_client_id)
+    merchant_id = _require_merchant(request)
     service = InventoryService(db)
     products = await service.list_products_for_client(merchant_id, client_id)
     return products
@@ -53,9 +38,8 @@ async def list_inventory(
 async def set_low_stock_threshold(
     product_id: str,
     request: Request,
+    client_id: str = Query(...),
     db: AsyncSession = Depends(get_db),
-    x_merchant_id: Optional[str] = Header(default=None, alias="X-Merchant-ID"),
-    x_client_id: Optional[str] = Header(default=None, alias="X-Client-ID"),
 ):
     """
     Set the low stock warning threshold for a product.
@@ -64,7 +48,7 @@ async def set_low_stock_threshold(
     Body: {"threshold": 5}
     Set threshold to null to disable warnings for this product.
     """
-    merchant_id, client_id = get_tenant_context(request, x_merchant_id, x_client_id)
+    merchant_id = _require_merchant(request)
 
     body = await request.json()
     threshold = body.get("threshold")  # int or None
@@ -100,16 +84,15 @@ async def set_low_stock_threshold(
 async def adjust_stock(
     product_id: str,
     request: Request,
+    client_id: str = Query(...),
     db: AsyncSession = Depends(get_db),
-    x_merchant_id: Optional[str] = Header(default=None, alias="X-Merchant-ID"),
-    x_client_id: Optional[str] = Header(default=None, alias="X-Client-ID"),
 ):
     """
     Adjust stock by a delta (positive = add, negative = remove).
     Or set absolute quantity via set_to field.
     Body: {"delta": 10} or {"set_to": 50}
     """
-    merchant_id, client_id = get_tenant_context(request, x_merchant_id, x_client_id)
+    merchant_id = _require_merchant(request)
 
     body = await request.json()
     delta = body.get("delta")
