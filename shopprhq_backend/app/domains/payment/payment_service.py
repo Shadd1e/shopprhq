@@ -239,6 +239,73 @@ class PaymentService:
         return payment
 
     # --------------------------------------------------
+    # CREATE PAYSTACK PAYMENT (PENDING)
+    # --------------------------------------------------
+    async def create_paystack_payment(
+        self,
+        *,
+        order_id: str,
+        merchant_id: str,
+        client_id: str,
+        amount: Decimal,
+        reference: str,
+        customer_phone: Optional[str] = None,
+    ) -> Payment:
+        metadata = {
+            "provider": "paystack",
+            "reference": reference,
+            "customer_phone": customer_phone,
+            "initiated_at": datetime.now(timezone.utc).isoformat(),
+        }
+        payment_in = PaymentCreate(
+            order_id=order_id,
+            merchant_id=merchant_id,
+            client_id=client_id,
+            amount=float(amount),
+            method="paystack",
+            status=PaymentStatus.PENDING,
+            metadata=metadata,
+        )
+        payment = await self.create(payment_in)
+        payment.external_reference = reference
+        await self.db.flush()
+        return payment
+
+    # --------------------------------------------------
+    # HANDLE PAYSTACK WEBHOOK
+    # Looks up by external_reference (reference), marks SUCCEEDED
+    # --------------------------------------------------
+    async def handle_paystack_webhook(
+        self,
+        *,
+        tx_ref: str,
+        payload: Dict[str, Any],
+    ) -> Payment:
+        """Look up payment by external_reference, verify, mark SUCCEEDED."""
+        result = await self.db.execute(
+            select(Payment)
+            .where(Payment.external_reference == tx_ref)
+            .with_for_update()
+        )
+        payment = result.scalar_one_or_none()
+        if not payment:
+            raise ValueError(f"Payment not found for reference: {tx_ref}")
+        if payment.status == PaymentStatus.SUCCEEDED:
+            return payment  # idempotent
+        return await self.update_status(
+            payment_id=payment.id,
+            merchant_id=payment.merchant_id,
+            client_id=payment.client_id,
+            new_status=PaymentStatus.SUCCEEDED,
+            provider_reference=tx_ref,
+            metadata_update={
+                "webhook_received_at": datetime.now(timezone.utc).isoformat(),
+                "paystack_payload": payload,
+                "provider": "paystack",
+            },
+        )
+
+    # --------------------------------------------------
     # HANDLE FLUTTERWAVE WEBHOOK
     # Looks up by external_reference (tx_ref), no merchant_id needed
     # --------------------------------------------------
