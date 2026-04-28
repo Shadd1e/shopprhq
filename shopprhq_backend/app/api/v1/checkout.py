@@ -1,7 +1,7 @@
 # app/api/v1/checkout.py
 
 import logging
-from fastapi import APIRouter, Depends, HTTPException, Header, status
+from fastapi import APIRouter, Depends, HTTPException, Header, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 
@@ -23,6 +23,7 @@ async def create_checkout(
     merchant_id: str,
     client_id: str,
     data: CheckoutRequestSchema,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     idempotency_key: Optional[str] = Header(default=None, alias="Idempotency-Key"),
 ):
@@ -33,6 +34,11 @@ async def create_checkout(
     - user_id must be provided in body.
     - Idempotency supported via header.
     """
+    authed_id = getattr(request.state, "merchant_id", None)
+    if not authed_id:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    if merchant_id != authed_id:
+        raise HTTPException(status_code=403, detail="Access denied")
 
     # Enforce tenant isolation (never trust body for this)
     data = data.model_copy(
