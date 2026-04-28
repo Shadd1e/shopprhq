@@ -2,7 +2,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 # app/api/v1/products.py
-from fastapi import APIRouter, HTTPException, Depends, Query, Request, Header
+from fastapi import APIRouter, HTTPException, Depends, Query, Request
 from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -110,22 +110,16 @@ async def search_products(
 async def create_product_admin(
     payload: ProductCreate,
     request: Request,
+    client_id: str = Query(...),
     db: AsyncSession = Depends(get_db),
-    x_merchant_id: Optional[str] = Header(default=None, alias="X-Merchant-ID"),
-    x_client_id: Optional[str] = Header(default=None, alias="X-Client-ID"),
 ):
     """
-    Create a product using merchant/client ID headers.
-    Used by the dashboard — bypasses WhatsApp tenant resolution.
+    Create a product from the dashboard. Requires merchant JWT.
+    client_id selects which store the product belongs to.
     """
-    merchant_id = x_merchant_id or getattr(request.state, "merchant_id", None)
-    client_id   = x_client_id or getattr(request.state, "client_id", None)
-
-    if not merchant_id or not client_id:
-        raise HTTPException(
-            status_code=400,
-            detail="X-Merchant-ID and X-Client-ID headers are required"
-        )
+    merchant_id = getattr(request.state, "merchant_id", None)
+    if not merchant_id:
+        raise HTTPException(status_code=401, detail="Authentication required")
 
     service = ProductService(db)
     product = await service.create(
@@ -158,22 +152,16 @@ async def update_product_admin(
     product_id: str,
     payload: ProductUpdate,
     request: Request,
+    client_id: str = Query(...),
     db: AsyncSession = Depends(get_db),
-    x_merchant_id: Optional[str] = Header(default=None, alias="X-Merchant-ID"),
-    x_client_id: Optional[str] = Header(default=None, alias="X-Client-ID"),
 ):
     """
-    Update product name, price, description, or category from the dashboard.
-    Uses X-Merchant-ID + X-Client-ID headers (same pattern as admin create).
+    Update a product from the dashboard. Requires merchant JWT.
+    client_id selects which store the product belongs to.
     """
-    merchant_id = x_merchant_id or getattr(request.state, "merchant_id", None)
-    client_id   = x_client_id or getattr(request.state, "client_id", None)
-
-    if not merchant_id or not client_id:
-        raise HTTPException(
-            status_code=400,
-            detail="X-Merchant-ID and X-Client-ID headers are required"
-        )
+    merchant_id = getattr(request.state, "merchant_id", None)
+    if not merchant_id:
+        raise HTTPException(status_code=401, detail="Authentication required")
 
     service = ProductService(db)
 
