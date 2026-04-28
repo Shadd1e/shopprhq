@@ -13,6 +13,11 @@ class Settings(BaseSettings):
     # Redis (REQUIRED)
     REDIS_URL: str
 
+    # Paystack
+    PAYSTACK_SECRET_KEY: str = ""
+    PAYSTACK_WEBHOOK_SECRET: str = ""
+    PAYSTACK_REDIRECT_URL: str = ""
+
     # Auth / JWT
     SECRET_KEY: str = "change-me-in-production"
     ALGORITHM: str = "HS256"
