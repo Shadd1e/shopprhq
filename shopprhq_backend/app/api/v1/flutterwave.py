@@ -131,7 +131,6 @@ async def flutterwave_webhook(request: Request):
                 tx_ref=tx_ref,
                 webhook_status=status,
                 payload=data,
-                merchant_id=None,
             )
 
             if not payment or payment.status != PaymentStatus.SUCCEEDED:
