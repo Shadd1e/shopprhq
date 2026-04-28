@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, EmailStr
 from app.services.merchant_service import MerchantService
+from app.core.security import create_access_token
 from app.db.session import get_db
 from sqlalchemy.ext.asyncio import AsyncSession
 import logging
@@ -18,9 +19,17 @@ async def login(data: LoginRequest, db: AsyncSession = Depends(get_db)):
     Authenticate merchant and return access token.
     """
     service = MerchantService(db)
-    token = await service.authenticate(data.email, data.password)
+    merchant = await service.authenticate(data.email, data.password)
 
-    if not token:
+    if not merchant:
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
-    return {"access_token": token, "token_type": "bearer"}
+    token = create_access_token(subject=merchant.id)
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "merchant_id": merchant.id,
+        "name": merchant.name,
+        "email": merchant.email,
+        "email_verified": getattr(merchant, "email_verified", False),
+    }

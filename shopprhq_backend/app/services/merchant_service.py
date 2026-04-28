@@ -172,10 +172,13 @@ class MerchantService:
 
     async def authenticate(
         self,
-        merchant_id: str,
+        email: str,
         password: str,
     ) -> Optional[Merchant]:
-        merchant = await self.get(merchant_id)
+        result = await self.db.execute(
+            select(Merchant).where(Merchant.email == email)
+        )
+        merchant = result.scalars().first()
         if not merchant:
             return None
         if merchant.failed_attempts >= MAX_FAILED_ATTEMPTS:
