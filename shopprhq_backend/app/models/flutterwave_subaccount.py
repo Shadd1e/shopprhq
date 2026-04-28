@@ -4,6 +4,7 @@ from sqlalchemy.orm import relationship
 from app.db.base import Base
 
 
+
 class FlutterwaveSubaccount(Base):
     """
     One subaccount per Client (store).
@@ -21,14 +22,14 @@ class FlutterwaveSubaccount(Base):
     __tablename__ = "flutterwave_subaccounts"
 
     client_id = Column(
-        String(6),
+        String(20),
         ForeignKey("clients.id", ondelete="CASCADE"),
         primary_key=True,
         index=True,
     )
 
     merchant_id = Column(
-        String(6),
+        String(20),
         ForeignKey("merchants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
@@ -48,6 +49,8 @@ class FlutterwaveSubaccount(Base):
     split_type = Column(String(20), nullable=True)          # "percentage" or "flat"
 
     active = Column(Boolean, default=True, nullable=False)
+
+    provider = Column(String(20), nullable=True, default="paystack")
 
     created_at = Column(
         DateTime(timezone=True),
