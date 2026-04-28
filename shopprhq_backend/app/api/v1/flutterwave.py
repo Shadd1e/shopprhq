@@ -22,7 +22,7 @@ from app.services.operator_notification_service import OperatorNotificationServi
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1/webhook", tags=["Flutterwave"])
+router = APIRouter(prefix="/webhook", tags=["Flutterwave"])
 
 FLUTTERWAVE_WEBHOOK_SECRET = os.getenv("FLUTTERWAVE_WEBHOOK_SECRET")
 

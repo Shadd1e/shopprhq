@@ -20,7 +20,6 @@ from app.api.v1.human_agent import router as human_agent_router
 from app.api.v1.admin import router as admin_router
 from app.api.v1.credential import router as credential_router
 from app.api.v1.client_whatsapp_credential import router as merchant_whatsapp_router
-from app.api.v1.flutterwave import router as flutterwave_router
 from app.api.v1.debug import router as debug_router
 
 
@@ -43,4 +42,3 @@ api_v1_router.include_router(admin_router)
 api_v1_router.include_router(credential_router)
 api_v1_router.include_router(merchant_whatsapp_router)
 api_v1_router.include_router(webhook_router)
-api_v1_router.include_router(flutterwave_router)
