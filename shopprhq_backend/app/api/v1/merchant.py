@@ -4,7 +4,6 @@ logger = logging.getLogger(__name__)
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
-from typing import List
 
 from app.schemas.merchant import MerchantCreate, MerchantRead, MerchantUpdate, MerchantLogin
 from app.services.merchant_service import MerchantService
@@ -121,17 +120,6 @@ async def verify_email_code(request: Request, db: AsyncSession = Depends(get_db)
     if reason == "already_verified":
         return {"detail": "already_verified"}
     return {"detail": "ok"}
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# LIST  (auth required)
-# ─────────────────────────────────────────────────────────────────────────────
-
-@router.get("/", response_model=List[MerchantRead])
-async def list_merchants(request: Request, db: AsyncSession = Depends(get_db)):
-    _require_merchant(request)
-    service = MerchantService(db)
-    return await service.list_all()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
