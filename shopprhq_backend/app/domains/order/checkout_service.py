@@ -119,17 +119,24 @@ class CheckoutService:
 
         if existing_order:
             if existing_order.status == OrderStatus.PENDING_PAYMENT and data.payment_method == "card":
-                # Reuse: just regenerate the Flutterwave link
+                # Reuse: just regenerate the Paystack link
                 logger.info(
                     "Reusing existing PENDING_PAYMENT order %s for cart %s",
                     existing_order.id,
                     data.cart_id,
                 )
-                tx_ref = f"order_{existing_order.id}"
-                flutterwave_link = await self.create_flutterwave_payment_link(
-                    tx_ref=tx_ref,
-                    amount=float(existing_order.total_amount),
+                reference = f"order_{existing_order.id}"
+                from app.services.paystack_subaccount_service import PaystackSubaccountService
+                sub_service = PaystackSubaccountService(self.db)
+                subaccount_code = await sub_service.get_subaccount_code(
+                    client_id=cart.client_id,
+                    merchant_id=cart.merchant_id,
+                )
+                payment_link = await self.create_paystack_payment_link(
+                    reference=reference,
+                    amount_naira=float(existing_order.total_amount),
                     phone=data.user_id,
+                    subaccount_code=subaccount_code,
                 )
                 return CheckoutResponseSchema(
                     success=True,
@@ -145,7 +152,7 @@ class CheckoutService:
                     payment_instructions=None,
                     estimated_time="30–45 minutes",
                     store_contact="Store",
-                    payment_link=flutterwave_link,
+                    payment_link=payment_link,
                 )
 
             elif existing_order.status in (OrderStatus.PAID, OrderStatus.FULFILLED, OrderStatus.AWAITING_PICKUP):
@@ -205,25 +212,33 @@ class CheckoutService:
         self.db.add(order)
         await self.db.flush()
 
-        flutterwave_link = None
+        payment_link = None
 
         # Create payment record
         if data.payment_method == "card":
-            tx_ref = f"order_{order.id}"
+            reference = f"order_{order.id}"
 
-            await self.payment_service.create_flutterwave_payment(
+            from app.services.paystack_subaccount_service import PaystackSubaccountService
+            sub_service = PaystackSubaccountService(self.db)
+            subaccount_code = await sub_service.get_subaccount_code(
+                client_id=cart.client_id,
+                merchant_id=cart.merchant_id,
+            )
+
+            await self.payment_service.create_paystack_payment(
                 order_id=str(order.id),
                 merchant_id=cart.merchant_id,
                 client_id=cart.client_id,
                 amount=Decimal(str(total_float)),
-                tx_ref=tx_ref,
+                reference=reference,
                 customer_phone=data.user_id,
             )
 
-            flutterwave_link = await self.create_flutterwave_payment_link(
-                tx_ref=tx_ref,
-                amount=total_float,
+            payment_link = await self.create_paystack_payment_link(
+                reference=reference,
+                amount_naira=total_float,
                 phone=data.user_id,
+                subaccount_code=subaccount_code,
             )
 
             # Card: deduct inventory immediately (will be reversed on payment failure)
@@ -277,7 +292,7 @@ class CheckoutService:
             payment_instructions=None,
             estimated_time="30–45 minutes",
             store_contact="Store",
-            payment_link=flutterwave_link,
+            payment_link=payment_link,
         )
 
     # ==================================================
@@ -317,59 +332,51 @@ class CheckoutService:
         return await self.checkout(checkout_data)
 
     # ==================================================
-    # FLUTTERWAVE EXTERNAL CALL
+    # PAYSTACK EXTERNAL CALL
     # ==================================================
 
-    async def create_flutterwave_payment_link(
+    async def create_paystack_payment_link(
         self,
         *,
-        tx_ref: str,
-        amount: float,
+        reference: str,
+        amount_naira: float,
         phone: str,
+        subaccount_code: Optional[str] = None,
     ) -> str:
-
-        secret = os.getenv("FLUTTERWAVE_SECRET_KEY")
-        base_url = os.getenv("FLUTTERWAVE_BASE_URL", "https://api.flutterwave.com/v3")
-
+        secret = os.getenv("PAYSTACK_SECRET_KEY")
         if not secret:
-            raise ValueError("Flutterwave secret not configured")
-
-        redirect_url = os.getenv("FLUTTERWAVE_REDIRECT_URL")
-        if not redirect_url:
-            logger.warning("FLUTTERWAVE_REDIRECT_URL not set — payment link may malfunction after customer pays")
-
+            raise ValueError("PAYSTACK_SECRET_KEY not configured")
+        redirect_url = os.getenv("PAYSTACK_REDIRECT_URL", "")
+        amount_kobo = int(amount_naira * 100)
         payload = {
-            "tx_ref": tx_ref,
-            "amount": amount,
+            "reference": reference,
+            "amount": amount_kobo,
             "currency": "NGN",
-            "redirect_url": redirect_url,
+            "callback_url": redirect_url,
             "customer": {
-                "phonenumber": phone,
-                "name": "Customer",
-                "email": f"{phone}@example.com",
+                "phone": phone,
+                "email": f"{phone.replace('+', '')}@shopprhq.app",
             },
+            "channels": ["card", "bank", "ussd", "bank_transfer", "mobile_money"],
         }
-
+        if subaccount_code:
+            payload["subaccount"] = subaccount_code
+            payload["bearer"] = "subaccount"
         headers = {
             "Authorization": f"Bearer {secret}",
             "Content-Type": "application/json",
         }
-
         async with httpx.AsyncClient(timeout=20.0) as client:
             response = await client.post(
-                f"{base_url}/payments",
+                "https://api.paystack.co/transaction/initialize",
                 json=payload,
                 headers=headers,
             )
-
         if response.status_code != 200:
-            logger.error("Flutterwave error %s: %s", response.status_code, response.text)
-            raise ValueError("Failed to initialize Flutterwave payment")
-
+            logger.error("Paystack init error %s: %s", response.status_code, response.text)
+            raise ValueError("Failed to initialize Paystack payment")
         data = response.json()
-        link = data.get("data", {}).get("link")
-
-        if not link:
-            raise ValueError("Flutterwave did not return a payment link")
-
-        return link
+        url = data.get("data", {}).get("authorization_url")
+        if not url:
+            raise ValueError("Paystack did not return authorization_url")
+        return url
