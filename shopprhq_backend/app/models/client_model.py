@@ -23,7 +23,7 @@ class Client(Base):
     __tablename__ = "clients"
 
     # ── Primary key ────────────────────────────────────────────────────────────
-    id      = Column(String(length=6), primary_key=True, index=True)
+    id      = Column(String(length=20), primary_key=True, index=True)
     name    = Column(String, nullable=False)
 
     # Store address shown on PDF receipts
@@ -96,7 +96,7 @@ class Client(Base):
 
     # ── Foreign keys ───────────────────────────────────────────────────────────
     merchant_id = Column(
-        String(length=6),
+        String(length=20),
         ForeignKey("merchants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,

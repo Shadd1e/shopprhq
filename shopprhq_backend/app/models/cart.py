@@ -29,14 +29,14 @@ class Cart(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 
     merchant_id = Column(
-        String(6),
+        String(20),
         ForeignKey("merchants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
 
     client_id = Column(
-        String(6),
+        String(20),
         ForeignKey("clients.id", ondelete="CASCADE"),
         nullable=False,
         index=True,

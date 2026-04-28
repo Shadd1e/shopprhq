@@ -14,7 +14,7 @@ class DeepSeekSetting(Base):
     id = Column(String(36), primary_key=True, index=True, default=generate_uuid)
 
     client_id = Column(
-        String(6),
+        String(20),
         ForeignKey("clients.id", ondelete="CASCADE"),
         nullable=False,
         index=True,

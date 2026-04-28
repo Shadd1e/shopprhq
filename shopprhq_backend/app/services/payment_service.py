@@ -109,38 +109,35 @@ class PaymentService:
         return payment
 
     # =====================================================
-    # FLUTTERWAVE PAYMENT CREATION
+    # PAYSTACK PAYMENT CREATION
     # =====================================================
 
-    async def create_flutterwave_payment(
+    async def create_paystack_payment(
         self,
         *,
         order_id: str,
         merchant_id: str,
         client_id: str,
         amount: Decimal,
-        tx_ref: str,
+        reference: str,
         customer_phone: Optional[str] = None,
     ) -> Payment:
-
         payment = await self.create(PaymentCreate(
             order_id=order_id,
             merchant_id=merchant_id,
             client_id=client_id,
             amount=float(amount),
-            method="flutterwave",
+            method="paystack",
             status=PaymentStatus.PENDING,
             metadata={
-                "provider": "flutterwave",
-                "provider_reference": tx_ref,
-                "tx_ref": tx_ref,
+                "provider": "paystack",
+                "provider_reference": reference,
+                "reference": reference,
                 "customer_phone": customer_phone,
                 "initiated_at": datetime.now(timezone.utc).isoformat(),
             },
         ))
-        # Store tx_ref in the indexed unique column so the DB constraint
-        # acts as a hard fallback dedup guarantee (Redis is the fast path).
-        payment.external_reference = tx_ref
+        payment.external_reference = reference
         await self.db.flush()
         return payment
 
@@ -233,52 +230,37 @@ class PaymentService:
         return payment
 
     # =====================================================
-    # FLUTTERWAVE WEBHOOK (IDEMPOTENT)
+    # PAYSTACK WEBHOOK (IDEMPOTENT)
     # =====================================================
 
-    async def handle_flutterwave_webhook(
+    async def handle_paystack_webhook(
         self,
         *,
         tx_ref: str,
-        webhook_status: str,
         payload: Dict[str, Any],
-        merchant_id: Optional[str] = None,
     ) -> Payment:
-
+        """Look up payment by external_reference, mark SUCCEEDED."""
         result = await self.db.execute(
             select(Payment).where(
-                Payment.payment_metadata["tx_ref"].as_string() == tx_ref
+                Payment.external_reference == tx_ref
             ).with_for_update()
         )
-
         payment = result.scalar_one_or_none()
-
         if not payment:
-            raise ValueError(f"Payment not found for tx_ref: {tx_ref}")
-
+            raise ValueError(f"Payment not found for reference: {tx_ref}")
         if payment.status == PaymentStatus.SUCCEEDED:
-            return payment
-
-        mapping = {
-            "successful": PaymentStatus.SUCCEEDED,
-            "failed": PaymentStatus.FAILED,
-            "pending": PaymentStatus.PENDING,
-            "cancelled": PaymentStatus.PENDING,
-        }
-
-        new_status = mapping.get(webhook_status.lower(), PaymentStatus.PENDING)
-
+            return payment  # idempotent
         return await self.update_status(
             payment_id=payment.id,
             merchant_id=payment.merchant_id,
             client_id=payment.client_id,
-            new_status=new_status,
+            new_status=PaymentStatus.SUCCEEDED,
             provider_reference=tx_ref,
             skip_succeeded_check=True,
             metadata_update={
                 "webhook_received_at": datetime.now(timezone.utc).isoformat(),
-                "flutterwave_payload": payload,
-                "webhook_status": webhook_status,
+                "paystack_payload": payload,
+                "provider": "paystack",
             },
         )
 

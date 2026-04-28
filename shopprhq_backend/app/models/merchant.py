@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 class Merchant(Base):
     __tablename__ = "merchants"
 
-    id                               = Column(String(6),   primary_key=True, index=True)
+    id                               = Column(String(20),   primary_key=True, index=True)
     name                             = Column(String(255), nullable=False)
     email                            = Column(String(255), unique=True, nullable=False)
     password_hash                    = Column(String(255), nullable=False)

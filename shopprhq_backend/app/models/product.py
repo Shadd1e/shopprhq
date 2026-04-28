@@ -68,13 +68,13 @@ class Product(Base):
 
     # ── Foreign keys ───────────────────────────────────────────────────────────
     merchant_id = Column(
-        String(6),
+        String(20),
         ForeignKey("merchants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     client_id = Column(
-        String(6),
+        String(20),
         ForeignKey("clients.id", ondelete="CASCADE"),
         nullable=False,
         index=True,

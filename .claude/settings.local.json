@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git -C /c/Users/mirac/Documents/shopprhq add shopprhq_backend/app/api/v1/flutterwave.py shopprhq_backend/main.py shopprhq_backend/app/api/v1/api.py)",
+      "Bash(git -C /c/Users/mirac/Documents/shopprhq commit -m ' *)",
+      "Bash(git -C /c/Users/mirac/Documents/shopprhq add shopprhq_backend/app/api/v1/flutterwave.py)",
+      "Bash(git -C /c/Users/mirac/Documents/shopprhq add shopprhq_backend/app/api/v1/auth.py shopprhq_backend/app/services/merchant_service.py)",
+      "Bash(git *)",
+      "Bash(python *)"
+    ]
+  }
+}

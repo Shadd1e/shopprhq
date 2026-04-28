@@ -15,8 +15,8 @@ class HumanAgent(Base):
     # FIX: match Cart.id type (UUID)
     cart_id = Column(UUID(as_uuid=True), ForeignKey("carts.id", ondelete="CASCADE"), nullable=False, index=True)
 
-    client_id = Column(String(6), ForeignKey("clients.id", ondelete="CASCADE"), nullable=False, index=True)
-    merchant_id = Column(String(6), ForeignKey("merchants.id", ondelete="CASCADE"), nullable=False, index=True)
+    client_id = Column(String(20), ForeignKey("clients.id", ondelete="CASCADE"), nullable=False, index=True)
+    merchant_id = Column(String(20), ForeignKey("merchants.id", ondelete="CASCADE"), nullable=False, index=True)
 
     total_amount = Column(Float, nullable=False)
     status = Column(String, default="pending")  # pending, completed, cancelled

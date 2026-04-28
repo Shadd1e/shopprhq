@@ -10,12 +10,12 @@ class Clarification(Base):
 
     id = Column(String(36), primary_key=True, index=True, default=generate_uuid)
     merchant_id = Column(
-        String(6),
+        String(20),
         ForeignKey("merchants.id", ondelete="CASCADE"),
         nullable=False,
     )
     client_id = Column(
-        String(6),
+        String(20),
         ForeignKey("clients.id", ondelete="CASCADE"),
         nullable=True,
     )

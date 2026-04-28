@@ -104,13 +104,11 @@ from app.api.v1.checkout import router as checkout_router
 from app.api.v1.debug import router as debug_router
 from app.api.v1.subaccount import router as subaccount_router
 from app.api.v1.admin_whatsapp import router as admin_whatsapp_router
-from app.api.v1.flutterwave import router as flutterwave_router
 from app.api.v1.paystack import router as paystack_router
 
 API_V1_PREFIX = "/api/v1"
 
 app.include_router(webhooks_router, prefix=API_V1_PREFIX, tags=["Webhooks"])
-app.include_router(flutterwave_router, prefix="/api/v1", tags=["Flutterwave"])
 app.include_router(paystack_router, prefix="/api/v1")
 app.include_router(merchant_router, prefix=API_V1_PREFIX, tags=["Merchants"])
 app.include_router(whatsapp_cred_router, prefix=API_V1_PREFIX, tags=["WhatsApp Credentials"])

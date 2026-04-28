@@ -62,7 +62,7 @@ class CustomerProfile(Base):
         ),
     )
     last_order_client_id = Column(
-        String(6),
+        String(20),
         nullable=True,
         comment="client_id of the store where last_order_summary was placed.",
     )

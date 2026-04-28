@@ -34,7 +34,7 @@ class IdempotencyKey(Base):
     id = Column(String(36), primary_key=True, default=generate_uuid)
 
     # Tenant scoping
-    merchant_id = Column(String(6), nullable=False, index=True)
+    merchant_id = Column(String(20), nullable=False, index=True)
     key = Column(String, nullable=False, index=True)
 
     # Request identity

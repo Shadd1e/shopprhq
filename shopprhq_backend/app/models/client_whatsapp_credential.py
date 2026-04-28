@@ -34,7 +34,7 @@ class ClientWhatsAppCredential(Base):
     __tablename__ = "client_whatsapp_credentials"
 
     client_id = Column(
-        String(length=6),
+        String(length=20),
         ForeignKey("clients.id", ondelete="CASCADE"),
         primary_key=True,
         index=True,

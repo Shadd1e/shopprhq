@@ -10,7 +10,7 @@ class WebhookEvent(Base):
 
     provider = Column(String(50), nullable=False, index=True)
 
-    client_id = Column(String(6), nullable=False, index=True)
+    client_id = Column(String(20), nullable=False, index=True)
 
     phone_number_id = Column(String(255), nullable=True, index=True)
 
