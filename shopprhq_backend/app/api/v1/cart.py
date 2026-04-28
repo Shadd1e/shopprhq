@@ -1,7 +1,7 @@
 # app/api/v1/cart.py
 
 import logging
-from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi import APIRouter, HTTPException, Depends, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.deps import get_db
@@ -18,6 +18,13 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/cart", tags=["Cart"])
 
 
+def _require_merchant(request: Request) -> str:
+    merchant_id = getattr(request.state, "merchant_id", None)
+    if not merchant_id:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    return merchant_id
+
+
 # -------------------------------------------------
 # ADD ITEM
 # -------------------------------------------------
@@ -25,8 +32,12 @@ router = APIRouter(prefix="/cart", tags=["Cart"])
 @router.post("/add-item", response_model=CartSchema, status_code=status.HTTP_200_OK)
 async def add_item_by_merchant_user(
     item: CartAddItem,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ):
+    authed_id = _require_merchant(request)
+    if item.merchant_id != authed_id:
+        raise HTTPException(status_code=403, detail="Access denied")
     service = CartService(db)
 
     try:
@@ -66,8 +77,12 @@ async def add_item_by_merchant_user(
 @router.post("/remove-item", response_model=CartSchema, status_code=status.HTTP_200_OK)
 async def remove_item_by_merchant_user(
     item: CartRemoveItem,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ):
+    authed_id = _require_merchant(request)
+    if item.merchant_id != authed_id:
+        raise HTTPException(status_code=403, detail="Access denied")
     service = CartService(db)
 
     cart = await service.get_active_cart(
@@ -100,8 +115,12 @@ async def view_cart_by_merchant_user(
     merchant_id: str,
     client_id: str,
     user_id: str,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ):
+    authed_id = _require_merchant(request)
+    if merchant_id != authed_id:
+        raise HTTPException(status_code=403, detail="Access denied")
     service = CartService(db)
 
     cart = await service.get_active_cart(
@@ -125,8 +144,12 @@ async def create_cart(
     merchant_id: str,
     client_id: str,
     user_id: str,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ):
+    authed_id = _require_merchant(request)
+    if merchant_id != authed_id:
+        raise HTTPException(status_code=403, detail="Access denied")
     service = CartService(db)
 
     return await service.create_cart(
@@ -145,8 +168,12 @@ async def get_cart(
     cart_id: str,
     merchant_id: str,
     client_id: str,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ):
+    authed_id = _require_merchant(request)
+    if merchant_id != authed_id:
+        raise HTTPException(status_code=403, detail="Access denied")
     service = CartService(db)
 
     cart = await service.get_cart(
@@ -170,8 +197,12 @@ async def clear_cart(
     cart_id: str,
     merchant_id: str,
     client_id: str,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ):
+    authed_id = _require_merchant(request)
+    if merchant_id != authed_id:
+        raise HTTPException(status_code=403, detail="Access denied")
     service = CartService(db)
 
     try:
