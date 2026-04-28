@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.schemas.flutterwave_subaccount import SubaccountRegisterRequest, SubaccountRead
-from app.services.flutterwave_subaccount_service import FlutterwaveSubaccountService
+from app.services.paystack_subaccount_service import PaystackSubaccountService
 from app.db.deps import get_db
 
 logger = logging.getLogger(__name__)
@@ -21,41 +21,15 @@ def _require_merchant(request: Request) -> str:
 
 
 @router.get("/banks")
-async def list_banks(request: Request):
-    """
-    Returns all Nigerian banks supported by Flutterwave for account resolution
-    and subaccount creation. Proxies Flutterwave GET /v3/banks/NG so the
-    frontend never needs the secret key directly.
-    """
+async def list_banks(request: Request, db: AsyncSession = Depends(get_db)):
+    """Returns all Nigerian banks supported by Paystack."""
     _require_merchant(request)
-
-    import os, httpx
-    secret = os.getenv("FLUTTERWAVE_SECRET_KEY")
-    if not secret:
-        raise HTTPException(status_code=500, detail="Flutterwave not configured")
-
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            res = await client.get(
-                "https://api.flutterwave.com/v3/banks/NG",
-                headers={"Authorization": f"Bearer {secret}"},
-            )
-        data = res.json()
-        if res.status_code != 200 or data.get("status") != "success":
-            raise HTTPException(status_code=502, detail="Could not fetch bank list from Flutterwave")
-
-        # Return sorted list: code + name only
-        banks = sorted(
-            [{"code": b["code"], "name": b["name"]} for b in data.get("data", [])],
-            key=lambda b: b["name"],
-        )
+        service = PaystackSubaccountService(db)
+        banks = await service.list_banks()
         return {"banks": banks}
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("Failed to fetch Flutterwave bank list: %s", e)
-        raise HTTPException(status_code=502, detail="Could not fetch bank list. Please try again.")
+    except ValueError as e:
+        raise HTTPException(status_code=502, detail=str(e))
 
 
 @router.post("/verify-account")
@@ -63,66 +37,19 @@ async def verify_bank_account(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Verify a bank account number against Flutterwave.
-    Returns the account holder name for the merchant to confirm
-    before registering the subaccount.
-    """
+    """Verify a bank account number against Paystack."""
     _require_merchant(request)
-
-    import os, httpx
     body = await request.json()
     account_number = body.get("account_number", "").strip()
-    account_bank   = body.get("account_bank", "").strip()
-
-    if not account_number or not account_bank:
+    bank_code = body.get("account_bank", "").strip()
+    if not account_number or not bank_code:
         raise HTTPException(status_code=400, detail="account_number and account_bank required")
-
-    secret = os.getenv("FLUTTERWAVE_SECRET_KEY")
-    if not secret:
-        raise HTTPException(status_code=500, detail="Flutterwave not configured")
-
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            res = await client.post(
-                "https://api.flutterwave.com/v3/accounts/resolve",
-                json={"account_number": account_number, "account_bank": account_bank},
-                headers={
-                    "Authorization": f"Bearer {secret}",
-                    "Content-Type": "application/json",
-                },
-            )
-        # Safe JSON parse — Flutterwave sometimes returns non-JSON on errors
-        try:
-            data = res.json()
-        except Exception:
-            data = {}
-
-        if res.status_code != 200 or data.get("status") != "success":
-            # data.get("message") can itself be a dict on some Flutterwave errors
-            raw_msg = data.get("message", "")
-            if isinstance(raw_msg, dict):
-                raw_msg = raw_msg.get("error", str(raw_msg))
-            detail = str(raw_msg) if raw_msg else "Could not verify account. Check the number and bank."
-            raise HTTPException(status_code=400, detail=detail)
-
-        account_name = data.get("data", {}).get("account_name", "")
-        if not account_name:
-            raise HTTPException(
-                status_code=400,
-                detail="Account found but name could not be retrieved. Try a different bank."
-            )
-
-        return {
-            "account_name":   account_name,
-            "account_number": account_number,
-            "account_bank":   account_bank,
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("Bank account verification failed: %s", e)
-        raise HTTPException(status_code=400, detail="Could not verify account. Please try again.")
+        service = PaystackSubaccountService(db)
+        result = await service.verify_account(account_number, bank_code)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.post("/{client_id}", response_model=SubaccountRead, status_code=201)
@@ -133,19 +60,16 @@ async def register_subaccount(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Register a Flutterwave subaccount for a store (client).
+    Register a Paystack subaccount for a store (client).
 
-    This calls Flutterwave's API with the store's bank details and saves
-    the returned subaccount_id. Once registered, all card payments from
-    that store will route directly to this bank account.
-
-    The merchant must be authenticated and the client must belong to them.
+    Calls Paystack's API with the store's bank details and saves the returned
+    subaccount_code. Once registered, all card payments from that store will
+    route directly to this bank account.
     """
     merchant_id = _require_merchant(request)
 
-    service = FlutterwaveSubaccountService(db)
+    service = PaystackSubaccountService(db)
 
-    # Check if already registered
     existing = await service.get_for_client(
         client_id=client_id,
         merchant_id=merchant_id,
@@ -163,8 +87,6 @@ async def register_subaccount(
             account_bank=payload.account_bank,
             account_number=payload.account_number,
             business_name=payload.business_name,
-            split_value="0.6",       # Platform takes 0.6% (capped at ₦2,000 at payment time)
-            split_type="percentage",
         )
         return subaccount
     except ValueError as e:
@@ -183,7 +105,7 @@ async def get_subaccount(
     """Get the registered subaccount for a store."""
     merchant_id = _require_merchant(request)
 
-    service = FlutterwaveSubaccountService(db)
+    service = PaystackSubaccountService(db)
     subaccount = await service.get_for_client(
         client_id=client_id,
         merchant_id=merchant_id,
@@ -202,7 +124,7 @@ async def deactivate_subaccount(
     """Deactivate a store's subaccount. Payments will fall back to platform account."""
     merchant_id = _require_merchant(request)
 
-    service = FlutterwaveSubaccountService(db)
+    service = PaystackSubaccountService(db)
     success = await service.deactivate(
         client_id=client_id,
         merchant_id=merchant_id,
@@ -210,4 +132,3 @@ async def deactivate_subaccount(
     if not success:
         raise HTTPException(status_code=404, detail="No subaccount found")
     return {"detail": "Subaccount deactivated"}
-
