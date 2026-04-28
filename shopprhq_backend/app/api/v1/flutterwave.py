@@ -208,7 +208,7 @@ async def flutterwave_webhook(request: Request):
                     ), name="slack_flw_amount_mismatch")
                 except Exception:
                     pass
-                return {"status": "amount_mismatch"}
+                raise HTTPException(status_code=422, detail="Amount mismatch")
 
             # ==================================================
             # LOCK CART
