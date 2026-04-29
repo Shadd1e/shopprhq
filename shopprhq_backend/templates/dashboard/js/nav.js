@@ -32,7 +32,8 @@ function nav(pageName, btn) {
   // Only fetch data once per session per page; re-fetch only when explicitly staled.
   if (!_loadedPages.has(pageName) && loaders[pageName]) {
     _loadedPages.add(pageName);
-    loaders[pageName]();
+    showPageLoader();
+    Promise.resolve(loaders[pageName]()).finally(hidePageLoader);
   }
 }
 

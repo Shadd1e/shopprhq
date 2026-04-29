@@ -48,6 +48,13 @@
 </head>
 <body>
 
+<div id="page-loader-bar" style="
+  position: fixed; top: 0; left: 0; height: 3px;
+  background: var(--wa, #25D366); border-radius: 0 2px 2px 0;
+  transition: width 0.35s ease, opacity 0.2s ease;
+  width: 0; opacity: 0; z-index: 9999; pointer-events: none;
+"></div>
+
 <!-- ── SVG ICON DEFS (reusable, milk on green via CSS) ───────────────────── -->
 <svg style="display:none" xmlns="http://www.w3.org/2000/svg">
   <symbol id="ic-grid" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
