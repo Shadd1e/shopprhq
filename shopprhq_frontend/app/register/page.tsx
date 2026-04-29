@@ -68,7 +68,7 @@ function SuccessCard({ mid, email, storeName }: { mid: string; email: string; st
             Welcome to ShopprHQ, {storeName}!
           </h2>
           <p className="text-sm text-ink-3 mb-5">
-            Let's get your store set up.
+            Registration successful. Check your email to verify your account before signing in.
           </p>
           <p className="text-sm text-ink-3 leading-relaxed mb-6">
             We sent a 6-digit verification code to{' '}
@@ -245,12 +245,13 @@ export default function RegisterPage() {
                   </span>
                 </span>
               }
-              hint="International format, no + sign. e.g. 2348012345678"
+              hint="Include country code, no spaces or +. Example: 2348012345678"
             >
               <input
                 type="tel"
-                placeholder="e.g. 2348012345678"
+                placeholder="2348012345678 (no + or spaces)"
                 inputMode="numeric"
+                maxLength={15}
                 value={form.wa}
                 onChange={set('wa')}
                 autoComplete="tel"
