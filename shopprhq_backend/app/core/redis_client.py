@@ -11,7 +11,7 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-WAMID_TTL   = 3600        # 1 hour  — dedup window
+WAMID_TTL   = 86400       # 24 hours — matches Meta's maximum webhook retry window
 LOCK_TTL    = 30          # seconds — per-user processing lock
 SESSION_TTL = 7200        # 2 hours — conversation session
 
