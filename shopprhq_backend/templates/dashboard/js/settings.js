@@ -14,7 +14,7 @@ async function loadClients() {
   clients = Array.isArray(data) ? data : [];
 
   const opts = clients
-    .map(c => `<option value="${c.id}">${c.name} (${c.id})</option>`)
+    .map(c => `<option value="${escHtml(c.id)}">${escHtml(c.name)} (${escHtml(c.id)})</option>`)
     .join('');
   ['p-client', 'csv-store'].forEach(id => {
     const sel = document.getElementById(id);
@@ -63,11 +63,11 @@ function renderStoreCards() {
       : `<span style="color:var(--ink-4);font-size:12px">No bank</span>`;
 
     const opStatus = c.operator_notify_phone
-      ? `<span style="font-size:12px;color:var(--ink-3)">+${c.operator_notify_phone}</span>`
+      ? `<span style="font-size:12px;color:var(--ink-3)">+${escHtml(c.operator_notify_phone)}</span>`
       : `<span style="font-size:12px;color:var(--ink-4)">No operator</span>`;
 
     const personaStatus = c.assistant_name
-      ? `<span style="font-size:12px;color:var(--ink-3)">${c.assistant_name}</span>`
+      ? `<span style="font-size:12px;color:var(--ink-3)">${escHtml(c.assistant_name)}</span>`
       : ``;
 
     const deliveryStatus = c.delivery_enabled
@@ -75,7 +75,7 @@ function renderStoreCards() {
       : ``;
 
     return `
-      <button onclick="openStoreDetail('${c.id}')" style="
+      <button data-client-id="${escHtml(c.id)}" style="
         display:flex;align-items:center;gap:14px;
         padding:16px 20px;
         background:none;border:none;cursor:pointer;
@@ -89,11 +89,11 @@ function renderStoreCards() {
           display:flex;align-items:center;justify-content:center;
           font-size:17px;font-weight:700;color:var(--wa-dark);
           font-family:'Bricolage Grotesque',sans-serif;
-        ">${c.name.charAt(0).toUpperCase()}</div>
+        ">${escHtml(String(c.name || '').charAt(0).toUpperCase())}</div>
         <div style="flex:1;min-width:0">
-          <div style="font-size:15px;font-weight:600;color:var(--ink);margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.name}</div>
+          <div style="font-size:15px;font-weight:600;color:var(--ink);margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(c.name)}</div>
           <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-            <span style="font-family:monospace;font-size:11px;color:var(--ink-4);background:var(--border-2);padding:1px 6px;border-radius:4px">${c.id}</span>
+            <span style="font-family:monospace;font-size:11px;color:var(--ink-4);background:var(--border-2);padding:1px 6px;border-radius:4px">${escHtml(c.id)}</span>
             ${opStatus}
             ${bankStatus}
             ${personaStatus}
@@ -103,6 +103,12 @@ function renderStoreCards() {
         <svg width="16" height="16" fill="none" stroke="var(--ink-4)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><polyline points="6,4 12,10 6,16"/></svg>
       </button>`;
   }).join('');
+
+  // Event delegation — overwrite on each render to avoid stacking listeners
+  list.onclick = (e) => {
+    const btn = e.target.closest('button[data-client-id]');
+    if (btn) openStoreDetail(btn.dataset.clientId);
+  };
 }
 
 // ── Store Detail Modal ────────────────────────────────────────────────────────
@@ -123,7 +129,7 @@ function openStoreDetail(clientId) {
   const opVal = document.getElementById('sd-op-val');
   const opBtn = document.getElementById('sd-op-btn');
   if (c.operator_notify_phone) {
-    opVal.innerHTML = `<span style="color:var(--wa-dark);font-weight:500">+${c.operator_notify_phone}</span>`;
+    opVal.innerHTML = `<span style="color:var(--wa-dark);font-weight:500">+${escHtml(c.operator_notify_phone)}</span>`;
     opBtn.textContent = 'Change';
   } else {
     opVal.textContent = 'Not set';
@@ -134,7 +140,7 @@ function openStoreDetail(clientId) {
   const addrVal = document.getElementById('sd-addr-val');
   const addrBtn = document.getElementById('sd-addr-btn');
   if (c.address) {
-    addrVal.innerHTML = `<span style="color:var(--ink)">${c.address}</span>`;
+    addrVal.innerHTML = `<span style="color:var(--ink)">${escHtml(c.address)}</span>`;
     addrBtn.textContent = 'Edit';
   } else {
     addrVal.textContent = 'Not set';
@@ -146,7 +152,7 @@ function openStoreDetail(clientId) {
   const personaStyle = document.getElementById('sd-persona-style');
   const personaBtn   = document.getElementById('sd-persona-btn');
   if (c.assistant_name) {
-    personaName.innerHTML = `<span style="color:var(--ink);font-weight:500">${c.assistant_name}</span>`;
+    personaName.innerHTML = `<span style="color:var(--ink);font-weight:500">${escHtml(c.assistant_name)}</span>`;
     personaStyle.textContent = _formatPersonality(c.assistant_personality);
     personaBtn.textContent = 'Edit';
   } else {
@@ -159,14 +165,18 @@ function openStoreDetail(clientId) {
   const bankVal     = document.getElementById('sd-bank-val');
   const bankBtnWrap = document.getElementById('sd-bank-btn-wrap');
   if (sub) {
-    bankVal.innerHTML = `<span style="color:var(--wa-dark);font-weight:500">✓ ${sub.business_name}</span>
-      <div style="font-size:12px;color:var(--ink-3);margin-top:2px">${sub.account_number}</div>`;
+    bankVal.innerHTML = `<span style="color:var(--wa-dark);font-weight:500">✓ ${escHtml(sub.business_name)}</span>
+      <div style="font-size:12px;color:var(--ink-3);margin-top:2px">${escHtml(sub.account_number)}</div>`;
     bankBtnWrap.innerHTML = `<button class="btn-xs" style="color:var(--red);border-color:var(--red)"
-      onclick="removeSubaccountFromDetail('${clientId}')">Remove</button>`;
+      data-action="remove-bank">Remove</button>`;
+    bankBtnWrap.querySelector('[data-action="remove-bank"]')
+      .addEventListener('click', () => removeSubaccountFromDetail(clientId));
   } else {
     bankVal.textContent = 'Not connected';
     bankBtnWrap.innerHTML = `<button class="btn-xs" style="border-color:var(--wa);color:var(--wa-dark)"
-      onclick="openBankModalFromDetail('${clientId}', '${c.name.replace(/'/g, "\\'")}')">Connect Bank</button>`;
+      data-action="connect-bank">Connect Bank</button>`;
+    bankBtnWrap.querySelector('[data-action="connect-bank"]')
+      .addEventListener('click', () => openBankModalFromDetail(clientId, c.name));
   }
 
   // Delivery
@@ -345,7 +355,7 @@ async function verifyBankAccount() {
         <span style="color:var(--wa-dark);font-size:18px">✓</span>
         <div>
           <div style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3);margin-bottom:2px">Account Name</div>
-          <div style="font-weight:700;font-size:15px;color:var(--ink)">${accountName}</div>
+          <div style="font-weight:700;font-size:15px;color:var(--ink)">${escHtml(accountName)}</div>
           <div style="font-size:12px;color:var(--ink-3);margin-top:2px">Is this the right account? If yes, tap Connect below.</div>
         </div>
       </div>`;
