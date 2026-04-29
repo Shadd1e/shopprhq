@@ -3,7 +3,8 @@ logger = logging.getLogger(__name__)
 
 # app/core/security.py
 from datetime import datetime, timedelta
-from jose import jwt, JWTError
+import jwt as pyjwt
+from jwt.exceptions import DecodeError, ExpiredSignatureError
 from passlib.context import CryptContext
 from app.core.config import settings
 
@@ -36,7 +37,7 @@ def create_access_token(subject: str) -> str:
     """Generate a merchant JWT token. Payload: { sub: merchant_id }."""
     expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode = {"exp": expire, "sub": str(subject)}
-    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    return pyjwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
 def create_client_access_token(client_id: str, merchant_id: str) -> str:
@@ -56,7 +57,7 @@ def create_client_access_token(client_id: str, merchant_id: str) -> str:
         "merchant_id": merchant_id,
         "type":        "client",
     }
-    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    return pyjwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
 def decode_access_token(token: str) -> str | dict | None:
@@ -69,7 +70,7 @@ def decode_access_token(token: str) -> str | dict | None:
         - None  → invalid or expired
     """
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        payload = pyjwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         token_type = payload.get("type")
 
         if token_type == "client":
@@ -83,7 +84,7 @@ def decode_access_token(token: str) -> str | dict | None:
         # Merchant token — return plain merchant_id string (backwards-compat)
         return payload.get("sub")
 
-    except JWTError:
+    except (DecodeError, ExpiredSignatureError, Exception):
         return None
 
 
