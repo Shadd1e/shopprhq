@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel, EmailStr
 from app.services.merchant_service import MerchantService
 from app.core.security import create_access_token
@@ -14,10 +14,20 @@ class LoginRequest(BaseModel):
     password: str
 
 @router.post("/login")
-async def login(data: LoginRequest, db: AsyncSession = Depends(get_db)):
+async def login(data: LoginRequest, request: Request, db: AsyncSession = Depends(get_db)):
     """
     Authenticate merchant and return access token.
     """
+    from app.core.redis_client import check_admin_rate_limit
+    client_ip = request.client.host if request.client else "unknown"
+    rate_key = f"login:{client_ip}:{data.email}"
+    if not await check_admin_rate_limit(rate_key):
+        raise HTTPException(
+            status_code=429,
+            detail="Too many login attempts. Try again in 5 minutes.",
+            headers={"Retry-After": "300"},
+        )
+
     service = MerchantService(db)
     merchant = await service.authenticate(data.email, data.password)
 
