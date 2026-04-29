@@ -2,10 +2,11 @@ import logging
 logger = logging.getLogger(__name__)
 
 # app/schemas/product.py
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from typing import Optional
 from uuid import UUID
 from datetime import datetime
+from urllib.parse import urlparse
 
 
 # -----------------------------
@@ -16,10 +17,36 @@ class ProductBase(BaseModel):
     description: Optional[str] = Field(None, example="Instant noodles, 70g pack")
     price: float = Field(..., gt=0, example=120.00)
     category: Optional[str] = Field(None, example="Food")
+    image_url: Optional[str] = Field(None, example="https://example.com/image.jpg")
     merchant_id: Optional[str] = Field(None, min_length=1, max_length=10, example="MRC001")
     client_id: Optional[str] = Field(None, min_length=1, max_length=10, example="CLT001")
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("image_url", mode="before")
+    @classmethod
+    def validate_image_url(cls, v):
+        if not v:
+            return v
+        try:
+            parsed = urlparse(str(v))
+        except Exception:
+            raise ValueError("Invalid image URL")
+        if parsed.scheme not in ("http", "https"):
+            raise ValueError("image_url must use http or https")
+        host = parsed.hostname or ""
+        blocked = ("169.254.", "10.", "192.168.", "127.", "0.0.0.0")
+        for prefix in blocked:
+            if host.startswith(prefix):
+                raise ValueError("image_url points to a restricted address")
+        if host.startswith("172."):
+            try:
+                second_octet = int(host.split(".")[1])
+                if 16 <= second_octet <= 31:
+                    raise ValueError("image_url points to a restricted address")
+            except (IndexError, ValueError):
+                pass
+        return v
 
 
 # -----------------------------
