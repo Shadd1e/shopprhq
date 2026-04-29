@@ -39,23 +39,35 @@ async function loadInventory() {
     const thresh = p.inventory?.low_stock_threshold;
     return `
       <tr>
-        <td style="font-weight:500">${p.name}</td>
-        <td style="font-size:13px;color:var(--ink-3)">${p._client?.name || p.client_id}</td>
+        <td style="font-weight:500">${escHtml(p.name)}</td>
+        <td style="font-size:13px;color:var(--ink-3)">${escHtml(p._client?.name || p.client_id)}</td>
         <td>${stockBadge(qty, thresh)}</td>
         <td style="font-size:13px;color:var(--ink-3)">${thresh != null ? thresh : '—'}</td>
         <td>
-          <button class="btn-xs" onclick="openStockModal(
-            '${p.id}',
-            '${p._client?.id}',
-            '${mid}',
-            ${JSON.stringify(p.name)},
-            ${qty},
-            ${thresh ?? 'null'}
-          )">Edit</button>
+          <button class="btn-xs inv-stock-btn"
+            data-prod-id="${escHtml(p.id)}"
+            data-client-id="${escHtml(p._client?.id || '')}"
+            data-name="${escHtml(p.name)}"
+            data-qty="${qty}"
+            data-thresh="${thresh ?? ''}">Edit</button>
         </td>
       </tr>
     `;
   }).join('');
+
+  tbody.querySelectorAll('.inv-stock-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const thresh = btn.dataset.thresh === '' ? null : parseInt(btn.dataset.thresh);
+      openStockModal(
+        btn.dataset.prodId,
+        btn.dataset.clientId,
+        mid,
+        btn.dataset.name,
+        parseInt(btn.dataset.qty),
+        thresh,
+      );
+    });
+  });
 }
 
 // ── Stock Adjustment Modal ────────────────────────────────────────────────────
