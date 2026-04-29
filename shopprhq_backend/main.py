@@ -25,6 +25,12 @@ async def lifespan(app: FastAPI):
 
     from app.api.v1.workers.stale_order_cleanup import run_cleanup_loop
     cleanup_task = asyncio.create_task(run_cleanup_loop())
+
+    def _handle_cleanup_crash(t: asyncio.Task):
+        if not t.cancelled() and t.exception():
+            logger.error("Stale order cleanup worker crashed: %s", t.exception(), exc_info=True)
+
+    cleanup_task.add_done_callback(_handle_cleanup_crash)
     logger.info("🔄 Stale order cleanup loop started")
 
     yield

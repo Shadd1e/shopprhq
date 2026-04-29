@@ -35,6 +35,29 @@ INTERVAL_MINUTES    = 30
 
 
 async def cancel_stale_pending_orders() -> int:
+    # Distributed lock — only one instance runs cleanup at a time
+    rc = None
+    try:
+        from app.core.redis_client import redis_service
+        rc = await redis_service.get_client()
+        locked = await rc.set("stale_cleanup_lock", "1", nx=True, ex=300)
+        if not locked:
+            logger.debug("Stale order cleanup skipped — another instance holds the lock")
+            return 0
+    except Exception as e:
+        logger.warning("Could not acquire cleanup lock, proceeding anyway: %s", e)
+
+    try:
+        return await _run_cleanup()
+    finally:
+        if rc is not None:
+            try:
+                await rc.delete("stale_cleanup_lock")
+            except Exception:
+                pass
+
+
+async def _run_cleanup() -> int:
     cutoff = datetime.now(timezone.utc) - timedelta(minutes=STALE_AFTER_MINUTES)
     cancelled_count = 0
     cancelled_codes = []
