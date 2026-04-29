@@ -536,6 +536,7 @@ async function markOutForDeliveryFromModal() {
   if (res && res.ok) {
     toast(`Order ${code} is now out for delivery`, 'ok');
     closeModal('m-order-detail');
+    markPageStale('orders');
     await loadOrders();
     loadOverview();
   } else {
