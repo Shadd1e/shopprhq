@@ -43,7 +43,7 @@ async function loadProducts() {
     const qty    = p.inventory?.quantity ?? 0;
     const thresh = p.inventory?.low_stock_threshold;
     return `
-      <tr>
+      <tr style="${qty === 0 ? 'opacity:0.5' : ''}">
         <td style="font-weight:500">${escHtml(p.name)}</td>
         <td>${fmtMoney(p.price)}</td>
         <td>${stockBadge(qty, thresh)}</td>
