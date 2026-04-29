@@ -570,8 +570,8 @@ async function quickConfirm(orderId, orderCode) {
 // ── Shared helpers used by overview.js ───────────────────────────────────────
 
 function setTableLoading(tbodyId, cols) {
-  const el = document.getElementById(tbodyId);
-  if (el) el.innerHTML = `<tr><td class="loading-cell" colspan="${cols}">Loading…</td></tr>`;
+  const tbody = document.getElementById(tbodyId);
+  if (tbody) tbody.innerHTML = skeletonRows(cols);
 }
 
 function emptyRow(cols, icon, msg) {

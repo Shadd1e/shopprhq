@@ -86,6 +86,36 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
+// ── SKELETON ROWS ────────────────────────────────────────────────────────────
+
+function skeletonRows(cols, count = 5) {
+  const widths = [70, 55, 80, 65, 75, 50, 60];
+  return Array.from({ length: count }, (_, i) => `
+    <tr>${Array.from({ length: cols }, (_, j) =>
+      `<td><div class="skel-line" style="width:${widths[(i + j) % widths.length]}%"></div></td>`
+    ).join('')}</tr>`
+  ).join('');
+}
+window.skeletonRows = skeletonRows;
+
+// ── PAGE LOADER BAR ───────────────────────────────────────────────────────────
+
+function showPageLoader() {
+  const bar = document.getElementById('page-loader-bar');
+  if (!bar) return;
+  bar.style.opacity = '1';
+  bar.style.width   = '0';
+  requestAnimationFrame(() => { bar.style.width = '65%'; });
+}
+function hidePageLoader() {
+  const bar = document.getElementById('page-loader-bar');
+  if (!bar) return;
+  bar.style.width = '100%';
+  setTimeout(() => { bar.style.opacity = '0'; bar.style.width = '0'; }, 250);
+}
+window.showPageLoader = showPageLoader;
+window.hidePageLoader = hidePageLoader;
+
 // ── TOAST ────────────────────────────────────────────────────────────────────
 
 let _toastTimer;

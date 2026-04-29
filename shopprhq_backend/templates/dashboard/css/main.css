@@ -811,3 +811,20 @@ tbody td { padding: 12px 20px; font-size: 13.5px; color: var(--ink-2); }
 /* ShopprHQ wordmark spans */
 .wm-shoppr { font-weight: 400; }
 .wm-hq     { font-weight: 700; }
+
+/* ════════════════════════════════════════════════════════════
+   SKELETON LOADING
+═══════════════════════════════════════════════════════════ */
+@keyframes skel-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+.skel-line {
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg, var(--border) 25%, var(--border-2, #e5e7eb) 50%, var(--border) 75%
+  );
+  background-size: 200% 100%;
+  animation: skel-shimmer 1.4s ease infinite;
+  height: 13px;
+}
