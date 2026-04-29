@@ -45,12 +45,12 @@ class Settings(BaseSettings):
 settings = Settings()
 
 # Crash at startup if the default secret key is used outside of local dev.
-# Set DEBUG=true only for local development — never in any hosted environment.
+# Only ENVIRONMENT=local bypasses this — never set that on Railway or any hosted env.
 if settings.SECRET_KEY == "change-me-in-production":
     import os as _os
-    _debug = _os.getenv("DEBUG", "").lower() in ("1", "true", "yes")
-    if not _debug:
+    _env = _os.getenv("ENVIRONMENT", "production").lower()
+    if _env != "local":
         raise RuntimeError(
             "SECRET_KEY is still the default value. "
-            "Set a secure SECRET_KEY in your environment variables before deploying."
+            "Set a secure SECRET_KEY in Railway environment variables."
         )
