@@ -204,6 +204,62 @@ function closeSetupDropdown() {
 
 document.addEventListener('click', closeSetupDropdown);
 
+// ── REVENUE CHART ─────────────────────────────────────────────────────────────
+
+function renderRevenueChart(periodData) {
+  const container = document.getElementById('rev-chart');
+  if (!container) return;
+  const points = (periodData || []).slice(-8);
+  if (!points.length) { container.innerHTML = ''; return; }
+  const maxRev = Math.max(...points.map(d => d.revenue), 1);
+  const bars = points.map(d => {
+    const pct = Math.max((d.revenue / maxRev) * 100, d.revenue > 0 ? 4 : 0).toFixed(1);
+    return `
+      <div style="display:flex;flex-direction:column;align-items:center;
+        gap:4px;flex:1;min-width:0">
+        <div style="font-size:10px;color:var(--ink-4);white-space:nowrap">
+          ${d.revenue > 0 ? fmtMoney(d.revenue) : ''}
+        </div>
+        <div style="
+          height:${pct}%;min-height:${d.revenue > 0 ? '4px' : '0'};
+          background:var(--wa,#25D366);border-radius:4px 4px 0 0;
+          width:70%;transition:height .4s ease;opacity:.85
+        "></div>
+        <div style="font-size:10px;color:var(--ink-3);white-space:nowrap;
+          overflow:hidden;max-width:100%;text-overflow:ellipsis;
+          text-align:center">
+          ${escHtml(d.label)}
+        </div>
+      </div>`;
+  }).join('');
+
+  container.innerHTML = `
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;
+      letter-spacing:.05em;color:var(--ink-3);margin-bottom:8px">Revenue trend</div>
+    <div style="display:flex;align-items:flex-end;
+      height:100px;gap:6px;border-bottom:1px solid var(--border);
+      padding-bottom:0">
+      ${bars}
+    </div>`;
+}
+
+function _computeDailyRevenue(orders, days = 8) {
+  const PAID = ['PAID', 'FULFILLED'];
+  const now  = new Date();
+  return Array.from({ length: days }, (_, i) => {
+    const d       = new Date(now);
+    d.setDate(d.getDate() - (days - 1 - i));
+    const dateStr = d.toISOString().slice(0, 10);
+    const label   = i === days - 1
+      ? 'Today'
+      : d.toLocaleDateString('en-NG', { month: 'short', day: 'numeric' });
+    const revenue = orders
+      .filter(o => PAID.includes(o.status) && o.created_at && o.created_at.slice(0, 10) === dateStr)
+      .reduce((s, o) => s + (o.total_amount || 0), 0);
+    return { label, revenue };
+  });
+}
+
 // ── OVERVIEW LOAD ─────────────────────────────────────────────────────────────
 
 async function loadOverview() {
@@ -262,5 +318,6 @@ async function loadOverview() {
   if (pend) pend.textContent = pending;
   if (cash) cash.textContent = awaitPickup;
 
+  renderRevenueChart(_computeDailyRevenue(list));
   renderOrderRows('r-orders', list.slice(0, 8));
 }
