@@ -4,6 +4,16 @@
  * No API calls here — pure UI utilities.
  */
 
+// ── XSS ESCAPING ─────────────────────────────────────────────────────────────
+
+function escHtml(str) {
+  if (str === null || str === undefined) return '';
+  const div = document.createElement('div');
+  div.appendChild(document.createTextNode(String(str)));
+  return div.innerHTML;
+}
+window.escHtml = escHtml;
+
 // ── FORMATTERS ───────────────────────────────────────────────────────────────
 
 function fmtMoney(n) {
