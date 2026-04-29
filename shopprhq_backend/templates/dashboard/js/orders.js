@@ -12,9 +12,15 @@
 // ── Load orders table ─────────────────────────────────────────────────────────
 
 async function loadOrders() {
-  const mid    = localStorage.getItem('mid') || '';
-  const status = document.getElementById('o-filter')?.value || '';
-  const qs     = `merchant_id=${mid}&limit=200${status ? `&status=${status}` : ''}`;
+  await populateOrderStoreFilter();
+
+  const mid      = localStorage.getItem('mid') || '';
+  const cid      = localStorage.getItem('cid') || '';
+  const status   = document.getElementById('o-filter')?.value || '';
+  const clientId = document.getElementById('o-store-filter')?.value || cid;
+  let qs = `merchant_id=${mid}&limit=50`;
+  if (status)   qs += `&status=${status}`;
+  if (clientId) qs += `&client_id=${clientId}`;
 
   setTableLoading('t-orders', 7);
 
@@ -23,6 +29,22 @@ async function loadOrders() {
 
   const data = await res.json();
   renderOrderRows('t-orders', Array.isArray(data) ? data : []);
+}
+
+async function populateOrderStoreFilter() {
+  if (typeof clients === 'undefined') return;
+  if (!clients.length && typeof loadClients === 'function') await loadClients();
+  const sel = document.getElementById('o-store-filter');
+  if (!sel || clients.length <= 1) {
+    if (sel) sel.style.display = 'none';
+    return;
+  }
+  sel.innerHTML = '<option value="">All stores</option>' +
+    clients.map(c => `<option value="${escHtml(c.id)}">${escHtml(c.name)}</option>`).join('');
+  sel.onchange = () => {
+    markPageStale('orders');
+    loadOrders();
+  };
 }
 
 function renderOrderRows(tbodyId, orders) {

@@ -358,6 +358,11 @@
               <div class="page-title">Orders</div>
               <div class="page-sub">All orders across your stores</div>
             </div>
+            <select id="o-store-filter" style="font-size:13px;padding:6px 10px;
+                border-radius:8px;border:1.5px solid var(--border);background:var(--surface);
+                color:var(--ink);outline:none">
+              <option value="">All stores</option>
+            </select>
             <select id="o-filter" class="btn btn-ghost" onchange="loadOrders()" style="cursor:pointer">
               <option value="">All statuses</option>
               <option value="PENDING_PAYMENT">Pending Payment</option>
