@@ -23,6 +23,19 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     logger.info("🚀 Starting ShopprHQ API")
 
+    # Assert required environment variables are set before accepting traffic
+    _startup_env = os.getenv("ENVIRONMENT", "production").lower()
+    if _startup_env != "local":
+        _required = {
+            "META_APP_SECRET": os.getenv("META_APP_SECRET"),
+            "PAYSTACK_SECRET_KEY": os.getenv("PAYSTACK_SECRET_KEY"),
+            "PAYSTACK_WEBHOOK_SECRET": os.getenv("PAYSTACK_WEBHOOK_SECRET"),
+        }
+        _missing = [k for k, v in _required.items() if not v]
+        if _missing:
+            logger.critical("Missing required environment variables: %s", _missing)
+            import sys; sys.exit(1)
+
     from app.api.v1.workers.stale_order_cleanup import run_cleanup_loop
     cleanup_task = asyncio.create_task(run_cleanup_loop())
 
