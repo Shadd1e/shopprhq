@@ -3,9 +3,9 @@
  * Products table, add product modal, edit product modal, and CSV bulk upload.
  *
  * Endpoints:
- *   GET    /api/v1/inventory/                        (X-Merchant-ID + X-Client-ID headers)
- *   POST   /api/v1/products/admin/                   (X-Merchant-ID + X-Client-ID headers)
- *   PATCH  /api/v1/products/admin/{product_id}       (X-Merchant-ID + X-Client-ID headers)
+ *   GET    /api/v1/inventory/
+ *   POST   /api/v1/products/admin/
+ *   PATCH  /api/v1/products/admin/{product_id}
  */
 
 // Module-level cache so event listeners can reference product data by index
@@ -20,9 +20,7 @@ async function loadProducts() {
   let allProducts = [];
 
   for (const client of clients) {
-    const res = await call(`/api/v1/inventory/`, {
-      headers: { 'X-Merchant-ID': mid, 'X-Client-ID': client.id },
-    });
+    const res = await call(`/api/v1/inventory/`);
     if (res && res.ok) {
       const prods = await res.json();
       if (Array.isArray(prods)) {
@@ -112,8 +110,7 @@ async function submitEditProduct() {
   if (cat)  body.category    = cat;
 
   const res = await call(`/api/v1/products/admin/${productId}`, {
-    method:  'PATCH',
-    headers: { 'X-Merchant-ID': mid, 'X-Client-ID': clientId },
+    method: 'PATCH',
     body,
   });
 
@@ -156,9 +153,8 @@ async function submitProduct() {
   }
 
   const res = await call('/api/v1/products/admin/', {
-    method:  'POST',
-    headers: { 'X-Merchant-ID': mid, 'X-Client-ID': clientId },
-    body:    { name, price, description: desc, initial_stock: stock },
+    method: 'POST',
+    body:   { name, price, description: desc, initial_stock: stock },
   });
 
   if (res && res.ok) {
@@ -318,9 +314,8 @@ async function submitCsvUpload() {
     btn.textContent = `Uploading ${i + 1} / ${_csvRows.length}…`;
 
     const res = await call('/api/v1/products/admin/', {
-      method:  'POST',
-      headers: { 'X-Merchant-ID': mid, 'X-Client-ID': clientId },
-      body:    row,
+      method: 'POST',
+      body:   row,
     });
 
     if (res && res.ok) {

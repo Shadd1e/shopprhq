@@ -1,7 +1,7 @@
 /**
  * inventory.js
  * Loads inventory table and handles stock adjustment + threshold setting.
- * Data source: GET /api/v1/inventory/ (per client, X-Merchant-ID + X-Client-ID headers)
+ * Data source: GET /api/v1/inventory/
  * Update stock: POST /api/v1/inventory/{product_id}/adjust
  * Update threshold: PATCH /api/v1/inventory/{product_id}/low-stock-threshold
  */
@@ -15,9 +15,7 @@ async function loadInventory() {
   let allProducts = [];
 
   for (const client of clients) {
-    const res = await call(`/api/v1/inventory/`, {
-      headers: { 'X-Merchant-ID': mid, 'X-Client-ID': client.id },
-    });
+    const res = await call(`/api/v1/inventory/`);
     if (res && res.ok) {
       const prods = await res.json();
       if (Array.isArray(prods)) {
@@ -96,16 +94,14 @@ async function submitStock() {
     return;
   }
 
-  const headers = { 'X-Merchant-ID': merchantId, 'X-Client-ID': clientId };
   let stockOk = true;
 
   // Only call adjust if quantity actually changed
   if (newQty !== currentQty) {
     const delta = newQty - currentQty;
     const res = await call(`/api/v1/inventory/${productId}/adjust`, {
-      method:  'POST',
-      headers,
-      body:    { delta },
+      method: 'POST',
+      body:   { delta },
     });
     if (!res || !res.ok) {
       const err = res ? await res.json() : null;
@@ -119,9 +115,8 @@ async function submitStock() {
   // Set threshold (null = disabled)
   const threshold = threshVal === '' ? null : parseInt(threshVal);
   const tRes = await call(`/api/v1/inventory/${productId}/low-stock-threshold`, {
-    method:  'PATCH',
-    headers,
-    body:    { threshold },
+    method: 'PATCH',
+    body:   { threshold },
   });
 
   if (tRes && tRes.ok) {
