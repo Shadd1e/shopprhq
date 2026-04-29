@@ -35,9 +35,9 @@ function renderOrderRows(tbodyId, orders) {
   }
 
   tbody.innerHTML = orders.map(o => `
-    <tr style="cursor:pointer" onclick="openOrderDetail('${o.id}')">
+    <tr style="cursor:pointer" data-order-id="${escHtml(o.id)}">
       <td>${codeChip(o.order_code)}</td>
-      <td style="font-size:13px;color:var(--ink-3)">${o.customer_name || (o.user_id ? '+' + o.user_id : '—')}</td>
+      <td style="font-size:13px;color:var(--ink-3)">${escHtml(o.customer_name || (o.user_id ? '+' + o.user_id : '—'))}</td>
       <td style="font-weight:600">${fmtMoney(o.total_amount)}</td>
       <td><span class="badge n-badge" style="text-transform:capitalize">${fmtPaymentMethod(o.payment_method)}</span></td>
       <td>${statusBadge(o.status)}</td>
@@ -45,12 +45,12 @@ function renderOrderRows(tbodyId, orders) {
       <td>
         ${o.status === 'AWAITING_PICKUP'
           ? `<button class="btn-xs" style="border-color:var(--wa);color:var(--wa-dark)"
-               onclick="event.stopPropagation(); quickConfirm('${o.id}', '${o.order_code}')">
+               data-action="quick-confirm" data-order-id="${escHtml(o.id)}" data-order-code="${escHtml(o.order_code)}">
                Confirm
              </button>`
           : o.status === 'OUT_FOR_DELIVERY'
           ? `<button class="btn-xs" style="border-color:var(--wa);color:var(--wa-dark)"
-               onclick="event.stopPropagation(); quickConfirm('${o.id}', '${o.order_code}')">
+               data-action="quick-confirm" data-order-id="${escHtml(o.id)}" data-order-code="${escHtml(o.order_code)}">
                Mark Delivered
              </button>`
           : ''
@@ -58,6 +58,20 @@ function renderOrderRows(tbodyId, orders) {
       </td>
     </tr>
   `).join('');
+
+  // Event delegation — one handler per render, overwrites previous
+  tbody.onclick = (e) => {
+    const btn = e.target.closest('button[data-action]');
+    if (btn) {
+      e.stopPropagation();
+      if (btn.dataset.action === 'quick-confirm') {
+        quickConfirm(btn.dataset.orderId, btn.dataset.orderCode);
+      }
+      return;
+    }
+    const row = e.target.closest('tr[data-order-id]');
+    if (row) openOrderDetail(row.dataset.orderId);
+  };
 }
 
 function fmtPaymentMethod(method) {
@@ -112,7 +126,7 @@ async function openOrderDetail(orderId) {
         <tbody>
           ${o.items.map(i => `
             <tr>
-              <td style="padding:10px 0;font-size:13.5px;font-weight:500;border-bottom:1px solid var(--border-2)">${i.product_name}</td>
+              <td style="padding:10px 0;font-size:13.5px;font-weight:500;border-bottom:1px solid var(--border-2)">${escHtml(i.product_name)}</td>
               <td style="padding:10px 0;font-size:13.5px;text-align:center;color:var(--ink-3);border-bottom:1px solid var(--border-2)">${i.quantity}</td>
               <td style="padding:10px 0;font-size:13.5px;text-align:right;color:var(--ink-3);border-bottom:1px solid var(--border-2)">${fmtMoney(i.price)}</td>
               <td style="padding:10px 0;font-size:13.5px;text-align:right;font-weight:600;border-bottom:1px solid var(--border-2)">${fmtMoney(i.subtotal)}</td>
@@ -139,12 +153,12 @@ async function openOrderDetail(orderId) {
         ${o.delivery_address ? `
         <div>
           <div style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);margin-bottom:3px">Address</div>
-          <div style="font-size:13.5px">${o.delivery_address}</div>
+          <div style="font-size:13.5px">${escHtml(o.delivery_address)}</div>
         </div>` : ''}
         ${o.delivery_contact_number ? `
         <div>
           <div style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);margin-bottom:3px">Contact Number</div>
-          <div style="font-size:13.5px">+${o.delivery_contact_number}</div>
+          <div style="font-size:13.5px">+${escHtml(o.delivery_contact_number)}</div>
         </div>` : ''}
       </div>
     </div>` : '';
@@ -161,7 +175,7 @@ async function openOrderDetail(orderId) {
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
       <div>
         <div style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);margin-bottom:4px">Order Code</div>
-        <div style="font-size:15px;font-weight:700">${o.order_code}</div>
+        <div style="font-size:15px;font-weight:700">${escHtml(o.order_code)}</div>
       </div>
       <div>
         <div style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);margin-bottom:4px">Status</div>
@@ -169,8 +183,8 @@ async function openOrderDetail(orderId) {
       </div>
       <div>
         <div style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);margin-bottom:4px">Customer</div>
-        <div style="font-size:13.5px">${o.customer_name || (o.user_id ? '+' + o.user_id : '—')}</div>
-        ${o.user_id && o.customer_name ? `<div style="font-size:12px;color:var(--ink-3);margin-top:2px">+${o.user_id}</div>` : ''}
+        <div style="font-size:13.5px">${escHtml(o.customer_name) || (o.user_id ? '+' + escHtml(o.user_id) : '—')}</div>
+        ${o.user_id && o.customer_name ? `<div style="font-size:12px;color:var(--ink-3);margin-top:2px">+${escHtml(o.user_id)}</div>` : ''}
       </div>
       <div>
         <div style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);margin-bottom:4px">Payment</div>
@@ -245,7 +259,7 @@ function printOrderReceipt() {
   // Build item rows — compact thermal style
   const itemRows = (o.items || []).map(i => `
     <tr>
-      <td class="td-name">${i.product_name}</td>
+      <td class="td-name">${escHtml(i.product_name)}</td>
       <td class="td-qty">${i.quantity}</td>
       <td class="td-amt">${fmtMoney(i.subtotal)}</td>
     </tr>
@@ -262,19 +276,19 @@ function printOrderReceipt() {
   const deliveryBlock = o.delivery_type === 'delivery' && o.delivery_address
     ? `<div class="section">
         <div class="label">DELIVER TO</div>
-        <div class="value">${o.delivery_address}</div>
-        ${o.delivery_contact_number ? `<div class="value">Tel: +${o.delivery_contact_number}</div>` : ''}
+        <div class="value">${escHtml(o.delivery_address)}</div>
+        ${o.delivery_contact_number ? `<div class="value">Tel: +${escHtml(o.delivery_contact_number)}</div>` : ''}
       </div>`
     : '';
 
-  const customerLine = o.customer_name || (o.user_id ? '+' + o.user_id : '');
+  const customerLine = escHtml(o.customer_name || (o.user_id ? '+' + o.user_id : ''));
 
   const win = window.open('', '_blank', 'width=340,height=600');
   win.document.write(`<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Receipt — ${o.order_code}</title>
+  <title>Receipt — ${escHtml(o.order_code)}</title>
   <style>
     /* ── Thermal receipt: 80mm roll = ~302px usable at 96dpi ── */
     * { margin:0; padding:0; box-sizing:border-box; }
@@ -378,15 +392,15 @@ function printOrderReceipt() {
 
   <!-- Store header -->
   <div class="header">
-    ${storeName ? `<div class="store-name">${storeName}</div>` : ''}
-    ${storeAddress ? `<div class="store-address">${storeAddress}</div>` : ''}
+    ${storeName ? `<div class="store-name">${escHtml(storeName)}</div>` : ''}
+    ${storeAddress ? `<div class="store-address">${escHtml(storeAddress)}</div>` : ''}
   </div>
 
   <!-- Order meta -->
   <div class="section">
     <div class="row">
       <span class="label" style="margin-bottom:0">ORDER</span>
-      <span class="value" style="font-weight:bold">${o.order_code}</span>
+      <span class="value" style="font-weight:bold">${escHtml(o.order_code)}</span>
     </div>
     <div class="row">
       <span class="label" style="margin-bottom:0">DATE</span>

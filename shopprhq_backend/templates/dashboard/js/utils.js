@@ -62,7 +62,7 @@ function stockBadge(qty, thresh) {
 }
 
 function codeChip(text) {
-  return `<code style="background:var(--milk-2,#F0EFEB);padding:2px 8px;border-radius:4px;font-size:12px;font-family:monospace;letter-spacing:.02em">${text}</code>`;
+  return `<code style="background:var(--milk-2,#F0EFEB);padding:2px 8px;border-radius:4px;font-size:12px;font-family:monospace;letter-spacing:.02em">${escHtml(text)}</code>`;
 }
 
 // ── MODAL HELPERS ────────────────────────────────────────────────────────────
