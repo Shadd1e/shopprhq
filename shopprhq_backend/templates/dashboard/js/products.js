@@ -46,10 +46,10 @@ async function loadProducts() {
     const thresh = p.inventory?.low_stock_threshold;
     return `
       <tr>
-        <td style="font-weight:500">${p.name}</td>
+        <td style="font-weight:500">${escHtml(p.name)}</td>
         <td>${fmtMoney(p.price)}</td>
         <td>${stockBadge(qty, thresh)}</td>
-        <td style="font-size:13px;color:var(--ink-3)">${p._client?.name || p.client_id}</td>
+        <td style="font-size:13px;color:var(--ink-3)">${escHtml(p._client?.name || p.client_id)}</td>
         <td style="display:flex;gap:6px">
           <button class="btn-xs prod-edit-btn" data-idx="${idx}">Edit</button>
           <button class="btn-xs prod-stock-btn" data-idx="${idx}">Stock</button>
@@ -281,7 +281,7 @@ function onCsvFileChange(input) {
             <tbody>
               ${rows.map(r => `
                 <tr style="border-top:1px solid var(--border-2)">
-                  <td style="padding:7px 12px;font-size:13px">${r.name}</td>
+                  <td style="padding:7px 12px;font-size:13px">${escHtml(r.name)}</td>
                   <td style="padding:7px 12px;font-size:13px;text-align:right">${fmtMoney(r.price)}</td>
                   <td style="padding:7px 12px;font-size:13px;text-align:center">${r.initial_stock}</td>
                 </tr>
