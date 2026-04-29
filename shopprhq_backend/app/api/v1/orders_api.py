@@ -142,7 +142,7 @@ async def list_orders_route(
     merchant_id: str = Query(...),
     client_id: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
-    limit: int = Query(200),
+    limit: int = Query(50, ge=1, le=100),
     db: AsyncSession = Depends(get_db)
 ):
     authed_id = _require_merchant(request)
