@@ -47,19 +47,32 @@ async function populateOrderStoreFilter() {
   };
 }
 
+function fmtCustomer(o) {
+  if (o.customer_name) return escHtml(o.customer_name);
+  if (o.user_id) return '+' + String(o.user_id).replace(/\D/g, '');
+  return '—';
+}
+
 function renderOrderRows(tbodyId, orders) {
   const tbody = document.getElementById(tbodyId);
   if (!tbody) return;
 
   if (!orders.length) {
-    tbody.innerHTML = emptyRow(7, '🧾', 'No orders found');
+    const status   = document.getElementById('o-filter')?.value || '';
+    const clientId = document.getElementById('o-store-filter')?.value || localStorage.getItem('cid') || '';
+    const isFiltered = status || clientId;
+    tbody.innerHTML = emptyRow(7, isFiltered ? '🔍' : '🛒',
+      isFiltered
+        ? 'No orders match this filter.'
+        : 'No orders yet. Share your WhatsApp store link to start receiving orders.'
+    );
     return;
   }
 
   tbody.innerHTML = orders.map(o => `
     <tr style="cursor:pointer" data-order-id="${escHtml(o.id)}">
       <td>${codeChip(o.order_code)}</td>
-      <td style="font-size:13px;color:var(--ink-3)">${escHtml(o.customer_name || (o.user_id ? '+' + o.user_id : '—'))}</td>
+      <td style="font-size:13px;color:var(--ink-3)">${fmtCustomer(o)}</td>
       <td style="font-weight:600">${fmtMoney(o.total_amount)}</td>
       <td><span class="badge n-badge" style="text-transform:capitalize">${fmtPaymentMethod(o.payment_method)}</span></td>
       <td>${statusBadge(o.status)}</td>
