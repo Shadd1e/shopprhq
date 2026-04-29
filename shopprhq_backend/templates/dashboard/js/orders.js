@@ -550,7 +550,7 @@ async function markOutForDeliveryFromModal() {
 
 async function quickConfirm(orderId, orderCode) {
   const mid = localStorage.getItem('mid') || '';
-  if (!confirm(`Confirm payment received for order ${orderCode}?`)) return;
+  if (!confirm(`Confirm order ${orderCode} as fulfilled?\n\nThis will send a receipt to the customer.`)) return;
 
   const res = await call(`/api/v1/orders/${orderId}/confirm-cash?merchant_id=${mid}`, {
     method: 'POST',
