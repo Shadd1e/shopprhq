@@ -48,12 +48,24 @@ app = FastAPI(
 # MIDDLEWARES
 # --------------------------------------------------
 
-# TODO: tighten CORS before going public — set ALLOWED_ORIGINS in Railway env vars
-# e.g. ALLOWED_ORIGINS=https://shopprhq.app,https://www.shopprhq.app
 _raw_origins = os.getenv("ALLOWED_ORIGINS", "")
-_allow_origins = [o.strip() for o in _raw_origins.split(",") if o.strip()] or ["*"]
-if "*" in _allow_origins:
-    logger.warning("CORS is set to '*' — set ALLOWED_ORIGINS env var before going public")
+_allow_origins = [o.strip() for o in _raw_origins.split(",") if o.strip()]
+_env = os.getenv("ENVIRONMENT", "production").lower()
+
+if not _allow_origins:
+    if _env == "local":
+        _allow_origins = ["*"]
+        logger.warning("CORS is open — acceptable for local dev only")
+    else:
+        import sys
+        logger.critical("ALLOWED_ORIGINS not set — refusing to start in production. "
+                        "Set ALLOWED_ORIGINS in Railway Variables.")
+        sys.exit(1)
+
+if "*" in _allow_origins and _env != "local":
+    import sys
+    logger.critical("ALLOWED_ORIGINS is wildcard (*) in production — refusing to start.")
+    sys.exit(1)
 
 app.add_middleware(
     CORSMiddleware,
