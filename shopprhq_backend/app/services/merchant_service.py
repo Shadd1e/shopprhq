@@ -184,7 +184,13 @@ class MerchantService:
         if merchant.failed_attempts >= MAX_FAILED_ATTEMPTS:
             return None
         if verify_password(password, merchant.password_hash):
+            if not merchant.email_verified:
+                return None
             merchant.failed_attempts = 0
             return merchant
         merchant.failed_attempts += 1
         return None
+
+    async def is_email_verified(self, merchant_id: str) -> bool:
+        merchant = await self.get(merchant_id)
+        return bool(merchant and merchant.email_verified)
