@@ -67,7 +67,7 @@ async def add_item_by_merchant_user(
 
     except ValueError as e:
         logger.warning("Add item failed: %s", str(e))
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail="Unable to process request. Please try again.")
 
 
 # -------------------------------------------------
@@ -103,7 +103,7 @@ async def remove_item_by_merchant_user(
         )
     except ValueError as e:
         logger.warning("Remove item failed: %s", str(e))
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail="Unable to process request. Please try again.")
 
 
 # -------------------------------------------------
@@ -214,4 +214,4 @@ async def clear_cart(
         return {"message": "Cart cleared"}
     except ValueError as e:
         logger.warning("Clear cart failed: %s", str(e))
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail="Unable to process request. Please try again.")

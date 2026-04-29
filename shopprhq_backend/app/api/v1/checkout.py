@@ -64,10 +64,10 @@ async def create_checkout(
         return response
 
     except ValueError as e:
-        # Business rule violation
+        logger.warning("Checkout ValueError: %s", e)
         raise HTTPException(
             status_code=400,
-            detail=str(e),
+            detail="Unable to complete checkout. Please try again or contact support.",
         )
 
     except Exception as e:

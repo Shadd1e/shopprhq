@@ -42,4 +42,5 @@ async def confirm_pickup(
         }
 
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.warning("confirm_pickup ValueError: %s", e)
+        raise HTTPException(status_code=400, detail="Unable to process request. Please try again.")

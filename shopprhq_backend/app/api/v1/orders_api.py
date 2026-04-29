@@ -348,9 +348,11 @@ async def mark_out_for_delivery(
                 merchant_id=merchant_id,
             )
         except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e))
+            logger.warning("mark_out_for_delivery ValueError: %s", e)
+            raise HTTPException(status_code=400, detail="Unable to process request. Please try again.")
         except RuntimeError as e:
-            raise HTTPException(status_code=500, detail=str(e))
+            logger.error("mark_out_for_delivery RuntimeError: %s", e)
+            raise HTTPException(status_code=500, detail="Unable to process request. Please try again.")
 
     if dispatch_data is None:
         return {"detail": "Order already out for delivery", "order_id": order_id}

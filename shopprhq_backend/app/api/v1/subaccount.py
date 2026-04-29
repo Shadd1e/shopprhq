@@ -29,7 +29,8 @@ async def list_banks(request: Request, db: AsyncSession = Depends(get_db)):
         banks = await service.list_banks()
         return {"banks": banks}
     except ValueError as e:
-        raise HTTPException(status_code=502, detail=str(e))
+        logger.warning("list_banks error: %s", e)
+        raise HTTPException(status_code=502, detail="Unable to retrieve bank list. Please try again.")
 
 
 @router.post("/verify-account")
@@ -49,7 +50,8 @@ async def verify_bank_account(
         result = await service.verify_account(account_number, bank_code)
         return result
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.warning("verify_bank_account error: %s", e)
+        raise HTTPException(status_code=400, detail="Unable to verify account. Please try again.")
 
 
 @router.post("/{client_id}", response_model=SubaccountRead, status_code=201)
@@ -90,7 +92,8 @@ async def register_subaccount(
         )
         return subaccount
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.warning("register_subaccount ValueError: %s", e)
+        raise HTTPException(status_code=400, detail="Unable to process request. Please try again.")
     except Exception:
         logger.exception("Subaccount registration failed for client %s", client_id)
         raise HTTPException(status_code=500, detail="Subaccount registration failed")
