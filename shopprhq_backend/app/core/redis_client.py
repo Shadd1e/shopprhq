@@ -1,11 +1,18 @@
 # app/core/redis_client.py
 
+import hashlib
 import logging
 import json
 from datetime import datetime, timezone
 from typing import Optional
 
 import redis.asyncio as redis
+
+
+def _hash_phone(phone: str) -> str:
+    """Hash a phone number for use as a cache key component.
+    Deterministic but irreversible — prevents PII exposure in Redis key listings."""
+    return hashlib.sha256(phone.encode()).hexdigest()[:16]
 
 from app.core.config import settings
 
@@ -54,7 +61,7 @@ class Keys:
         # IMPORTANT: keyed by client_id (store ID), not merchant_id.
         # ConversationMemory writes history with client_id as the namespace.
         # whatsapp_handler must read with client_id to match.
-        return f"session:history:{client_id}:{user_id}"
+        return f"session:history:{client_id}:{_hash_phone(user_id)}"
 
     @staticmethod
     def wamid(wamid: str) -> str:
@@ -62,7 +69,7 @@ class Keys:
 
     @staticmethod
     def lock(merchant_id: str, user_phone: str) -> str:
-        return f"session:lock:{merchant_id}:{user_phone}"
+        return f"session:lock:{merchant_id}:{_hash_phone(user_phone)}"
 
     @staticmethod
     def tenant(phone_number_id: str) -> str:
@@ -70,7 +77,7 @@ class Keys:
 
     @staticmethod
     def session_flow(client_id: str, user_id: str) -> str:
-        return f"session:flow:{client_id}:{user_id}"
+        return f"session:flow:{client_id}:{_hash_phone(user_id)}"
 
 
 # ==================================================
