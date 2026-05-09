@@ -13,7 +13,8 @@ from app.core.tenant_resolver import resolve_tenant_by_phone_number_id
 from app.orchestrators.whatsapp_handler import handle_whatsapp_message
 from app.core.redis_client import seen_wamid, redis_service
 from app.db.session import AsyncSessionLocal
-from app.core.request_context import request_id_var  # INF-5: request correlation
+from app.core.request_context import request_id_var
+from app.conversation.name_parser import parse_customer_name  # FIX: shared helper
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -33,7 +34,6 @@ async def verify_webhook(
 ):
     if hub_mode == "subscribe" and hub_verify_token == META_VERIFY_TOKEN:
         return PlainTextResponse(hub_challenge)
-
     raise HTTPException(status_code=403)
 
 
@@ -42,10 +42,6 @@ async def verify_webhook(
 # ==================================================
 
 def _verify_meta_signature(raw_body: bytes, signature_header: str) -> bool:
-    """
-    Verify the X-Hub-Signature-256 header that Meta sends on every webhook.
-    Fails open if META_APP_SECRET is not configured.
-    """
     app_secret = os.getenv("META_APP_SECRET", "")
 
     if not app_secret:
@@ -53,7 +49,7 @@ def _verify_meta_signature(raw_body: bytes, signature_header: str) -> bool:
             "META_APP_SECRET not set — rejecting webhook request. "
             "Set this env var to enable signature verification."
         )
-        return False  # fail-closed: reject all requests when secret is missing
+        return False
 
     if not signature_header:
         logger.warning("Webhook received with no X-Hub-Signature-256 header")
@@ -79,25 +75,11 @@ def _verify_meta_signature(raw_body: bytes, signature_header: str) -> bool:
 
 @router.post("/webhook/whatsapp")
 async def receive_webhook(request: Request):
-    """
-    Responsibilities:
-    - X-Hub-Signature-256 verification (Meta security)
-    - Atomic WAMID deduplication (Redis)
-    - Audio/voice-note special reply (warm, not generic)
-    - Other non-text message reply (generic)
-    - Tenant resolution
-    - First-time customer detection → welcome + name prompt
-    - Name capture mode (awaiting_name)
-    - Safe forwarding to orchestrator
-    - Never crash webhook endpoint
-    """
-
     raw_body = await request.body()
 
     if not raw_body:
         return {"status": "empty"}
 
-    # INF-5: set a short request_id for this inbound webhook — threads through all log calls
     import uuid as _uuid
     _req_id = str(_uuid.uuid4())[:8]
     request_id_var.set(_req_id)
@@ -145,7 +127,6 @@ async def receive_webhook(request: Request):
 
             value = change.get("value", {})
 
-            # Ignore delivery/read receipts
             if "statuses" in value:
                 continue
 
@@ -183,16 +164,14 @@ async def receive_webhook(request: Request):
                 continue
 
             # ==================================================
-            # PER-SENDER RATE LIMIT  (SEC-3)
-            # 10 messages per minute per phone number to block
-            # flood attacks before they reach the DB pool.
+            # PER-SENDER RATE LIMIT
             # ==================================================
             try:
                 _rl_client = await redis_service.get_client()
                 _rl_key    = f"wa:inbound_rate:{from_number}"
                 _rl_count  = await _rl_client.incr(_rl_key)
                 if _rl_count == 1:
-                    await _rl_client.expire(_rl_key, 60)  # 1-minute sliding window
+                    await _rl_client.expire(_rl_key, 60)
                 if _rl_count > 10:
                     logger.warning(
                         "Per-sender rate limit exceeded for %s (%d msgs/min) — dropping",
@@ -201,24 +180,23 @@ async def receive_webhook(request: Request):
                     continue
             except Exception as _rl_err:
                 logger.warning("Inbound rate-limit check failed (non-fatal): %s", _rl_err)
-                # fail open — never drop a legitimate message on a Redis blip
 
             msg_type = message_data.get("type", "text")
 
             # ==================================================
             # NON-TEXT MESSAGE HANDLING
-            # Audio/voice notes get a warm, specific reply.
-            # All other non-text types get the generic reply.
+            # FIX: tenant resolution and reply now share a single DB session.
+            # A send failure is logged but does not swallow the continue — the
+            # message is still skipped so we don't fall through to the orchestrator.
             # ==================================================
 
             if msg_type != "text":
-                logger.info(
-                    "Non-text message type=%s from=%s",
-                    msg_type, from_number,
-                )
+                logger.info("Non-text message type=%s from=%s", msg_type, from_number)
 
+                tenant_context = None
                 try:
                     async with AsyncSessionLocal() as db:
+                        # single session for both resolve + (no DB work needed for send)
                         tenant_context = await resolve_tenant_by_phone_number_id(
                             db, phone_number_id
                         )
@@ -230,13 +208,14 @@ async def receive_webhook(request: Request):
                     from app.services.whatsapp_sender import send_whatsapp_message
                     from app.conversation.humanizer import Humanizer
 
-                    if msg_type == "audio":
-                        reply = Humanizer.voice_note_reply()
-                    else:
-                        reply = (
+                    reply = (
+                        Humanizer.voice_note_reply()
+                        if msg_type == "audio"
+                        else (
                             "I'm sorry, I can only read text messages right now. "
                             "Could you type what you need? 😊"
                         )
+                    )
 
                     try:
                         await send_whatsapp_message(
@@ -245,7 +224,10 @@ async def receive_webhook(request: Request):
                             phone_number_id=phone_number_id,
                         )
                     except Exception:
-                        logger.exception("Failed to send non-text reply")
+                        # Log but still continue — message handled, don't fall through
+                        logger.exception(
+                            "Failed to send non-text reply to %s — message dropped", from_number
+                        )
                 continue
 
             # ==================================================
@@ -264,16 +246,13 @@ async def receive_webhook(request: Request):
                 logger.error("No tenant found for phone_number_id: %s", phone_number_id)
                 continue
 
+            user_text = message_data.get("text", {}).get("body", "").strip()
+
             # ==================================================
             # FIRST-TIME / NAME CAPTURE
-            #
-            # We check CustomerProfile BEFORE handing off to the
-            # main orchestrator. This keeps onboarding self-contained
-            # here and means the orchestrator can always assume the
-            # customer has a name (or is in the process of giving one).
+            # FIX: name cleaning now delegates to parse_customer_name()
+            # instead of duplicating the strip logic here.
             # ==================================================
-
-            user_text = message_data.get("text", {}).get("body", "").strip()
 
             try:
                 async with AsyncSessionLocal() as db:
@@ -296,37 +275,17 @@ async def receive_webhook(request: Request):
                         current_mode = await memory.get_mode()
 
                         # ── Mode: awaiting_name ──────────────────────────────
-                        # Customer was asked for their name on a previous turn.
-                        # Their current message IS the name — save it and welcome.
                         if current_mode == "awaiting_name":
-                            raw_name = user_text.strip()[:100]  # enforce max length
-                            # Strip filler phrases customers naturally include
-                            _PREFIXES = (
-                                "call me ", "my name is ", "i am ", "i'm ",
-                                "it's ", "they call me ", "just call me ", "name is ",
-                            )
-                            _raw_lower = raw_name.lower()
-                            for _pfx in _PREFIXES:
-                                if _raw_lower.startswith(_pfx):
-                                    raw_name = raw_name[len(_pfx):].strip()
-                                    break
-                            # Take only the first word if multi-word (avoids "Shaddie Nelson Jr")
-                            # but keep full name if it's clearly just a name (≤ 2 words, no verb)
-                            _words = raw_name.split()
-                            if len(_words) > 2:
-                                raw_name = _words[0]
-                            elif len(_words) == 2:
-                                raw_name = raw_name  # e.g. "John Paul" — keep both
-                            # Capitalise first letter only; strip trailing punctuation
-                            raw_name = raw_name.rstrip(".,!?").strip()
-                            name = raw_name[0].upper() + raw_name[1:] if raw_name else user_text.strip()
-                            # Persist to DB profile
+                            # FIX: was copy-pasted inline — now uses shared helper
+                            name = parse_customer_name(user_text)
+                            if not name:
+                                name = user_text.strip()[:50]
+
                             await ctx_svc.save_name(
                                 db=db,
                                 phone_number=from_number,
                                 name=name,
                             )
-                            # Sync to Redis session
                             await memory.set_customer_name(name)
                             await memory.set_mode("idle")
 
@@ -338,42 +297,22 @@ async def receive_webhook(request: Request):
                                 message=welcome,
                                 phone_number_id=phone_number_id,
                             )
-                            # Do not fall through to the orchestrator —
-                            # the welcome message is the response for this turn.
                             continue
 
                         # ── First-time customer ──────────────────────────────
-                        # FLOW-12: name capture is now opportunistic — we no longer
-                        # block the customer's first message behind a name prompt.
-                        # Instead we let the message fall through to the orchestrator
-                        # and set a session flag so it can prompt lightly after the
-                        # first successful product add.  This avoids the drop-off
-                        # that happens when a customer's opening product search is
-                        # answered with "what's your name?".
-                        is_first_time = CustomerContextService.is_first_time(profile)
-
-                        # Only show the first-time welcome once — guard with memory flag
+                        is_first_time    = CustomerContextService.is_first_time(profile)
                         already_welcomed = await memory.get("welcomed", False)
 
                         if is_first_time and not already_welcomed:
                             await memory.set("welcomed", True)
-                            # Mark as first-time so the orchestrator knows to prompt
-                            # for name after the first successful add — not right now.
                             await memory.set("pending_name_prompt", True)
-                            # Fall through — do NOT continue; let the message reach
-                            # the orchestrator so the customer gets their answer first.
 
-                        # ── Returning customer — sync name to session if missing ─
-                        # Covers the case where Redis TTL expired but DB has the name.
+                        # ── Sync name from DB if Redis TTL expired ───────────
                         session_name = await memory.get_customer_name()
                         if not session_name and profile and profile.is_named:
                             await memory.set_customer_name(profile.name)
 
                         # ── Repeat-order prompt ──────────────────────────────
-                        # If a returning customer greets the bot AND their last
-                        # order was from this same store, offer a one-tap repeat.
-                        # Only show once per session (guard with memory flag) and
-                        # only on a greeting/hello — not mid-conversation.
                         if (
                             profile
                             and profile.is_named
@@ -406,7 +345,6 @@ async def receive_webhook(request: Request):
                                         message=repeat_msg,
                                         phone_number_id=phone_number_id,
                                     )
-                                    # Store pending repeat context in session
                                     await memory.set("pending_repeat_order", last_order)
                                     continue
 
@@ -414,7 +352,6 @@ async def receive_webhook(request: Request):
                 logger.exception(
                     "Customer profile / first-time check failed for %s", from_number
                 )
-                # Non-fatal — fall through to the main orchestrator
 
             # ==================================================
             # FORWARD TO ORCHESTRATOR

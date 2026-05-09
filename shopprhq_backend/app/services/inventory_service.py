@@ -237,4 +237,22 @@ class InventoryService:
             and inventory.quantity <= inventory.low_stock_threshold
         )
 
+        # FIX: invalidate the catalogue cache when stock hits zero so the AI
+        # stops recommending this product immediately rather than waiting up to
+        # 10 minutes for the TTL to expire. Fire-and-forget — a cache miss is
+        # handled gracefully by get_catalogue_context() so failure is non-fatal.
+        if inventory.quantity <= 0:
+            try:
+                from app.services.product_catalogue_service import ProductCatalogueService
+                _cat = ProductCatalogueService()
+                import asyncio as _asyncio
+                _asyncio.create_task(
+                    _cat.invalidate(merchant_id=merchant_id, client_id=client_id)
+                )
+            except Exception as _inv_err:
+                logger.warning(
+                    "Catalogue invalidation after stock-out failed (non-fatal): %s",
+                    _inv_err,
+                )
+
         return inventory

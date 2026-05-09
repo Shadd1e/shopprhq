@@ -8,12 +8,18 @@ from sqlalchemy.exc import IntegrityError
 from app.conversation.humanizer import Humanizer
 from app.orchestrators.context import ConversationContext
 from app.services.operator_notification_service import OperatorNotificationService
+from app.core.redis_client import SESSION_TTL
 
 logger = logging.getLogger(__name__)
 
-# Memory keys used for multi-step delivery capture
-_KEY_DELIVERY_TYPE    = "checkout_delivery_type"    # "pickup" | "delivery"
-_KEY_DELIVERY_ADDRESS = "checkout_delivery_address" # str
+_KEY_DELIVERY_TYPE    = "checkout_delivery_type"
+_KEY_DELIVERY_ADDRESS = "checkout_delivery_address"
+
+# FIX: card payment links are valid for up to 2 hours and the stale order cleanup
+# window matches that. Default SESSION_TTL is also 2 hours, meaning a session
+# started at checkout could expire before the payment webhook fires.
+# Double the TTL for all checkout modes so the session always outlives the payment window.
+_CHECKOUT_SESSION_TTL = SESSION_TTL * 2  # 4 hours
 
 
 class CheckoutOrchestrator:
@@ -50,6 +56,24 @@ class CheckoutOrchestrator:
         self.client_id   = str(context.tenant.client_id)
         self.user_id     = context.user_phone
 
+    # ----------------------------------------------------------
+    # INTERNAL: extend session TTL for the checkout window
+    # ----------------------------------------------------------
+    async def _extend_checkout_session(self) -> None:
+        """
+        Bump the Redis session TTL to _CHECKOUT_SESSION_TTL (4 hours).
+        Called at the start of every checkout step that involves waiting.
+        Safe to call multiple times — just resets the expiry clock.
+        Fails silently so a Redis blip never breaks checkout.
+        """
+        try:
+            from app.core.redis_client import redis_service, Keys
+            client = await redis_service.get_client()
+            key = Keys.session_flow(str(self.tenant.client_id), self.user_id)
+            await client.expire(key, _CHECKOUT_SESSION_TTL)
+        except Exception as e:
+            logger.warning("_extend_checkout_session failed (non-fatal): %s", e)
+
     # ==========================================================
     # STEP 1 — INITIATE CHECKOUT
     # ==========================================================
@@ -63,12 +87,9 @@ class CheckoutOrchestrator:
         )
 
         if not summary["has_items"]:
-            return Humanizer.empty_cart_checkout()
+            return Humanizer.empty_cart_checkout(self.tenant.persona_style)
 
         # ── Check for a stale pending card order before proceeding ────────────
-        # If the user has an AWAITING_PAYMENT card order from a previous session,
-        # the checkout service will reject this one with an IntegrityError.
-        # Instead of waiting for that failure, detect it now and give clear guidance.
         try:
             from sqlalchemy import select as _sa_select
             from app.models.order import Order, OrderStatus
@@ -89,10 +110,11 @@ class CheckoutOrchestrator:
                     f"Complete the payment, or send *new* to cancel it and start fresh."
                 )
         except Exception:
-            pass  # If check fails, let the normal flow handle it
+            pass
 
-        # If this store has delivery enabled and configured, ask first
         if self.tenant.delivery_ready:
+            # FIX: extend session TTL as soon as checkout begins
+            await self._extend_checkout_session()
             await self.memory.set_mode("choosing_delivery_type")
             return Humanizer.checkout_delivery_type_prompt(
                 total=summary["total"],
@@ -101,15 +123,15 @@ class CheckoutOrchestrator:
             )
 
         # No delivery → go straight to payment method
+        await self._extend_checkout_session()  # FIX: extend even on direct-to-payment path
         await self.memory.set_mode("payment")
-        return Humanizer.checkout_prompt(summary["total"])
+        return Humanizer.checkout_prompt(summary["total"], self.tenant.persona_style)
 
     # ==========================================================
     # STEP 2 — DELIVERY TYPE SELECTION
     # ==========================================================
 
     async def handle_delivery_type_selection(self, user_input: str) -> str:
-        # FLOW-1: accept natural language in addition to bare "1"/"2"
         _raw = user_input.strip().lower()
 
         _PICKUP_WORDS = {
@@ -133,21 +155,21 @@ class CheckoutOrchestrator:
             return Humanizer.checkout_delivery_type_retry()
 
         if choice == "1":
-            # Pickup — clear any stale delivery state, go to payment
             await self.memory.delete(_KEY_DELIVERY_TYPE)
             await self.memory.delete(_KEY_DELIVERY_ADDRESS)
             await self.memory.set(_KEY_DELIVERY_TYPE, "pickup")
             await self.memory.set_mode("payment")
+            await self._extend_checkout_session()  # FIX: refresh TTL at each step
             summary = await self.cart_service.get_cart_summary(
                 merchant_id=self.merchant_id,
                 client_id=self.client_id,
                 user_id=self.user_id,
             )
-            return Humanizer.checkout_prompt(summary["total"])
+            return Humanizer.checkout_prompt(summary["total"], self.tenant.persona_style)
 
-        # Delivery — capture address next
         await self.memory.set(_KEY_DELIVERY_TYPE, "delivery")
         await self.memory.set_mode("awaiting_delivery_address")
+        await self._extend_checkout_session()  # FIX: refresh TTL at each step
         return Humanizer.ask_delivery_address(self.tenant.delivery_area)
 
     # ==========================================================
@@ -156,12 +178,8 @@ class CheckoutOrchestrator:
 
     async def handle_delivery_address(self, user_input: str) -> str:
         import re as _re
-        address = user_input.strip()[:500]  # enforce max length
+        address = user_input.strip()[:500]
 
-        # FLOW-11: validate by content, not character count.
-        # A valid address must have at least one digit (house/plot number)
-        # and at least two distinct word tokens — rejects "My house please"
-        # (no digit) while accepting "4 Ayo St" (8 chars but valid content).
         _has_digit = bool(_re.search(r'\d', address))
         _word_tokens = [w for w in _re.split(r'\W+', address.lower()) if len(w) >= 2]
         _has_enough_words = len(set(_word_tokens)) >= 2
@@ -174,17 +192,14 @@ class CheckoutOrchestrator:
 
         await self.memory.set(_KEY_DELIVERY_ADDRESS, address)
         await self.memory.set_mode("awaiting_delivery_contact")
+        await self._extend_checkout_session()  # FIX: refresh TTL at each step
 
-        # If a delivery area is configured, do a soft coverage check.
-        # Advisory only — we save the address regardless and let the
-        # delivery person make the final call.
         delivery_area = self.tenant.delivery_area
         if delivery_area:
             area_lower    = delivery_area.lower()
             address_lower = address.lower()
-            # Build simple keywords from the configured area name
-            area_words  = [w for w in area_lower.split() if len(w) > 2]
-            looks_local = area_lower in address_lower or any(
+            area_words    = [w for w in area_lower.split() if len(w) > 2]
+            looks_local   = area_lower in address_lower or any(
                 w in address_lower for w in area_words
             )
             if not looks_local:
@@ -205,10 +220,8 @@ class CheckoutOrchestrator:
         raw = user_input.strip().lower()
 
         if raw in ("same", "same number", "this number", "my number"):
-            # Use their WhatsApp number
             contact_number = self.user_id
         else:
-            # Validate it looks like a phone number (digits + optional +/spaces)
             import re
             cleaned = re.sub(r"[\s\-()]", "", raw)
             if not re.match(r"^\+?\d{7,15}$", cleaned):
@@ -220,15 +233,15 @@ class CheckoutOrchestrator:
 
         await self.memory.set("checkout_delivery_contact", contact_number)
         await self.memory.set_mode("payment")
+        await self._extend_checkout_session()  # FIX: refresh TTL at each step
 
-        # Show total including delivery fee
         summary = await self.cart_service.get_cart_summary(
             merchant_id=self.merchant_id,
             client_id=self.client_id,
             user_id=self.user_id,
         )
-        address       = await self.memory.get(_KEY_DELIVERY_ADDRESS, "")
-        delivery_fee  = float(self.tenant.delivery_fee or 0)
+        address        = await self.memory.get(_KEY_DELIVERY_ADDRESS, "")
+        delivery_fee   = float(self.tenant.delivery_fee or 0)
         total_with_fee = summary["total"] + delivery_fee
 
         return Humanizer.delivery_details_confirmed(
@@ -248,23 +261,18 @@ class CheckoutOrchestrator:
         _CARD = {"2", "card", "pay card", "online", "pay online",
                  "card payment", "transfer", "pay by card", "online payment"}
 
-        # UX-8: if we're already in confirming_order mode, the customer has seen
-        # the summary and is now confirming.  Any affirmative proceeds; anything
-        # else cancels back to payment selection.
         current_mode = await self.memory.get_mode()
         if current_mode == "confirming_order":
             _CONFIRM = {"yes", "yeah", "yep", "yup", "ok", "okay", "sure",
                         "confirm", "place order", "proceed", "go ahead",
                         "oya", "do it", "yes please"}
             if _raw not in _CONFIRM:
-                # Cancel — reset to payment step
                 await self.memory.set_mode("payment")
                 await self.memory.delete("pending_payment_method")
                 return Humanizer._pick([
                     "No problem — order cancelled. Say *checkout* whenever you're ready to try again.",
                     "Got it — nothing placed. Your cart is still intact. Say *checkout* to try again.",
                 ])
-            # Confirmed — restore saved payment method and fall through to checkout
             _raw = await self.memory.get("pending_payment_method", _raw)
 
         if _raw in _CASH:
@@ -274,8 +282,7 @@ class CheckoutOrchestrator:
         else:
             return Humanizer.checkout_prompt_retry()
 
-        # ── Resolve delivery context from session ──────────────────────────
-        delivery_type    = await self.memory.get(_KEY_DELIVERY_TYPE)        # "pickup" | "delivery" | None
+        delivery_type    = await self.memory.get(_KEY_DELIVERY_TYPE)
         delivery_address = await self.memory.get(_KEY_DELIVERY_ADDRESS)
         delivery_contact = await self.memory.get("checkout_delivery_contact")
         delivery_fee     = (
@@ -284,7 +291,6 @@ class CheckoutOrchestrator:
             else None
         )
 
-        # ── Snapshot cart items BEFORE checkout commits ────────────────────
         pre_checkout_summary = await self.cart_service.get_cart_summary(
             merchant_id=self.merchant_id,
             client_id=self.client_id,
@@ -295,16 +301,13 @@ class CheckoutOrchestrator:
             for i in pre_checkout_summary.get("items", [])
         ) or "  (items unavailable)"
 
-        # UX-8: show an order summary and require explicit confirmation before
-        # committing.  This adds one turn but dramatically reduces accidental orders.
-        # Only show on the FIRST payment selection call (not on the confirmation reply).
         if current_mode != "confirming_order":
-            total_val     = pre_checkout_summary.get("total", 0)
+            total_val        = pre_checkout_summary.get("total", 0)
             delivery_fee_val = float(self.tenant.delivery_fee or 0) if delivery_type == "delivery" else 0
-            grand_total   = total_val + delivery_fee_val
-            total_str     = Humanizer._format_currency(grand_total)
-            pay_label     = "Cash on delivery" if payment_method == "cash" else "Card (online payment)"
-            delivery_line = (
+            grand_total      = total_val + delivery_fee_val
+            total_str        = Humanizer._format_currency(grand_total)
+            pay_label        = "Cash on delivery" if payment_method == "cash" else "Card (online payment)"
+            delivery_line    = (
                 f"\nDelivery: {Humanizer._format_currency(delivery_fee_val)}"
                 if delivery_fee_val else ""
             )
@@ -318,10 +321,9 @@ class CheckoutOrchestrator:
             )
             await self.memory.set("pending_payment_method", _raw)
             await self.memory.set_mode("confirming_order")
+            await self._extend_checkout_session()  # FIX: customer may take time to confirm
             return confirmation_msg
 
-        # UX-2: for card payments, send an immediate holding message before the
-        # Flutterwave API call (3-8 s).  Cash orders are instant — no need.
         if payment_method == "card":
             try:
                 from app.services.whatsapp_sender import send_whatsapp_message
@@ -355,7 +357,6 @@ class CheckoutOrchestrator:
             _checkout_err = _e
 
         finally:
-            # Always reset memory mode regardless of outcome
             try:
                 await self.memory.set_mode("idle")
                 await self.memory.delete(_KEY_DELIVERY_TYPE)
@@ -368,17 +369,16 @@ class CheckoutOrchestrator:
         if _checkout_err is not None:
             if isinstance(_checkout_err, IntegrityError):
                 logger.warning("Duplicate order attempt blocked for user %s", self.user_id)
-                return Humanizer.checkout_already_active()
+                return Humanizer.checkout_already_active(self.tenant.persona_style)
             if isinstance(_checkout_err, ValueError):
                 err = str(_checkout_err)
                 if "already checked out" in err or "already has" in err.lower():
-                    return Humanizer.checkout_already_active()
+                    return Humanizer.checkout_already_active(self.tenant.persona_style)
                 logger.error("Checkout value error: %s", err)
-                return Humanizer.checkout_failed()
+                return Humanizer.checkout_failed(self.tenant.persona_style)
             logger.exception("Checkout failed", exc_info=_checkout_err)
-            return Humanizer.checkout_failed()
+            return Humanizer.checkout_failed(self.tenant.persona_style)
 
-        # ── STRUCTURED LOG — searchable in Railway ────────────────────────────
         logger.info(
             "[ORDER_PLACED] merchant_id=%s order_code=%s payment_method=%s "
             "total=%.2f client_id=%s customer=%s",
@@ -386,9 +386,6 @@ class CheckoutOrchestrator:
             result.total_amount, self.client_id, self.user_id,
         )
 
-        # ── OPERATOR PING (ALL PAYMENT METHODS) ──────────────────────────────
-        # Fire a simple one-line alert the moment any order is placed.
-        # Operator replies with just the order code to pull up full details.
         try:
             op_phone        = getattr(self.ctx.tenant, "operator_notify_phone", None)
             phone_number_id = getattr(self.ctx.tenant, "phone_number_id", None)
@@ -408,7 +405,6 @@ class CheckoutOrchestrator:
         except Exception as op_err:
             logger.error("Operator new-order ping failed: %s", op_err)
 
-        # ── CASH ORDER ────────────────────────────────────────────────────────
         if payment_method == "cash":
             if delivery_type == "delivery":
                 instructions = Humanizer.checkout_instructions_cash_delivery(result.order_code)
@@ -418,15 +414,14 @@ class CheckoutOrchestrator:
             return Humanizer.checkout_success(
                 order_code=result.order_code,
                 total=result.total_amount,
-                instructions=instructions,
+                instructions=instructions, style=self.tenant.persona_style,
             )
 
-        # ── CARD ORDER ────────────────────────────────────────────────────────
         if result.payment_link:
-            return Humanizer.checkout_pending(result.payment_link)
+            return Humanizer.checkout_pending(result.payment_link, self.tenant.persona_style)
 
         return Humanizer.checkout_success(
             order_code=result.order_code,
             total=result.total_amount,
-            instructions="Your payment is being processed.",
+            instructions="Your payment is being processed.", style=self.tenant.persona_style,
         )

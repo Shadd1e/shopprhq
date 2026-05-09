@@ -28,18 +28,27 @@ DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 CURRENCY_SYMBOL  = os.getenv("CURRENCY_SYMBOL", "₦")
 
 _deepseek_client = None
+_deepseek_client_key: str | None = None  # FIX: track which key the client was built with
 
 
 def _get_deepseek_client() -> AsyncOpenAI:
-    global _deepseek_client
-    if _deepseek_client is None:
-        if not DEEPSEEK_API_KEY:
-            raise RuntimeError("DEEPSEEK_API_KEY not set")
+    global _deepseek_client, _deepseek_client_key
+
+    # FIX: re-read the env var on every call. If the key has been rotated
+    # (Railway env update + process restart, or a test patching os.environ)
+    # the old cached client is discarded and a new one is created.
+    current_key = os.getenv("DEEPSEEK_API_KEY")
+    if not current_key:
+        raise RuntimeError("DEEPSEEK_API_KEY not set")
+
+    if _deepseek_client is None or current_key != _deepseek_client_key:
         _deepseek_client = AsyncOpenAI(
-            api_key=DEEPSEEK_API_KEY,
+            api_key=current_key,
             base_url="https://api.deepseek.com",
             timeout=10.0,
         )
+        _deepseek_client_key = current_key
+
     return _deepseek_client
 
 

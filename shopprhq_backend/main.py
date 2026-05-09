@@ -231,20 +231,37 @@ app.mount("/static", StaticFiles(directory=_static_dir), name="static")
 
 
 @app.get("/payment-success", response_class=HTMLResponse)
-async def payment_success():
+async def payment_success(ref: str = ""):
     """
-    Flutterwave redirect landing page after customer completes payment.
-    The real order confirmation is handled by the Flutterwave webhook.
+    Paystack redirect landing page after customer completes payment.
+    FIX: accepts ?ref=ORDER_CODE query param (passed via PAYSTACK_REDIRECT_URL
+    in checkout_service.py) so the customer sees their order reference.
+    FIX: WhatsApp button only renders when SHOPPRHQ_SUPPORT_WHATSAPP is set;
+    previously it rendered a broken wa.me/ link when the env var was absent.
     """
-    html = """<!DOCTYPE html>
+    wa_digits = "".join(
+        c for c in os.getenv("SHOPPRHQ_SUPPORT_WHATSAPP", "") if c.isdigit()
+    )
+    wa_button = (
+        f'<a class="btn" href="https://wa.me/{wa_digits}">↩ Back to WhatsApp</a>'
+        if wa_digits
+        else '<p style="color:#6b7280;font-size:14px;">You can close this page and return to your WhatsApp chat.</p>'
+    )
+    order_line = (
+        f'<p style="font-size:13px;color:#6b7280;margin-bottom:16px;">Order reference: <strong>{ref}</strong></p>'
+        if ref
+        else ""
+    )
+
+    html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Payment Successful</title>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
+    * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+    body {{
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       background: #f0fdf4;
       display: flex;
@@ -252,8 +269,8 @@ async def payment_success():
       justify-content: center;
       min-height: 100vh;
       padding: 20px;
-    }
-    .card {
+    }}
+    .card {{
       background: white;
       border-radius: 16px;
       padding: 40px 32px;
@@ -261,11 +278,11 @@ async def payment_success():
       width: 100%;
       text-align: center;
       box-shadow: 0 4px 24px rgba(0,0,0,0.08);
-    }
-    .icon { font-size: 64px; margin-bottom: 16px; }
-    h1 { font-size: 24px; color: #16a34a; margin-bottom: 8px; }
-    p { color: #6b7280; font-size: 15px; line-height: 1.6; margin-bottom: 24px; }
-    .btn {
+    }}
+    .icon {{ font-size: 64px; margin-bottom: 16px; }}
+    h1 {{ font-size: 24px; color: #16a34a; margin-bottom: 8px; }}
+    p {{ color: #6b7280; font-size: 15px; line-height: 1.6; margin-bottom: 24px; }}
+    .btn {{
       display: inline-block;
       background: #25D366;
       color: white;
@@ -274,8 +291,8 @@ async def payment_success():
       border-radius: 50px;
       font-size: 16px;
       font-weight: 600;
-    }
-    .note { margin-top: 16px; font-size: 13px; color: #9ca3af; }
+    }}
+    .note {{ margin-top: 16px; font-size: 13px; color: #9ca3af; }}
   </style>
 </head>
 <body>
@@ -283,7 +300,8 @@ async def payment_success():
     <div class="icon">✅</div>
     <h1>Payment Successful!</h1>
     <p>Your order has been confirmed. Head back to WhatsApp — we're sending your order details right now.</p>
-    <a class="btn" href="https://wa.me/{"".join(c for c in os.getenv("SHOPPRHQ_SUPPORT_WHATSAPP", "") if c.isdigit())}">↩ Back to WhatsApp</a>
+    {order_line}
+    {wa_button}
     <p class="note">You can close this page after returning to your chat.</p>
   </div>
 </body>

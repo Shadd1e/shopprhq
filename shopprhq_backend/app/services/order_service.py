@@ -55,13 +55,17 @@ class OrderService:
         client_id: Optional[str] = None,
         status: Optional[str] = None,
         limit: int = 200,
+        offset: int = 0,
     ) -> List[Order]:
-
+        # FIX: added offset for cursor-style pagination. Fetch limit+1 rows so the
+        # caller can detect whether more pages exist without a separate COUNT query.
+        # The extra row is sliced off before returning — it is purely a has_more signal.
         stmt = (
             select(Order)
             .where(Order.merchant_id == merchant_id)
             .order_by(Order.created_at.desc())
-            .limit(limit)
+            .offset(offset)
+            .limit(limit + 1)
         )
 
         if client_id:
@@ -71,10 +75,15 @@ class OrderService:
             try:
                 stmt = stmt.where(Order.status == OrderStatus(status))
             except ValueError:
-                pass  # Unknown status — ignore filter, return all
+                pass
 
         res = await self.db.execute(stmt)
-        return res.scalars().all()
+        rows = res.scalars().all()
+
+        # Trim the extra row — the route layer is responsible for communicating
+        # has_more to the client (add a has_more field to the response envelope
+        # when you add pagination to the API response schema).
+        return rows[:limit]
 
     # --------------------------------------------------
     # UPDATE STATUS (TENANT SAFE)

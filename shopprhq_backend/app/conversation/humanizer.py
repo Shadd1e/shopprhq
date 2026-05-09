@@ -430,21 +430,41 @@ class Humanizer:
         ])
 
     @classmethod
-    def checkout_prompt(cls, total: float) -> str:
+    def checkout_prompt(cls, total: float, style: str = "friendly_casual") -> str:
         total_str = cls._format_currency(total)
-        return cls._pick([
-            f"Your total is *{total_str}*. How would you like to pay?\n\n"
-            f"1️⃣ Cash — pay when you pick it up\n"
-            f"2️⃣ Card — pay now online",
+        return cls._pick_styled({
+            "friendly_casual": [
+                f"Your total is *{total_str}*. How would you like to pay?\n\n"
+                f"1️⃣ Cash — pay when you pick it up\n"
+                f"2️⃣ Card — pay now online",
 
-            f"Ready to check out! Total: *{total_str}*\n\n"
-            f"1️⃣ Pay cash at the store\n"
-            f"2️⃣ Pay by card (online)",
+                f"Ready to check out! Total: *{total_str}*\n\n"
+                f"1️⃣ Pay cash at the store\n"
+                f"2️⃣ Pay by card (online)",
 
-            f"Almost done! *{total_str}* to pay.\n\n"
-            f"1️⃣ Cash on pickup\n"
-            f"2️⃣ Pay with card",
-        ])
+                f"Almost done! *{total_str}* to pay.\n\n"
+                f"1️⃣ Cash on pickup\n"
+                f"2️⃣ Pay with card",
+            ],
+            "professional": [
+                f"Your order total is *{total_str}*. Please select a payment method:\n\n"
+                f"1️⃣ Cash — payable upon collection\n"
+                f"2️⃣ Card — secure online payment",
+
+                f"Total amount: *{total_str}*. How would you like to proceed?\n\n"
+                f"1️⃣ Cash on collection\n"
+                f"2️⃣ Online card payment",
+            ],
+            "warm_enthusiastic": [
+                f"You're almost there! 🎉 Total: *{total_str}*\n\n"
+                f"1️⃣ Cash — pay at pickup 💵\n"
+                f"2️⃣ Card — pay online now 💳",
+
+                f"So close! *{total_str}* to go! 😊\n\n"
+                f"1️⃣ Cash on pickup\n"
+                f"2️⃣ Pay by card now",
+            ],
+        }, style)
 
     @classmethod
     def checkout_prompt_retry(cls) -> str:
@@ -498,38 +518,87 @@ class Humanizer:
         ])
 
     @classmethod
-    def empty_cart_checkout(cls) -> str:
-        return cls._pick([
-            "Your cart is empty — add something first and I'll help you check out!",
-            "Nothing in your cart yet. What would you like to order?",
-            "You haven't added anything yet. What can I get for you?",
-        ])
+    def empty_cart_checkout(cls, style: str = "friendly_casual") -> str:
+        return cls._pick_styled({
+            "friendly_casual": [
+                "Your cart is empty — add something first and I'll help you check out!",
+                "Nothing in your cart yet. What would you like to order?",
+                "You haven't added anything yet. What can I get for you?",
+            ],
+            "professional": [
+                "Your cart is currently empty. Please add items before proceeding to checkout.",
+                "No items in your cart. Please select products before checking out.",
+            ],
+            "warm_enthusiastic": [
+                "Oops — your cart is empty! 😊 Add something yummy and let's get you checked out!",
+                "Nothing in the cart yet! 🛒 What would you like to add?",
+            ],
+        }, style)
 
     @classmethod
-    def checkout_success(cls, order_code: str, total, instructions: str) -> str:
+    def checkout_success(cls, order_code: str, total, instructions: str, style: str = "friendly_casual") -> str:
         total_str = cls._format_currency(cls._ensure_float(total))
-        return cls._pick([
-            f"🎉 You're all set!\n\n"
-            f"*Order code: {order_code}*\n"
-            f"Total: *{total_str}*\n\n"
-            f"{instructions}\n\n"
-            f"You can check your order anytime — just send *status {order_code}*",
+        return cls._pick_styled({
+            "friendly_casual": [
+                f"🎉 You're all set!\n\n"
+                f"*Order code: {order_code}*\n"
+                f"Total: *{total_str}*\n\n"
+                f"{instructions}\n\n"
+                f"You can check your order anytime — just send *status {order_code}*",
 
-            f"Order placed! ✅\n\n"
-            f"Your code is *{order_code}* — keep it handy.\n"
-            f"Amount: *{total_str}*\n\n"
-            f"{instructions}",
-        ])
+                f"Order placed! ✅\n\n"
+                f"Your code is *{order_code}* — keep it handy.\n"
+                f"Amount: *{total_str}*\n\n"
+                f"{instructions}",
+            ],
+            "professional": [
+                f"Your order has been confirmed. ✅\n\n"
+                f"*Order reference: {order_code}*\n"
+                f"Total: *{total_str}*\n\n"
+                f"{instructions}\n\n"
+                f"To track your order, send *status {order_code}*",
+
+                f"Order confirmed. ✅\n\n"
+                f"Reference: *{order_code}* | Amount: *{total_str}*\n\n"
+                f"{instructions}",
+            ],
+            "warm_enthusiastic": [
+                f"Woohoo! Your order is in! 🎉🛒\n\n"
+                f"*Order code: {order_code}*\n"
+                f"Total: *{total_str}*\n\n"
+                f"{instructions}\n\n"
+                f"So excited for you! Track it anytime with *status {order_code}* 😊",
+
+                f"Yes! Order placed! 🙌\n\n"
+                f"Code: *{order_code}* | Total: *{total_str}*\n\n"
+                f"{instructions}",
+            ],
+        }, style)
 
     @classmethod
-    def checkout_pending(cls, payment_link: str) -> str:
-        return cls._pick([
-            f"Almost there! Tap the link below to complete payment:\n\n{payment_link}\n\n"
-            f"I'll message you as soon as it goes through. 👍",
+    def checkout_pending(cls, payment_link: str, style: str = "friendly_casual") -> str:
+        return cls._pick_styled({
+            "friendly_casual": [
+                f"Almost there! Tap the link below to complete payment:\n\n{payment_link}\n\n"
+                f"I'll message you as soon as it goes through. 👍",
 
-            f"Your order is ready — just pay here:\n\n{payment_link}\n\n"
-            f"Once it's confirmed I'll let you know right away!",
-        ])
+                f"Your order is ready — just pay here:\n\n{payment_link}\n\n"
+                f"Once it's confirmed I'll let you know right away!",
+            ],
+            "professional": [
+                f"Please complete your payment using the link below:\n\n{payment_link}\n\n"
+                f"You will receive a confirmation once the payment is processed.",
+
+                f"Your order is pending payment. Please use the link below to proceed:\n\n{payment_link}",
+            ],
+            "warm_enthusiastic": [
+                f"One last step — you're so close! 🎉 Tap here to pay:\n\n{payment_link}\n\n"
+                f"I'll ping you the moment it's confirmed! 🙌",
+
+                f"Almost done! 😊 Just tap to pay:\n\n{payment_link}\n\n"
+                f"Can't wait to confirm your order!",
+            ],
+        }, style)
 
     @classmethod
     def checkout_instructions_cash(cls, order_code: str) -> str:
@@ -548,20 +617,43 @@ class Humanizer:
         )
 
     @classmethod
-    def checkout_already_active(cls) -> str:
-        return cls._pick([
-            "You have an open card payment that hasn't been completed. "
-            "Finish that payment, or send *new* to cancel it and start fresh.",
-            "There's an unpaid order still open. Complete the payment, "
-            "or send *new* to discard it and place a new one.",
-        ])
+    def checkout_already_active(cls, style: str = "friendly_casual") -> str:
+        return cls._pick_styled({
+            "friendly_casual": [
+                "You have an open card payment that hasn't been completed. "
+                "Finish that payment, or send *new* to cancel it and start fresh.",
+                "There's an unpaid order still open. Complete the payment, "
+                "or send *new* to discard it and place a new one.",
+            ],
+            "professional": [
+                "An incomplete card payment exists on your account. "
+                "Please complete it, or send *new* to cancel and begin a new order.",
+                "You have a pending payment outstanding. Please settle it or send *new* to restart.",
+            ],
+            "warm_enthusiastic": [
+                "Looks like you've got an open payment waiting! 😊 "
+                "Complete it to confirm your order, or send *new* to cancel and start fresh.",
+                "There's still an unpaid order hanging — no worries! "
+                "Finish that one or send *new* to start over. 🛒",
+            ],
+        }, style)
 
     @classmethod
-    def checkout_failed(cls) -> str:
-        return cls._pick([
-            "Something went wrong on our end — sorry about that. Try again?",
-            "Oops, that didn't go through. Want to try again?",
-        ])
+    def checkout_failed(cls, style: str = "friendly_casual") -> str:
+        return cls._pick_styled({
+            "friendly_casual": [
+                "Something went wrong on our end — sorry about that. Try again?",
+                "Oops, that didn't go through. Want to try again?",
+            ],
+            "professional": [
+                "We encountered an issue processing your order. Please try again.",
+                "Your order could not be completed due to a system error. Please retry.",
+            ],
+            "warm_enthusiastic": [
+                "Oh no, something went wrong! 😟 Don't worry — just try again and we'll sort it out!",
+                "Oops! That didn't work. Let's give it another shot! 💪",
+            ],
+        }, style)
 
     # ── Payment ───────────────────────────────────────────────────────────────
 

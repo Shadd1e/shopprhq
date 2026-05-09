@@ -7,6 +7,7 @@ from typing import Dict, Any
 
 from app.db.session import AsyncSessionLocal
 from app.core.redis_client import acquire_user_lock, release_user_lock, get_history
+from app.core.config import settings  # FIX: was `Settings` (the class) — must be `settings` (the instance)
 from app.services.cart_service import CartService
 from app.services.checkout_service import CheckoutService
 from app.services.fuzzy_match import FuzzyMatcher
@@ -69,6 +70,23 @@ def _phones_match(phone_a: str, phone_b: str) -> bool:
 def _normalise(text: str) -> str:
     """Lowercase and strip punctuation for social-word matching."""
     return re.sub(r"[^\w\s]", "", text.lower()).strip()
+
+
+def _format_cart_summary(summary: dict) -> str | None:
+    """
+    Convert cart_svc.get_cart_summary() dict into a compact string
+    suitable for injection into the DeepSeek system prompt.
+    Returns None when the cart is empty so the prompt section is omitted entirely.
+    """
+    if not summary or not summary.get("has_items"):
+        return None
+    lines = [
+        f"{i['quantity']}x {i['product_name']} — ₦{i['price']:,.0f} each (₦{i['subtotal']:,.0f})"
+        for i in summary.get("items", [])
+    ]
+    total = summary.get("total", 0.0)
+    lines.append(f"Total: ₦{total:,.0f}")
+    return "\n".join(lines)
 
 
 # ======================================================
@@ -482,7 +500,22 @@ async def handle_whatsapp_message(
                             client_id=client_id,
                             user_id=user_phone,
                         )
+                        # get_history() returns newest-first (LPUSH order); DeepSeek expects oldest-first.
+                        # Reverse so classify_intent receives chronological order.
+                        if settings.DEBUG and len(conversation_history) >= 2:
+                            assert conversation_history[0]["timestamp"] >= conversation_history[-1]["timestamp"], \
+                                "get_history() did not return newest-first"
                         conversation_history = list(reversed(conversation_history))
+
+                        # FIX: build cart summary and pass to DeepSeek so it has full context
+                        # of what the customer has in their cart when classifying intent.
+                        # Previously hardcoded to None — the LLM was flying blind mid-conversation.
+                        _cart_summary_dict = await cart_svc.get_cart_summary(
+                            merchant_id=merchant_id,
+                            client_id=client_id,
+                            user_id=user_phone,
+                        )
+                        cart_summary = _format_cart_summary(_cart_summary_dict)
 
                         raw_intent = await classify_intent(
                             message=user_text,
@@ -491,7 +524,7 @@ async def handle_whatsapp_message(
                             assistant_personality=tenant.assistant_personality,
                             catalogue_context=catalogue_ctx,
                             history=conversation_history,
-                            cart_summary=None,
+                            cart_summary=cart_summary,
                             last_intent=await memory.get("last_intent"),
                         )
 
@@ -505,7 +538,7 @@ async def handle_whatsapp_message(
 
                         # ── Name extraction & cleaning ────────────────────────
                         if raw_intent.get("customer_name"):
-                            raw_name  = raw_intent["customer_name"].strip()[:100]  # enforce max length
+                            raw_name   = raw_intent["customer_name"].strip()[:100]
                             name_lower = raw_name.lower()
                             _NAME_PREFIXES = (
                                 "call me ", "my name is ", "i am ", "i'm ",
@@ -516,14 +549,12 @@ async def handle_whatsapp_message(
                                     raw_name   = raw_name[len(prefix):].strip()
                                     name_lower = name_lower[len(prefix):]
                                     break
-                            # Guard against sentences being returned as names
                             _name_words = raw_name.split()
                             if len(_name_words) > 2:
                                 raw_name = _name_words[0]
                             raw_name = raw_name.rstrip(".,!?").strip()
                             if raw_name:
                                 raw_name = raw_name[0].upper() + raw_name[1:]
-                                # Never overwrite a previously saved name
                                 if not await memory.get_customer_name():
                                     await memory.set_customer_name(raw_name)
 
@@ -542,9 +573,6 @@ async def handle_whatsapp_message(
                             }
 
                 # ── Handle catalogue-answerable intents ───────────────────────
-                # NOTE: availability_check no longer fires a "silent search" because
-                # that corrupted the mode state. Customers can naturally say "add it"
-                # or type the product name to add after a catalogue answer.
                 if intent in (
                     "product_inquiry",
                     "availability_check",
@@ -555,16 +583,11 @@ async def handle_whatsapp_message(
                     if catalogue_answer:
                         answer = catalogue_answer
                     else:
-                        # DeepSeek didn't fill catalogue_answer — run fuzzy search instead
                         intent = "product_search"
                         intent_payload["search_query"] = user_text
 
                 # ── Fallback: unknown intent → product search ─────────────────
                 if intent == "other" and not user_text.isdigit():
-                    # FLOW-6: never consume social/affirmative words as social-ack
-                    # when the customer is in a mode that is waiting for a yes/no.
-                    # "sure" during confirming_qty should reach qty confirmation,
-                    # not be swallowed as a social word here.
                     _in_waiting_mode = _current_mode in _stateful_modes
                     if (not _in_waiting_mode and (
                             text_norm in _SOCIAL_WORDS or text_lower in _SOCIAL_WORDS

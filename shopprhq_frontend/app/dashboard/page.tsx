@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Logo from '@/components/Logo'
 import {
-  merchantLogin, getMerchantProfile, resendVerification, forgotPassword, resetPassword,
+  merchantLogin, getMerchantProfile, resendVerification, verifyEmailCode, forgotPassword, resetPassword,
   getClients, createClient, getInventory, createProduct, updateProduct, updateStock,
   updatePersona, updateDelivery, updateOperatorNumber, setupStorePassword, toggleClientPermissions,
   getSubaccountBanks, verifyBankAccount, registerSubaccount, getSubaccount, deactivateSubaccount,
@@ -2095,16 +2095,35 @@ function NotificationBell({ clients }: { clients: Client[] }) {
 // PROFILE DROPDOWN
 // ══════════════════════════════════════════════════════════════════════════
 
-function ProfileDropdown({ profile, resendLoading, resendDone, onResend, onHistory, onLogout }: {
+function ProfileDropdown({ profile, token, resendLoading, resendDone, onResend, onVerified, onHistory, onLogout }: {
   profile: MerchantProfile | null
+  token: string
   resendLoading: boolean
   resendDone: boolean
   onResend: () => void
+  onVerified: () => void
   onHistory: () => void
   onLogout: () => void
 }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const [vCode,       setVCode]       = useState('')
+  const [vLoading,    setVLoading]    = useState(false)
+  const [vError,      setVError]      = useState('')
+  const [vDone,       setVDone]       = useState(false)
+
+  async function handleVerify(e: React.FormEvent) {
+    e.preventDefault()
+    if (vCode.length !== 6) return setVError('Enter the 6-digit code.')
+    setVLoading(true); setVError('')
+    try {
+      await verifyEmailCode(token, vCode)
+      setVDone(true)
+      setTimeout(() => { setOpen(false); onVerified() }, 1200)
+    } catch (err: any) {
+      setVError(err.detail ?? 'Invalid or expired code.')
+    } finally { setVLoading(false) }
+  }
 
   useEffect(() => {
     function handler(e: MouseEvent) {
@@ -2147,18 +2166,47 @@ function ProfileDropdown({ profile, resendLoading, resendDone, onResend, onHisto
 
           {needsVerification && (
             <div className="px-5 py-4 border-b border-border bg-amber-50">
-              <p className="text-xs font-semibold text-amber-800 mb-1">Email not verified</p>
-              <p className="text-xs text-amber-700 leading-relaxed mb-3">
-                Check <strong>{profile!.email}</strong> for your 6-digit code.
-              </p>
-              {resendDone
-                ? <span className="text-xs font-semibold text-green-700">Code sent ✓</span>
-                : <button onClick={onResend} disabled={resendLoading}
-                    className="text-xs font-semibold text-amber-800 border border-amber-300 px-3 py-1.5
-                      rounded-lg hover:bg-amber-100 transition-colors disabled:opacity-50">
-                    {resendLoading ? 'Sending…' : 'Resend code'}
-                  </button>
-              }
+              <p className="text-xs font-semibold text-amber-800 mb-1">Verify your email</p>
+              {vDone ? (
+                <p className="text-xs font-semibold text-green-700 py-1">Email verified ✓</p>
+              ) : (
+                <>
+                  <p className="text-xs text-amber-700 leading-relaxed mb-3">
+                    Check <strong>{profile!.email}</strong> for your 6-digit code and enter it below.
+                  </p>
+                  <form onSubmit={handleVerify} className="space-y-2">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={6}
+                      placeholder="6-digit code"
+                      value={vCode}
+                      onChange={e => { setVCode(e.target.value.replace(/\D/g, '')); setVError('') }}
+                      className="w-full px-3 py-2 rounded-xl border border-amber-300 bg-white
+                        text-sm text-ink placeholder:text-ink-4/50 outline-none
+                        focus:border-amber-500 focus:ring-2 focus:ring-amber-200 transition-all"
+                    />
+                    {vError && <p className="text-xs text-red-600">{vError}</p>}
+                    <button
+                      type="submit"
+                      disabled={vLoading || vCode.length !== 6}
+                      className="w-full bg-amber-700 text-white text-xs font-semibold py-2 rounded-xl
+                        hover:bg-amber-800 transition-all disabled:opacity-50"
+                    >
+                      {vLoading ? 'Verifying…' : 'Verify email'}
+                    </button>
+                  </form>
+                  <div className="mt-2">
+                    {resendDone
+                      ? <span className="text-xs font-semibold text-green-700">Code resent ✓</span>
+                      : <button onClick={onResend} disabled={resendLoading}
+                          className="text-xs text-amber-700 hover:underline disabled:opacity-50">
+                          {resendLoading ? 'Sending…' : "Didn't get it? Resend code"}
+                        </button>
+                    }
+                  </div>
+                </>
+              )}
             </div>
           )}
 
@@ -2316,9 +2364,11 @@ function DashboardView({ token, onLogout }: { token: string; onLogout: () => voi
             <NotificationBell clients={clients} />
             <ProfileDropdown
               profile={profile}
+              token={token}
               resendLoading={resendLoading}
               resendDone={resendDone}
               onResend={handleResend}
+              onVerified={loadData}
               onHistory={() => setHistoryOpen(true)}
               onLogout={onLogout}
             />

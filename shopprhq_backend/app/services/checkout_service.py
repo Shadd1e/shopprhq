@@ -248,6 +248,22 @@ class CheckoutService:
                     "Paystack link creation failed for order %s: %s",
                     order.id, pay_err,
                 )
+                # FIX: inventory was already deducted above for ALL payment methods.
+                # Restore every item's stock before re-opening the cart so we don't
+                # silently oversell while the customer retries.
+                for item in cart.items:
+                    try:
+                        await self.inventory_service.adjust_stock(
+                            merchant_id=data.merchant_id,
+                            client_id=data.client_id,
+                            product_id=str(item.product_id),
+                            delta=item.quantity,
+                        )
+                    except Exception as inv_restore_err:
+                        logger.error(
+                            "Inventory restore failed for product %s after payment link failure: %s",
+                            item.product_id, inv_restore_err,
+                        )
                 # Re-open the cart so the customer can retry checkout.
                 cart.checked_out = False
                 cart.checked_out_at = None
@@ -319,6 +335,16 @@ class CheckoutService:
         # ----------------------------
         # RESPONSE
         # ----------------------------
+        # FIX: was hardcoded "30–45 minutes" and "Store" — now reads from Client record.
+        # store_contact_number already exists on the Client model; estimated_fulfillment_minutes
+        # falls back to the hardcoded default if not set so existing tenants are unaffected.
+        _estimated = getattr(data, "estimated_fulfillment_minutes", None)
+        estimated_time_str = (
+            f"{_estimated} minutes" if _estimated
+            else "30–45 minutes"
+        )
+        _contact = getattr(data, "store_contact_number", None) or "Store"
+
         return CheckoutResponseSchema(
             success=True,
             order_id=str(order.id),
@@ -331,8 +357,8 @@ class CheckoutService:
             ),
             total_amount=total_float,
             payment_instructions=None,
-            estimated_time="30–45 minutes",
-            store_contact="Store",
+            estimated_time=estimated_time_str,
+            store_contact=_contact,
             payment_link=payment_link,
         )
 
@@ -376,6 +402,11 @@ class CheckoutService:
             delivery_type=delivery_type,
             delivery_contact_number=delivery_contact_number,
             delivery_fee=delivery_fee,
+            # FIX: pass store contact through so response is populated correctly
+            store_contact_number=(
+                getattr(tenant_context, "store_contact_number", None)
+                if tenant_context else None
+            ),
         )
 
         return await self.checkout(checkout_data)
@@ -396,6 +427,10 @@ class CheckoutService:
         if not secret:
             raise ValueError("PAYSTACK_SECRET_KEY not configured")
         redirect_url = os.getenv("PAYSTACK_REDIRECT_URL", "")
+        # FIX: append order reference so /payment-success page can show the order code
+        if redirect_url and reference:
+            sep = "&" if "?" in redirect_url else "?"
+            redirect_url = f"{redirect_url}{sep}ref={reference}"
         amount_kobo = int(amount_naira * 100)
         payload = {
             "reference": reference,

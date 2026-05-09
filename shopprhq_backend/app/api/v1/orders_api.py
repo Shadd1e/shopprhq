@@ -142,7 +142,10 @@ async def list_orders_route(
     merchant_id: str = Query(...),
     client_id: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
-    limit: int = Query(50, ge=1, le=100),
+    # FIX: raised cap from 100 to 200; added offset for pagination.
+    # Frontend must check has_more and use offset to fetch the next page.
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db)
 ):
     authed_id = _require_merchant(request)
@@ -154,6 +157,7 @@ async def list_orders_route(
         client_id=client_id,
         status=status,
         limit=limit,
+        offset=offset,
     )
 
 

@@ -188,11 +188,14 @@ class CartOrchestrator:
                         matched_item = cart_item
                         break
 
-            # Single-item cart fallback — bare quantity, no name
+            # Single-item cart fallback - bare quantity, no name, unambiguous
             if not matched_item and not name and len(cart.items) == 1:
                 matched_item = cart.items[0]
 
-            # Last-added product fallback
+            # Last-added product fallback - bare quantity, multiple items in cart.
+            # FIX: previously applied silently. Now confirms with the customer first
+            # when the cart has 2+ items so "make it 3" never mutates the wrong item.
+            # Single-item carts are already handled above - this only fires for 2+ items.
             if not matched_item and not name:
                 last_added = await self.memory.get("last_added_product")
                 if last_added:
@@ -202,7 +205,27 @@ class CartOrchestrator:
                         if hasattr(cart_item, "product") and cart_item.product:
                             item_name = cart_item.product.name.lower()
                         if last_lower in item_name or item_name in last_lower:
-                            matched_item = cart_item
+                            if len(cart.items) > 1:
+                                # Multiple items - confirm before applying
+                                _display = (
+                                    cart_item.product.name
+                                    if hasattr(cart_item, "product") and cart_item.product
+                                    else last_added
+                                )
+                                await self.memory.set("pending_qty_update", {
+                                    "product_id": str(cart_item.product_id),
+                                    "name": _display,
+                                    "quantity": quantity,
+                                })
+                                await self.memory.set_mode("confirming_qty_update")
+                                from app.conversation.humanizer import Humanizer as _H
+                                return _H._pick([
+                                    f"Just to confirm - updating *{_display}* to {quantity}? Reply *yes* or *no*.",
+                                    f"Updating *{_display}* to {quantity} - is that right? Reply *yes* to confirm.",
+                                    f"Did you mean *{_display}* x {quantity}? Reply *yes* to update or *no* to cancel.",
+                                ])
+                            else:
+                                matched_item = cart_item
                             break
 
             if not matched_item:
@@ -258,6 +281,85 @@ class CartOrchestrator:
     # ==========================================================
     # VIEW CART
     # ==========================================================
+
+    # ==========================================================
+    # HANDLE QUANTITY UPDATE CONFIRMATION (mode: confirming_qty_update)
+    # FIX: handles the yes/no reply after we asked "updating X to N - right?"
+    # Only fires when update_quantity detected an ambiguous bare-quantity message
+    # on a multi-item cart and stored the pending update in memory.
+    # ==========================================================
+
+    async def handle_qty_update_confirm(self, user_input: str) -> str:
+        pending = await self.memory.get("pending_qty_update")
+
+        if not pending:
+            await self.memory.set_mode("shopping")
+            return Humanizer.quantity_update_not_found()
+
+        text = user_input.strip().lower()
+
+        _CONFIRM = {"yes", "yeah", "yep", "yup", "ok", "okay", "sure",
+                    "confirm", "go ahead", "proceed", "oya", "do it", "yes please"}
+        _CANCEL  = {"no", "nah", "nope", "cancel", "nevermind", "never mind",
+                    "stop", "forget it", "no thanks"}
+
+        await self.memory.delete("pending_qty_update")
+        await self.memory.set_mode("shopping")
+
+        if text in _CANCEL:
+            return Humanizer._pick([
+                "No problem - nothing changed. What else can I help with?",
+                "Got it - cart left as is. Anything else?",
+            ])
+
+        if text not in _CONFIRM:
+            # Not a clear yes or no - treat as cancel and let them rephrase
+            return Humanizer._pick([
+                "I'll leave that unchanged. Just say what you'd like to update.",
+                "No changes made. Let me know what you need!",
+            ])
+
+        # Confirmed - apply the update
+        product_id = pending.get("product_id")
+        name       = pending.get("name", "item")
+        quantity   = pending.get("quantity", 1)
+
+        cart = await self.cart_service.get_active_cart(
+            merchant_id=self.merchant_id,
+            client_id=self.client_id,
+            user_id=self.user_id,
+        )
+        if not cart:
+            return Humanizer.quantity_update_empty_cart()
+
+        try:
+            await self.cart_service.set_item_quantity(
+                merchant_id=self.merchant_id,
+                client_id=self.client_id,
+                cart_id=cart.id,
+                product_id=product_id,
+                quantity=quantity,
+            )
+        except Exception as e:
+            logger.error("handle_qty_update_confirm failed for %s: %s", name, e)
+            return Humanizer.error("generic")
+
+        summary = await self.cart_service.get_cart_summary(
+            merchant_id=self.merchant_id,
+            client_id=self.client_id,
+            user_id=self.user_id,
+        )
+        total_str = Humanizer._format_currency(summary["total"])
+
+        if quantity == 0:
+            return Humanizer._pick([
+                f"Removed *{name}*. Cart total: *{total_str}*",
+                f"*{name}* taken out. Total: *{total_str}*",
+            ])
+        return Humanizer._pick([
+            f"Done! *{name}* updated to {quantity}. Cart total: *{total_str}*",
+            f"*{name}* is now {quantity}. Total: *{total_str}*",
+        ])
 
     async def view_cart(self) -> str:
 

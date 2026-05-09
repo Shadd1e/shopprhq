@@ -259,11 +259,7 @@ async def add_to_history(
 
 
 async def get_history(client_id: str, user_id: str) -> list:
-    """
-    Read conversation history.
-    Keyed by client_id (store ID) to match keys written by
-    ConversationMemory.add_user/add_assistant.
-    """
+    """Read conversation history (newest-first). Keyed by client_id to match ConversationMemory writes."""
     try:
         client = await redis_service.get_client()
         key = Keys.history(client_id, user_id)

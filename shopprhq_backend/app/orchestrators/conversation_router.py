@@ -8,6 +8,8 @@ from app.orchestrators.checkout_orchestrator import CheckoutOrchestrator
 from app.orchestrators.search_orchestrator import SearchOrchestrator
 from app.orchestrators.payment_orchestrator import PaymentOrchestrator
 from app.conversation.humanizer import Humanizer
+import logging
+logger = logging.getLogger(__name__)
 
 
 class ConversationRouter:
@@ -41,6 +43,10 @@ class ConversationRouter:
 
         if current_mode == "selecting":
             return await self.search.handle_selection(self.ctx.user_text)
+
+        # FIX: handle yes/no reply to "updating X to N - right?" confirmation
+        if current_mode == "confirming_qty_update":
+            return await self.cart.handle_qty_update_confirm(self.ctx.user_text)
 
         if current_mode == "confirming_qty":
             # UX-4: for catalogue-answerable intents fired while choosing a quantity,

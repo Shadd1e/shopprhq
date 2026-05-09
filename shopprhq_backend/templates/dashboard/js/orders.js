@@ -180,23 +180,17 @@ async function openOrderDetail(orderId) {
       </table>`
     : '<div style="color:var(--ink-3);font-size:13px;padding:8px 0">No items found for this order.</div>';
 
-  // ── Delivery block (only shown for delivery orders) ──────────────────────
-  const deliveryHtml = o.delivery_type === 'delivery' ? `
-    <div style="border-top:1px solid var(--border);padding-top:16px;margin-top:4px">
-      <div style="font-size:12px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);margin-bottom:10px">Delivery Info</div>
-      <div style="display:grid;gap:10px">
-        ${o.delivery_address ? `
-        <div>
-          <div style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);margin-bottom:3px">Address</div>
-          <div style="font-size:13.5px">${escHtml(o.delivery_address)}</div>
-        </div>` : ''}
-        ${o.delivery_contact_number ? `
-        <div>
-          <div style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);margin-bottom:3px">Contact Number</div>
-          <div style="font-size:13.5px">+${escHtml(o.delivery_contact_number)}</div>
-        </div>` : ''}
-      </div>
-    </div>` : '';
+  // ── Fulfillment block ─────────────────────────────────────────────────────
+  const detailRow = (label, value) =>
+    `<div style="border-top:1px solid var(--border);padding-top:16px;margin-top:4px">
+       <div style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);margin-bottom:3px">${label}</div>
+       <div style="font-size:13.5px">${value}</div>
+     </div>`;
+
+  const deliveryHtml = (o.delivery_type && o.delivery_type !== 'pickup')
+    ? detailRow('Delivery address', escHtml(o.delivery_address || '—')) +
+      detailRow('Contact number',  escHtml(o.delivery_contact_number || '—'))
+    : detailRow('Fulfillment type', '🏪 Store Pickup');
 
   // ── Payment method label ──────────────────────────────────────────────────
   const paymentLabel = o.payment_method === 'card'

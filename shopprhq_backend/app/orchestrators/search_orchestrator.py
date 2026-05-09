@@ -13,7 +13,6 @@ DISPLAY_THRESHOLD = 65.0
 STRONG_THRESHOLD  = 80.0
 MAX_DISPLAY       = 5
 
-# Nigerian / natural English affirmative patterns for confirming_qty
 _AFFIRMATIVE_PATTERNS = re.compile(
     r"^(?:yes|yeah|yep|yup|ya|sure|ok|okay|add it|add|go ahead|proceed|"
     r"definitely|of course|please|pls|do it|yes please|yes pls|"
@@ -22,7 +21,6 @@ _AFFIRMATIVE_PATTERNS = re.compile(
     re.IGNORECASE,
 )
 
-# Trailing qualifiers that are part of the sentence but not the product name
 _TRAIL_PHRASES_RE = re.compile(
     r"\s+(?:is good|would be good|is fine|sounds good|sounds great|"
     r"please|will do|for me|for now|that'?s fine|that'?s good|"
@@ -53,19 +51,16 @@ class SearchOrchestrator:
         if not query or not query.strip():
             return Humanizer.fallback(self.style)
 
-        # Strip trailing qualifiers: "Pepsi is good" → "Pepsi"
         query = _TRAIL_PHRASES_RE.sub("", query.strip()).strip()
         if not query:
             return Humanizer.fallback(self.style)
 
-        # Always clear stale selection/confirming state before a new search
         current_mode = await self.memory.get_mode()
         if current_mode in ("confirming_qty", "selecting"):
             await self.memory.set_mode("idle")
             await self.memory.clear_choices()
             await self.memory.clear_temp()
 
-        # ── Extract inline quantity: "three pepsi" / "2 coke" ────────────────
         from app.services.deepseek_service import _WORD_NUMS
         _qty_inline: Optional[int] = None
         _stripped   = query.strip()
@@ -95,13 +90,10 @@ class SearchOrchestrator:
         )
 
         if not matches:
-            # UX-7: before giving up, do a second search on individual tokens
-            # from the query to surface close alternatives ("we don't have that,
-            # but we do have..."). Split on spaces and try each meaningful word.
             try:
                 _tokens = [t for t in query.split() if len(t) > 2]
                 _broad = []
-                for _tok in _tokens[:3]:   # try up to 3 tokens to avoid over-fetching
+                for _tok in _tokens[:3]:
                     _tok_matches = await self.matcher.search(
                         query=_tok,
                         merchant_id=self.merchant_id,
@@ -116,18 +108,18 @@ class SearchOrchestrator:
                 _broad = []
 
             if _broad:
-                _suggestions = ", ".join(
-                    f"*{m.name}*" for m in _broad
-                )
+                _suggestions = ", ".join(f"*{m.name}*" for m in _broad)
                 return Humanizer._pick([
                     f"We don't have *{query}* right now, but you might like: {_suggestions}. Interested in any of these?",
                     f"No exact match for *{query}*, but we do have {_suggestions} — want one of those instead?",
                     f"*{query}* isn't available, but here are some alternatives: {_suggestions}. Shall I add one?",
                 ])
 
+            # FIX: fire name prompt on no-results path too — customer is engaging
+            # but will never hit _add_confirmed from here.
+            await self._maybe_ask_name_after_reply()
             return Humanizer.no_results(query, self.style)
 
-        # ── Variant group check ───────────────────────────────────────────────
         from app.services.fuzzy_match import FuzzyMatcher as _FM
         variant_group = _FM.detect_variant_group(matches, query)
         if variant_group:
@@ -154,11 +146,8 @@ class SearchOrchestrator:
 
         display = good_matches[:MAX_DISPLAY]
 
-        # ── Strong single match → ask how many ───────────────────────────────
         if len(display) == 1 and getattr(display[0], "score", 0) >= STRONG_THRESHOLD:
             top = display[0]
-            # If we already extracted an inline qty, skip the confirm prompt and
-            # add directly so "add 3 Pepsi" doesn't ask "how many?" unnecessarily.
             if _qty_inline:
                 return await self._add_confirmed(top, _qty_inline)
             await self.memory.update({
@@ -173,7 +162,6 @@ class SearchOrchestrator:
             })
             return Humanizer.confirm_quantity_prompt(top.name, float(top.price or 0))
 
-        # ── Multiple matches → conversational list ────────────────────────────
         has_more = len(matches) >= MAX_DISPLAY
         await self.memory.set_choices([
             {
@@ -185,6 +173,10 @@ class SearchOrchestrator:
         ])
         await self.memory.set_mode("selecting")
         await self.memory.set_last_search(query)
+
+        # FIX: fire name prompt on browse path — customer is engaging but not adding yet.
+        # Previously only _add_confirmed triggered this so browsers were never named.
+        await self._maybe_ask_name_after_reply()
 
         return Humanizer.present_choices_conversational(
             choices=display,
@@ -208,7 +200,6 @@ class SearchOrchestrator:
         text       = user_input.strip()
         text_lower = text.lower()
 
-        # Cancel signals
         if text_lower in ("cancel", "nevermind", "never mind", "stop",
                           "no", "nah", "nothing", "forget it"):
             await self.memory.clear_choices()
@@ -218,16 +209,13 @@ class SearchOrchestrator:
                 "All good. What would you like to look for?",
             ])
 
-        # Try to match by name
         selected = _fuzzy_pick_choice(text_lower, choices)
 
         if selected is None:
-            # Not a match — treat as new search
             await self.memory.clear_choices()
             await self.memory.set_mode("idle")
             return await self.search_products(text)
 
-        # Recover stored quantity if any
         pending_qty_raw = await self.memory.get("pending_selection_qty")
         try:
             quantity = max(1, min(99, int(pending_qty_raw))) if pending_qty_raw else 1
@@ -286,16 +274,12 @@ class SearchOrchestrator:
 
         text = user_input.strip().lower()
 
-        # FLOW-2: if the customer previously stated a quantity (e.g. "add 3 Pepsi")
-        # and then says "yes" / "sure" at the confirmation prompt, honour that qty
-        # rather than silently defaulting to 1.
         _stated_qty = await self.memory.get("pending_selection_qty")
         try:
             _stated_qty = max(1, min(99, int(_stated_qty))) if _stated_qty else None
         except (TypeError, ValueError):
             _stated_qty = None
 
-        # Affirmative → use stated qty if present, else default to 1
         if _AFFIRMATIVE_PATTERNS.match(text):
             quantity = _stated_qty if _stated_qty else 1
         else:
@@ -303,7 +287,6 @@ class SearchOrchestrator:
             quantity = _extract_number_word(user_input)
 
             if quantity is None:
-                # Customer repeated the product name ("Pepsi") → confirm qty 1
                 pending_name = (pending.get("name") or "").lower()
                 if pending_name and (
                     text == pending_name
@@ -312,7 +295,6 @@ class SearchOrchestrator:
                 ):
                     quantity = 1
                 else:
-                    # Not recognisable — treat as new search
                     await self.memory.delete("pending_product")
                     await self.memory.set_mode("idle")
                     return await self.search_products(user_input)
@@ -326,7 +308,6 @@ class SearchOrchestrator:
 
     async def _add_confirmed(self, product: Dict, quantity: int) -> str:
         """Add a product dict (or match object) with known quantity to cart."""
-        # Support both dict (from pending_product) and match object (from search)
         if isinstance(product, dict):
             product_id = product["product_id"]
             name       = product["name"]
@@ -375,17 +356,11 @@ class SearchOrchestrator:
                 total=summary["total"],
             )
 
-            # FLOW-12: opportunistic name capture — ask after the first successful
-            # add rather than blocking the customer's very first message.
-            pending_name = await self.memory.get("pending_name_prompt", False)
-            if pending_name:
-                await self.memory.delete("pending_name_prompt")
-                await self.memory.set_mode("awaiting_name")
-                store_name = self.ctx.tenant.client_name or str(self.client_id)
-                return (
-                    base_reply
-                    + f"\n\nAlso — I didn't catch your name! What should I call you? 😊"
-                )
+            # FIX: use shared helper so name prompt fires consistently
+            # regardless of which path led here.
+            name_suffix = await self._consume_name_prompt()
+            if name_suffix:
+                return base_reply + name_suffix
 
             return base_reply
 
@@ -409,6 +384,59 @@ class SearchOrchestrator:
                 float(getattr(match, "price", 0) or 0),
             )
 
+    # ==========================================================
+    # FIX: NAME PROMPT HELPERS
+    #
+    # Previously pending_name_prompt was only consumed inside _add_confirmed,
+    # so a customer who browsed or searched without adding was never asked
+    # for their name — they could complete a full order anonymously.
+    #
+    # Now:
+    # - _add_confirmed calls _consume_name_prompt() → appends question inline,
+    #   sets mode to awaiting_name (overrides "shopping").
+    # - search_products calls _maybe_ask_name_after_reply() on the browse and
+    #   no-results paths → sets mode to awaiting_name so the NEXT message the
+    #   customer sends is intercepted by the name handler in webhook.py.
+    #   We don't append text here because the reply is already constructed.
+    # ==========================================================
+
+    async def _consume_name_prompt(self) -> str | None:
+        """
+        Consume pending_name_prompt and return the suffix to append to the reply.
+        Returns None if the flag is not set.
+        Sets mode to awaiting_name so the next message is handled by the name handler.
+        """
+        pending = await self.memory.get("pending_name_prompt", False)
+        if not pending:
+            return None
+        await self.memory.delete("pending_name_prompt")
+        await self.memory.set_mode("awaiting_name")
+        return "\n\nAlso — I didn't catch your name! What should I call you? 😊"
+
+    async def _maybe_ask_name_after_reply(self) -> None:
+        """
+        For non-add paths (browse results, no-results): if the name prompt is
+        pending and the customer has sent at least one prior message, consume
+        the flag and set awaiting_name so their NEXT message triggers the handler.
+
+        The interaction counter (_interaction_count) is incremented here so we
+        don't fire the prompt on their very first browse before they've finished
+        expressing what they want.
+        """
+        pending = await self.memory.get("pending_name_prompt", False)
+        if not pending:
+            return
+
+        count = await self.memory.get("_interaction_count", 0)
+        await self.memory.set("_interaction_count", count + 1)
+
+        if count < 1:
+            # First interaction — let them finish their thought first
+            return
+
+        await self.memory.delete("pending_name_prompt")
+        await self.memory.set_mode("awaiting_name")
+
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -417,18 +445,15 @@ def _fuzzy_pick_choice(text_lower: str, choices: List[Dict]) -> Optional[Dict]:
     Match customer reply against stored choices by name.
     Priority: exact → substring → token overlap.
     """
-    # Exact
     for c in choices:
         if text_lower == c["name"].lower():
             return c
 
-    # Substring
     for c in choices:
         name_lower = c["name"].lower()
         if text_lower in name_lower or name_lower in text_lower:
             return c
 
-    # Token overlap (≥1 meaningful token)
     input_tokens = {t for t in text_lower.split() if len(t) > 2}
     best_overlap = 0
     best_choice  = None

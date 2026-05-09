@@ -170,6 +170,14 @@ export async function getMerchantProfile(token: string) {
   })
 }
 
+export async function verifyEmailCode(token: string, code: string) {
+  return req<{ detail: string }>('/api/v1/merchants/verify-email-code', {
+    method: 'POST',
+    headers: bearer(token),
+    body: JSON.stringify({ code }),
+  })
+}
+
 export async function resendVerification(token: string) {
   return req<{ message: string }>('/api/v1/merchants/resend-verification', {
     method: 'POST',
@@ -265,8 +273,15 @@ export async function getMyStore(token: string) {
   return req<Client>('/api/v1/clients/me', { headers: bearer(token) })
 }
 
-export async function getStoreOrders(token: string, merchantId: string, clientId: string, status?: string) {
-  const qs = new URLSearchParams({ merchant_id: merchantId, client_id: clientId, limit: '200' })
+export async function getStoreOrders(
+  token: string,
+  merchantId: string,
+  clientId: string,
+  status?: string,
+  limit = 200,   // FIX: was hardcoded — now a param so callers can paginate
+  offset = 0,
+) {
+  const qs = new URLSearchParams({ merchant_id: merchantId, client_id: clientId, limit: String(limit), offset: String(offset) })
   if (status) qs.set('status', status)
   return req<Order[]>(`/api/v1/orders/?${qs}`, { headers: bearer(token) })
 }
@@ -427,8 +442,14 @@ export async function updateStock(
 
 // ── Orders ─────────────────────────────────────────────────────────────────
 
-export async function getOrders(token: string, merchantId: string, status?: string) {
-  const qs = new URLSearchParams({ merchant_id: merchantId, limit: '200' })
+export async function getOrders(
+  token: string,
+  merchantId: string,
+  status?: string,
+  limit = 200,   // FIX: was hardcoded — now a param so callers can paginate
+  offset = 0,
+) {
+  const qs = new URLSearchParams({ merchant_id: merchantId, limit: String(limit), offset: String(offset) })
   if (status) qs.set('status', status)
   return req<Order[]>(`/api/v1/orders/?${qs}`, {
     headers: bearer(token),

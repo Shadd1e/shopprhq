@@ -5,9 +5,9 @@ Background task: cancels PENDING_PAYMENT card orders that were never paid.
 Policy:
 - Runs every INTERVAL_MINUTES (default 30).
 - Cancels orders stuck in PENDING_PAYMENT for longer than STALE_AFTER_MINUTES (default 120).
-- Does NOT restore inventory — card-payment inventory is deducted only by the
-  Flutterwave webhook (finalize_sale). If that webhook never fired, no inventory
-  was ever taken, so there is nothing to restore.
+- FIX: NOW restores inventory. finalize_sale() is called at checkout for ALL payment methods
+  (including card), so inventory IS already deducted when this cleanup runs. Each item's
+  stock is restored via adjust_stock() inside the same transaction as the cancellation.
 - Re-opens the cart so customer can place a new order.
 - Marks the pending payment record as FAILED.
 - Sends a WhatsApp notification to the customer so they are not left in silence.
@@ -24,9 +24,11 @@ from sqlalchemy.orm import selectinload
 
 from app.db.session import AsyncSessionLocal
 from app.models.order import Order, OrderStatus
-from app.models.cart import Cart
+from app.models.cart import Cart, CartItem
+from app.models.product import Product
 from app.models.payment import Payment, PaymentStatus
 from app.models.client_whatsapp_credential import ClientWhatsAppCredential
+from app.services.inventory_service import InventoryService
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +37,6 @@ INTERVAL_MINUTES    = 30
 
 
 async def cancel_stale_pending_orders() -> int:
-    # Distributed lock — only one instance runs cleanup at a time
     rc = None
     try:
         from app.core.redis_client import redis_service
@@ -62,8 +63,6 @@ async def _run_cleanup() -> int:
     cancelled_count = 0
     cancelled_codes = []
 
-    # Collect notification data INSIDE the transaction, send OUTSIDE.
-    # This ensures a WhatsApp send failure never rolls back a cancellation.
     notifications_to_send = []
 
     async with AsyncSessionLocal() as db:
@@ -82,6 +81,8 @@ async def _run_cleanup() -> int:
             if not stale_orders:
                 return 0
 
+            inventory_service = InventoryService(db)
+
             for order in stale_orders:
                 try:
                     # --------------------------------------------------
@@ -98,21 +99,49 @@ async def _run_cleanup() -> int:
                     payment = pay_result.scalar_one_or_none()
                     if payment:
                         payment.status = PaymentStatus.FAILED
-                        logger.info(
-                            "Payment marked FAILED for stale order %s",
-                            order.order_code,
-                        )
+                        logger.info("Payment marked FAILED for stale order %s", order.order_code)
 
                     # --------------------------------------------------
-                    # CART: Reopen so customer can place a new order
+                    # CART: Load items and reopen
+                    # FIX: load cart with items so we can restore inventory below
                     # --------------------------------------------------
                     cart_result = await db.execute(
-                        select(Cart).where(Cart.id == order.cart_id)
+                        select(Cart)
+                        .where(Cart.id == order.cart_id)
+                        .options(
+                            selectinload(Cart.items).selectinload(CartItem.product)
+                        )
                     )
                     cart = cart_result.scalar_one_or_none()
                     if cart and cart.checked_out:
                         cart.checked_out = False
                         cart.checked_out_at = None
+
+                    # --------------------------------------------------
+                    # INVENTORY: Restore deducted stock
+                    # FIX: finalize_sale() runs at checkout for card orders,
+                    # so stock was already taken. Restore it here atomically
+                    # inside the same transaction as the cancellation.
+                    # --------------------------------------------------
+                    if cart and cart.items:
+                        for item in cart.items:
+                            try:
+                                await inventory_service.adjust_stock(
+                                    merchant_id=order.merchant_id,
+                                    client_id=order.client_id,
+                                    product_id=str(item.product_id),
+                                    delta=item.quantity,
+                                )
+                                logger.info(
+                                    "Inventory restored: product=%s qty=%d order=%s",
+                                    item.product_id, item.quantity, order.order_code,
+                                )
+                            except Exception as inv_err:
+                                logger.error(
+                                    "Inventory restore failed for product %s (order %s): %s",
+                                    item.product_id, order.order_code, inv_err,
+                                )
+                                # Non-fatal — continue cancelling other items and the order
 
                     # --------------------------------------------------
                     # ORDER: Cancel
