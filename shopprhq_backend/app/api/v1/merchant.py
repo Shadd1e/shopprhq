@@ -203,7 +203,8 @@ async def delete_merchant(merchant_id: str, request: Request, db: AsyncSession =
 async def login_merchant(payload: MerchantLogin, db: AsyncSession = Depends(get_db)):
     from app.core.security import create_access_token
     service  = MerchantService(db)
-    merchant = await service.authenticate(payload.merchant_id, payload.password)
+    # FIX: was payload.merchant_id — authenticate() queries by email, not merchant_id
+    merchant = await service.authenticate(payload.email, payload.password)
     if not merchant:
         raise HTTPException(status_code=401, detail="Invalid credentials or account locked")
     token          = create_access_token(subject=merchant.id)

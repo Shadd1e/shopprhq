@@ -73,24 +73,28 @@ async def store_login(
             detail="Invalid Store ID or password",
         )
 
-    # Gate: store-scoped login is only available to merchants with more than one store.
-    # Single-store merchants use the main merchant dashboard instead.
-    from sqlalchemy import select as _sa_select, func as _func
-    from app.models.client_model import Client as _ClientModel
-    store_count_res = await db.execute(
-        _sa_select(_func.count(_ClientModel.id)).where(
-            _ClientModel.merchant_id == client.merchant_id
-        )
-    )
-    store_count = store_count_res.scalar() or 0
-    if store_count < 2:
-        raise HTTPException(
-            status_code=403,
-            detail=(
-                "Store-scoped login is only available once you have more than one store. "
-                "Please log in via the main merchant dashboard instead."
-            ),
-        )
+    # FIX: removed store_count < 2 gate — any store can log in regardless of how many
+    # stores the merchant has. Single-store merchants should be able to use the store dashboard.
+
+    # Notify merchant by email — fire-and-forget, non-fatal
+    try:
+        from sqlalchemy import select as _sel
+        from app.models.merchant import Merchant as _M
+        from app.services.email_service import send_store_login_alert
+        _mres = await db.execute(_sel(_M).where(_M.id == client.merchant_id))
+        _merchant = _mres.scalar_one_or_none()
+        if _merchant and _merchant.email:
+            import asyncio as _asyncio
+            _asyncio.create_task(
+                send_store_login_alert(
+                    to_email=_merchant.email,
+                    merchant_name=_merchant.name,
+                    store_name=client.name or client.id,
+                    client_id=client.id,
+                )
+            )
+    except Exception as _notify_err:
+        logger.warning("Store login notification failed (non-fatal): %s", _notify_err)
 
     token = create_client_access_token(
         client_id=client.id,

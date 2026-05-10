@@ -32,7 +32,7 @@ def _normalise_phone(v: Optional[str]) -> Optional[str]:
 class MerchantCreate(BaseModel):
     name: str = Field(..., min_length=2, max_length=255)
     email: EmailStr
-    password: str = Field(..., min_length=4, max_length=4, pattern=r"^\d{4}$")
+    password: str = Field(..., min_length=6, max_length=128)  # FIX: was 4-digit PIN only
 
     # The WhatsApp number the merchant wants to use for their store.
     # Optional at signup — they can add it later — but strongly prompted
@@ -88,7 +88,7 @@ class MerchantUpdate(BaseModel):
     name:             Optional[str]      = None
     email:            Optional[EmailStr] = None
     password:         Optional[str]      = Field(
-        None, min_length=4, max_length=4, pattern=r"^\d{4}$"
+        None, min_length=6, max_length=128  # FIX: was 4-digit PIN only
     )
     whatsapp_number:  Optional[str]      = Field(
         None,
@@ -104,6 +104,8 @@ class MerchantUpdate(BaseModel):
 # ─────────────────────────────────────────────────────────────────────────────
 # LOGIN
 # ─────────────────────────────────────────────────────────────────────────────
+# FIX: was merchant_id + password. Backend authenticate() queries by email
+# so the schema must match. Frontend updated to send email instead of merchant_id.
 class MerchantLogin(BaseModel):
-    merchant_id: str
-    password:    str
+    email:    EmailStr
+    password: str

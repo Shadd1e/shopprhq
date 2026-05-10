@@ -31,9 +31,9 @@ function ArrowRight({ className = 'w-4 h-4' }: { className?: string }) {
 
 const stats = [
   { value: '60s',  label: 'to go live'   },
-  { value: '₦0',   label: 'upfront cost' },
-  { value: '<1%',  label: 'per order'    },
-  { value: '24/7', label: 'AI handling orders' },
+  { value: '₦0',   label: 'zero setup fee' },
+  { value: '<1%',  label: 'charge per transaction'    },
+  { value: '24/7', label: 'ShopprHQ processes your orders' },
 ]
 
 const steps = [
@@ -45,7 +45,7 @@ const steps = [
   {
     n: '02',
     title: 'Share your number',
-    body: 'Customers send a WhatsApp message to browse and order. The AI handles the conversation. No app, no link, just the chat.',
+    body: 'Customers send a WhatsApp message to browse and order. ShopprHQ handles the conversation. No app, no link, just the chat.',
   },
   {
     n: '03',
@@ -56,8 +56,8 @@ const steps = [
 
 const features = [
   {
-    title: 'AI takes the orders',
-    body: 'Customers type naturally. ShopprHQ understands, structures, and confirms the order — automatically.',
+    title: 'ShopprHQ works the counter',
+    body: 'Customers type naturally. ShopprHQ reads the order, confirms the details, and files it cleanly — so you never miss a sale.',
   },
   {
     title: 'Two ways to pay',

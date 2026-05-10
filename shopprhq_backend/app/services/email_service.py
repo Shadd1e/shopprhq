@@ -23,9 +23,10 @@ BREVO_URL = "https://api.brevo.com/v3/smtp/email"
 def _cfg():
     return {
         "api_key":    os.getenv("BREVO_API_KEY", ""),
-        "from_name":  os.getenv("SMTP_FROM_NAME", "ShopprHQ"),
-        "from_email": os.getenv("SMTP_USER", ""),
-        "app_url":    os.getenv("APP_URL", "https://shopprhq.app"),
+        # FIX: was SMTP_FROM_NAME / SMTP_USER — Railway vars are BREVO_SENDER_NAME / BREVO_SENDER_EMAIL
+        "from_name":  os.getenv("BREVO_SENDER_NAME", os.getenv("SMTP_FROM_NAME", "ShopprHQ")),
+        "from_email": os.getenv("BREVO_SENDER_EMAIL", os.getenv("SMTP_USER", "")),
+        "app_url":    os.getenv("APP_URL", "https://shopprhq.com"),
         "support_wa": os.getenv("SHOPPRHQ_SUPPORT_WHATSAPP", ""),
     }
 
@@ -741,5 +742,87 @@ Your ShopprHQ password reset code is:
   {code}
 
 This code expires in 10 minutes. If you didn't request a reset, ignore this email.
+"""
+    return await send_email(to_email, subject, html, text)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 7. STORE LOGIN ALERT
+#    Sent to the merchant whenever a store manager logs in to the store dashboard.
+#    Security notice — if it wasn't them, they can revoke access.
+# ─────────────────────────────────────────────────────────────────────────────
+
+async def send_store_login_alert(
+    to_email: str,
+    merchant_name: str,
+    store_name: str,
+    client_id: str,
+) -> bool:
+    from datetime import datetime, timezone
+    cfg        = _cfg()
+    app_url    = cfg["app_url"]
+    first_name = merchant_name.split()[0]
+    now_str    = datetime.now(timezone.utc).strftime("%d %b %Y, %H:%M UTC")
+    subject    = f"Store sign-in alert — {store_name}"
+
+    html = f"""<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#F5F4F0;font-family:'DM Sans',Arial,sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F5F4F0;padding:40px 20px">
+    <tr><td align="center">
+      <table width="480" cellpadding="0" cellspacing="0"
+        style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)">
+        <tr><td style="background:#111110;padding:28px 40px;text-align:center">
+          <div style="font-size:24px;font-weight:700;color:#fff">ShopprHQ</div>
+          <div style="font-size:11px;color:rgba(255,255,255,.4);margin-top:4px;
+            letter-spacing:.08em;text-transform:uppercase">Security Alert</div>
+        </td></tr>
+        <tr><td style="padding:36px 40px 32px">
+          <p style="margin:0 0 6px;font-size:16px;font-weight:700;color:#111">Hi {first_name},</p>
+          <p style="margin:0 0 20px;font-size:14px;color:#555;line-height:1.6">
+            Someone just signed in to your store dashboard.
+          </p>
+          <div style="background:#F5F4F0;border-radius:10px;padding:16px 20px;margin-bottom:20px">
+            <p style="margin:0 0 6px;font-size:13px;color:#999;text-transform:uppercase;
+              font-weight:600;letter-spacing:.06em">Store</p>
+            <p style="margin:0 0 10px;font-size:18px;font-weight:700;color:#111">{store_name}</p>
+            <p style="margin:0 0 4px;font-size:13px;color:#777">Store ID: <strong>{client_id}</strong></p>
+            <p style="margin:0;font-size:13px;color:#777">Time: {now_str}</p>
+          </div>
+          <div style="background:#FFF8E1;border:1px solid #F59E0B;border-radius:10px;
+            padding:14px 18px;margin-bottom:20px">
+            <p style="margin:0;font-size:13px;color:#92400E;line-height:1.5">
+              <strong>Not you?</strong> Sign in to your merchant dashboard immediately and
+              reset the store password from Settings to revoke access.
+            </p>
+          </div>
+          <a href="{app_url}/dashboard"
+            style="display:block;background:#111;color:#fff;text-align:center;
+              padding:13px 24px;border-radius:8px;font-weight:600;font-size:14px;
+              text-decoration:none">
+            Go to Merchant Dashboard
+          </a>
+        </td></tr>
+        <tr><td style="padding:16px 40px;border-top:1px solid #eee;text-align:center">
+          <p style="margin:0;font-size:12px;color:#bbb">ShopprHQ by RACHWIN · WhatsApp Commerce · Nigeria</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>"""
+
+    text = f"""Hi {first_name},
+
+Someone just signed in to your store dashboard.
+
+Store: {store_name} ({client_id})
+Time:  {now_str}
+
+If this wasn't you, sign in to your merchant dashboard immediately and reset
+the store password in Settings to revoke access.
+
+Dashboard: {app_url}/dashboard
 """
     return await send_email(to_email, subject, html, text)

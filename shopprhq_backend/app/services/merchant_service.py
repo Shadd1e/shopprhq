@@ -184,8 +184,10 @@ class MerchantService:
         if merchant.failed_attempts >= MAX_FAILED_ATTEMPTS:
             return None
         if verify_password(password, merchant.password_hash):
-            if not merchant.email_verified:
-                return None
+            # FIX: removed email_verified gate. Previously an unverified merchant
+            # would receive "Invalid credentials" with no explanation — now they
+            # log in and the frontend/dashboard shows the verification prompt.
+            # email_verified is returned in the login response so the UI can gate features.
             merchant.failed_attempts = 0
             return merchant
         merchant.failed_attempts += 1

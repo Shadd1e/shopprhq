@@ -1047,7 +1047,7 @@ function LoginView({ onSuccess }: { onSuccess: (token: string) => void }) {
     if (!pin)        return setError('Enter your PIN.')
     setLoading(true)
     try {
-      const data = await merchantLogin(mid.trim().toUpperCase(), pin)
+      const data = await merchantLogin(mid.trim().toLowerCase(), pin)
       sessionStorage.setItem('m_tok',  data.access_token)
       sessionStorage.setItem('m_id',   data.merchant_id)
       sessionStorage.setItem('m_name', data.name)
@@ -1100,7 +1100,7 @@ function LoginView({ onSuccess }: { onSuccess: (token: string) => void }) {
                 Merchant sign in
               </h1>
               <p className="text-sm text-ink-4 mb-7 leading-relaxed">
-                Sign in with your Merchant ID and password.
+                Sign in with your email address and password.
               </p>
               {success && (
                 <div className="mb-5 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 text-sm text-emerald-800">
@@ -1108,10 +1108,11 @@ function LoginView({ onSuccess }: { onSuccess: (token: string) => void }) {
                 </div>
               )}
               <form onSubmit={handleLogin} className="space-y-4">
-                <FormField label="Merchant ID">
-                  <input type="text" placeholder="e.g. MR1001" value={mid}
+                <FormField label="Email address">
+                  {/* FIX: was Merchant ID — login now uses email + password */}
+                  <input type="email" placeholder="you@example.com" value={mid}
                     onChange={e => { setMid(e.target.value); setError(''); setSuccess('') }}
-                    autoComplete="username" autoCapitalize="characters" spellCheck={false}
+                    autoComplete="email" spellCheck={false}
                     className={INPUT} />
                 </FormField>
                 <div>
