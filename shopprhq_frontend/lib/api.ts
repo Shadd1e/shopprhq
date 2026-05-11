@@ -122,11 +122,10 @@ export interface OrderDetail extends Order {
 
 // ── Auth ───────────────────────────────────────────────────────────────────
 
-export async function merchantLogin(email: string, password: string) {
-  // FIX: was merchant_id — backend authenticate() queries by email
+export async function merchantLogin(merchant_id: string, password: string) {
   return req<MerchantLoginResponse>('/api/v1/merchants/login', {
     method: 'POST',
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ merchant_id, password }),
   })
 }
 
@@ -136,9 +135,11 @@ export async function registerMerchant(payload: {
   password: string
   whatsapp_number: string | null
 }) {
+  const { whatsapp_number, ...rest } = payload
+  const body = whatsapp_number ? { ...rest, whatsapp_number } : rest
   return req<RegisterResponse>('/api/v1/merchants/', {
     method: 'POST',
-    body: JSON.stringify(payload),
+    body: JSON.stringify(body),
   })
 }
 

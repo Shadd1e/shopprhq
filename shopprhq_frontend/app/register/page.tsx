@@ -8,23 +8,29 @@ import { cn } from '@/lib/utils'
 
 // ── Shared input style ─────────────────────────────────────────────────────
 
-const INPUT = cn(
-  'w-full px-3.5 py-2.5 rounded-[13px]',
-  'bg-bg border-[1.5px] border-border',
-  'text-sm font-sans text-ink placeholder:text-ink-4/50',
-  'outline-none transition-all',
-  'focus:border-wa focus:bg-white focus:ring-2 focus:ring-wa/10',
-)
+function inputClass(hasError: boolean) {
+  return cn(
+    'w-full px-3.5 py-2.5 rounded-[13px]',
+    'bg-bg border-[1.5px]',
+    'text-sm font-sans text-ink placeholder:text-ink-4/50',
+    'outline-none transition-all',
+    hasError
+      ? 'border-red-400 bg-red-50/40 focus:border-red-400 focus:ring-2 focus:ring-red-200/50'
+      : 'border-border focus:border-wa focus:bg-white focus:ring-2 focus:ring-wa/10',
+  )
+}
 
 // ── Sub-components ─────────────────────────────────────────────────────────
 
 function Field({
   label,
   hint,
+  error,
   children,
 }: {
   label: React.ReactNode
   hint?: string
+  error?: string
   children: React.ReactNode
 }) {
   return (
@@ -33,9 +39,13 @@ function Field({
         {label}
       </label>
       {children}
-      {hint && (
+      {error ? (
+        <p className="mt-1.5 text-xs text-red-500 leading-relaxed flex items-center gap-1">
+          <span>↑</span> {error}
+        </p>
+      ) : hint ? (
         <p className="mt-1.5 text-xs text-ink-4 leading-relaxed">{hint}</p>
-      )}
+      ) : null}
     </div>
   )
 }
@@ -116,6 +126,8 @@ function SuccessCard({ mid, email, storeName }: { mid: string; email: string; st
 
 // ── Main page ──────────────────────────────────────────────────────────────
 
+type FieldErrors = Partial<Record<'name' | 'email' | 'pin' | 'pin2' | 'wa', string>>
+
 export default function RegisterPage() {
   const [form, setForm] = useState({
     name:  '',
@@ -124,28 +136,45 @@ export default function RegisterPage() {
     pin2:  '',
     wa:    '',
   })
-  const [loading, setLoading] = useState(false)
-  const [error,   setError]   = useState('')
-  const [success, setSuccess] = useState<{ mid: string; email: string; storeName: string } | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
+  const [serverError, setServerError] = useState('')
+  const [loading, setLoading]         = useState(false)
+  const [success, setSuccess]         = useState<{ mid: string; email: string; storeName: string } | null>(null)
 
   function set(field: keyof typeof form) {
     return (e: React.ChangeEvent<HTMLInputElement>) => {
       setForm((p) => ({ ...p, [field]: e.target.value }))
-      setError('')
+      // Clear that field's error as soon as the user starts correcting it
+      setFieldErrors((p) => ({ ...p, [field]: undefined }))
+      setServerError('')
     }
+  }
+
+  function validate(): FieldErrors {
+    const { name, email, pin, pin2, wa } = form
+    const waClean = wa.replace(/^\+/, '').replace(/\s+/g, '')
+    const errs: FieldErrors = {}
+
+    if (!name.trim())                          errs.name  = 'Enter your business name.'
+    if (!email || !email.includes('@'))        errs.email = 'Enter a valid email address.'
+    if (!/^\d{6,}$/.test(pin))                errs.pin   = 'PIN must be at least 6 digits.'
+    if (pin !== pin2)                          errs.pin2  = 'PINs do not match.'
+    if (waClean && !/^\d{7,15}$/.test(waClean))
+      errs.wa = 'Include country code, digits only, no + or spaces.'
+
+    return errs
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    const { name, email, pin, pin2, wa } = form
-    const waClean = wa.replace(/^\+/, '').replace(/\s+/g, '') || null
+    const errs = validate()
+    if (Object.keys(errs).length) {
+      setFieldErrors(errs)
+      return
+    }
 
-    if (!name)                             return setError('Enter your business name.')
-    if (!email || !email.includes('@'))    return setError('Enter a valid email address.')
-    if (!/^\d{4}$/.test(pin))             return setError('PIN must be exactly 4 digits.')
-    if (pin !== pin2)                      return setError('PINs do not match.')
-    if (waClean && !/^\d{7,15}$/.test(waClean))
-      return setError('WhatsApp number must be 7–15 digits, no spaces or + sign.')
+    const { name, email, pin, wa } = form
+    const waClean = wa.replace(/^\+/, '').replace(/\s+/g, '') || null
 
     setLoading(true)
     try {
@@ -157,7 +186,20 @@ export default function RegisterPage() {
       })
       setSuccess({ mid: data.id, email, storeName: name })
     } catch (err: any) {
-      setError(err.detail ?? 'Registration failed — please try again.')
+      // If the server returns structured detail, try to map it back to fields
+      const detail = err.detail
+      if (Array.isArray(detail)) {
+        const mapped: FieldErrors = {}
+        for (const d of detail) {
+          const loc = d.loc?.[1] as string | undefined
+          if (loc === 'password') mapped.pin = d.msg
+          else if (loc === 'email') mapped.email = d.msg
+          else if (loc === 'name') mapped.name = d.msg
+          else if (loc === 'whatsapp_number') mapped.wa = d.msg
+        }
+        if (Object.keys(mapped).length) { setFieldErrors(mapped); return }
+      }
+      setServerError(typeof detail === 'string' ? detail : 'Registration failed — please try again.')
     } finally {
       setLoading(false)
     }
@@ -181,21 +223,23 @@ export default function RegisterPage() {
             Open your WhatsApp store in minutes. No technical setup needed.
           </p>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <Field label="Business Name">
+          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+
+            <Field label="Business Name" error={fieldErrors.name}>
               <input
                 type="text"
                 placeholder="e.g. Altekflo Enterprises"
                 value={form.name}
                 onChange={set('name')}
                 autoComplete="organization"
-                className={INPUT}
+                className={inputClass(!!fieldErrors.name)}
               />
             </Field>
 
             <Field
               label="Email Address"
               hint="Your Merchant ID and sign-in details arrive here."
+              error={fieldErrors.email}
             >
               <input
                 type="email"
@@ -203,36 +247,37 @@ export default function RegisterPage() {
                 value={form.email}
                 onChange={set('email')}
                 autoComplete="email"
-                className={INPUT}
+                className={inputClass(!!fieldErrors.email)}
               />
             </Field>
 
             <Field
-              label="4-Digit PIN"
+              label="PIN (min. 6 digits)"
               hint="This is your login PIN — keep it memorable."
+              error={fieldErrors.pin}
             >
               <input
                 type="password"
-                placeholder="••••"
-                maxLength={4}
+                placeholder="••••••"
+                maxLength={10}
                 inputMode="numeric"
                 value={form.pin}
                 onChange={set('pin')}
                 autoComplete="new-password"
-                className={INPUT}
+                className={inputClass(!!fieldErrors.pin)}
               />
             </Field>
 
-            <Field label="Confirm PIN">
+            <Field label="Confirm PIN" error={fieldErrors.pin2}>
               <input
                 type="password"
-                placeholder="••••"
-                maxLength={4}
+                placeholder="••••••"
+                maxLength={10}
                 inputMode="numeric"
                 value={form.pin2}
                 onChange={set('pin2')}
                 autoComplete="new-password"
-                className={INPUT}
+                className={inputClass(!!fieldErrors.pin2)}
               />
             </Field>
 
@@ -245,17 +290,18 @@ export default function RegisterPage() {
                   </span>
                 </span>
               }
-              hint="Include country code, no spaces or +. Example: 2348012345678"
+              hint="Include country code, digits only. Example: 2348012345678"
+              error={fieldErrors.wa}
             >
               <input
                 type="tel"
-                placeholder="2348012345678 (no + or spaces)"
+                placeholder="2348012345678"
                 inputMode="numeric"
                 maxLength={15}
                 value={form.wa}
                 onChange={set('wa')}
                 autoComplete="tel"
-                className={INPUT}
+                className={inputClass(!!fieldErrors.wa)}
               />
             </Field>
 
@@ -268,7 +314,7 @@ export default function RegisterPage() {
               Your onboarding specialist will guide you through removing it.
             </div>
 
-            {error && <ErrorBox msg={error} />}
+            {serverError && <ErrorBox msg={serverError} />}
 
             <button
               type="submit"
