@@ -393,11 +393,12 @@ export async function deactivateSubaccount(token: string, clientId: string) {
   })
 }
 
-// ── Products (inventory endpoint — requires X-headers) ────────────────────
+// ── Products ───────────────────────────────────────────────────────────────
 
 export async function getInventory(token: string, merchantId: string, clientId: string) {
-  return req<Product[]>('/api/v1/inventory/', {
-    headers: { ...bearer(token), 'X-Merchant-ID': merchantId, 'X-Client-ID': clientId },
+  const qs = new URLSearchParams({ merchant_id: merchantId, client_id: clientId })
+  return req<Product[]>(`/api/v1/inventory/?${qs}`, {
+    headers: bearer(token),
   })
 }
 
@@ -407,10 +408,11 @@ export async function createProduct(
   clientId: string,
   data: { name: string; price: number; description?: string; category?: string; initial_stock?: number },
 ) {
-  return req<Product>('/api/v1/products/admin/', {
+  const qs = new URLSearchParams({ merchant_id: merchantId, client_id: clientId })
+  return req<Product>(`/api/v1/products/admin/?${qs}`, {
     method: 'POST',
-    headers: { ...bearer(token), 'X-Merchant-ID': merchantId, 'X-Client-ID': clientId },
-    body: JSON.stringify({ ...data, merchant_id: merchantId, client_id: clientId }),
+    headers: bearer(token),
+    body: JSON.stringify(data),
   })
 }
 
@@ -421,9 +423,10 @@ export async function updateProduct(
   productId: string,
   data: { name?: string; price?: number; description?: string; category?: string },
 ) {
-  return req<Product>(`/api/v1/products/admin/${productId}`, {
+  const qs = new URLSearchParams({ merchant_id: merchantId, client_id: clientId })
+  return req<Product>(`/api/v1/products/admin/${productId}?${qs}`, {
     method: 'PATCH',
-    headers: { ...bearer(token), 'X-Merchant-ID': merchantId, 'X-Client-ID': clientId },
+    headers: bearer(token),
     body: JSON.stringify(data),
   })
 }
@@ -435,9 +438,10 @@ export async function updateStock(
   productId: string,
   quantity: number,
 ) {
-  return req(`/api/v1/inventory/${productId}/stock`, {
+  const qs = new URLSearchParams({ merchant_id: merchantId, client_id: clientId })
+  return req(`/api/v1/inventory/${productId}/stock?${qs}`, {
     method: 'PATCH',
-    headers: { ...bearer(token), 'X-Merchant-ID': merchantId, 'X-Client-ID': clientId },
+    headers: bearer(token),
     body: JSON.stringify({ quantity }),
   })
 }
