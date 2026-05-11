@@ -122,10 +122,10 @@ export interface OrderDetail extends Order {
 
 // ── Auth ───────────────────────────────────────────────────────────────────
 
-export async function merchantLogin(merchant_id: string, password: string) {
+export async function merchantLogin(email: string, password: string) {
   return req<MerchantLoginResponse>('/api/v1/merchants/login', {
     method: 'POST',
-    body: JSON.stringify({ merchant_id, password }),
+    body: JSON.stringify({ email, password }),
   })
 }
 

@@ -1026,7 +1026,7 @@ type LoginView_Screen = 'login' | 'forgot' | 'reset'
 function LoginView({ onSuccess }: { onSuccess: (token: string) => void }) {
   const [screen,  setScreen]  = useState<LoginView_Screen>('login')
   // Login
-  const [mid,     setMid]     = useState('')
+  const [email,   setEmail]   = useState('')
   const [pin,     setPin]     = useState('')
   // Forgot
   const [fEmail,  setFEmail]  = useState('')
@@ -1043,17 +1043,17 @@ function LoginView({ onSuccess }: { onSuccess: (token: string) => void }) {
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
     setError('')
-    if (!mid.trim()) return setError('Enter your Merchant ID.')
+    if (!email.trim()) return setError('Enter your email address.')
     if (!pin)        return setError('Enter your PIN.')
     setLoading(true)
     try {
-      const data = await merchantLogin(mid.trim().toLowerCase(), pin)
+      const data = await merchantLogin(email.trim(), pin)
       sessionStorage.setItem('m_tok',  data.access_token)
       sessionStorage.setItem('m_id',   data.merchant_id)
       sessionStorage.setItem('m_name', data.name)
       onSuccess(data.access_token)
     } catch (err: any) {
-      setError(err.detail ?? 'Invalid Merchant ID or PIN.')
+      setError(err.detail ?? 'Invalid email or PIN.')
     } finally { setLoading(false) }
   }
 
@@ -1100,7 +1100,7 @@ function LoginView({ onSuccess }: { onSuccess: (token: string) => void }) {
                 Merchant sign in
               </h1>
               <p className="text-sm text-ink-4 mb-7 leading-relaxed">
-                Sign in with your email address and password.
+                Sign in with your email address and PIN.
               </p>
               {success && (
                 <div className="mb-5 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 text-sm text-emerald-800">
@@ -1108,10 +1108,9 @@ function LoginView({ onSuccess }: { onSuccess: (token: string) => void }) {
                 </div>
               )}
               <form onSubmit={handleLogin} className="space-y-4">
-                <FormField label="Email address">
-                  {/* FIX: was Merchant ID — login now uses email + password */}
-                  <input type="email" placeholder="you@example.com" value={mid}
-                    onChange={e => { setMid(e.target.value); setError(''); setSuccess('') }}
+                <FormField label="Email Address">
+                  <input type="email" placeholder="you@example.com" value={email}
+                    onChange={e => { setEmail(e.target.value); setError(''); setSuccess('') }}
                     autoComplete="email" spellCheck={false}
                     className={INPUT} />
                 </FormField>
