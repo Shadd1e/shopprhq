@@ -11,7 +11,9 @@ import {
   getSubaccountBanks, verifyBankAccount, registerSubaccount, getSubaccount, deactivateSubaccount,
   getOrders, getOrderDetail, confirmCashOrder, dispatchOrder,
   getRevenueSummary,
+  getOnboardingStatus, updateWhatsappNumber, requestOtp, submitOtp,
   type MerchantProfile, type Client, type Product, type Order, type OrderDetail, type Subaccount, type RevenueSummary,
+  type OnboardingStatus, type OnboardingStatusResponse,
 } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
@@ -1017,6 +1019,250 @@ function FormField({ label, hint, children }: { label: string; hint?: string; ch
   )
 }
 
+
+// ══════════════════════════════════════════════════════════════════════════
+// WHATSAPP ONBOARDING SECTION
+// ══════════════════════════════════════════════════════════════════════════
+
+const ONBOARDING_CONFIG: Record<OnboardingStatus, {
+  icon: string; title: string; body: string
+  color: string; bg: string; border: string
+}> = {
+  pending: {
+    icon: '⏳', title: "We're setting up your WhatsApp store",
+    body: "Your number has been received. We'll notify you by email as soon as you can proceed with verification.",
+    color: 'text-amber-800', bg: 'bg-amber-50', border: 'border-amber-200',
+  },
+  added_to_waba: {
+    icon: '📲', title: 'Ready to verify your number',
+    body: "Your number has been added to our system. When you're ready — phone in hand — request your verification code below.",
+    color: 'text-blue-800', bg: 'bg-blue-50', border: 'border-blue-200',
+  },
+  otp_requested: {
+    icon: '💬', title: 'Check your phone',
+    body: 'Meta has sent a 6-digit code to your number via SMS or call. Enter it below.',
+    color: 'text-indigo-800', bg: 'bg-indigo-50', border: 'border-indigo-200',
+  },
+  otp_submitted: {
+    icon: '✅', title: "Code received — we're on it",
+    body: "We've received your verification code and are completing your setup. You'll get an email once your store is live.",
+    color: 'text-emerald-800', bg: 'bg-emerald-50', border: 'border-emerald-200',
+  },
+  otp_failed: {
+    icon: '❌', title: 'Incorrect code',
+    body: 'The code was wrong or has expired. Request a new one and try again.',
+    color: 'text-red-800', bg: 'bg-red-50', border: 'border-red-200',
+  },
+  number_in_use: {
+    icon: '⚠️', title: 'Number already in use',
+    body: 'This number is already registered on WhatsApp Business. Please update your number below or contact support.',
+    color: 'text-red-800', bg: 'bg-red-50', border: 'border-red-200',
+  },
+  number_personal: {
+    icon: '📵', title: 'Number is on personal WhatsApp',
+    body: 'This number is currently active on a personal WhatsApp account. You must delete WhatsApp from that number first, then come back and try again.',
+    color: 'text-orange-800', bg: 'bg-orange-50', border: 'border-orange-200',
+  },
+  number_invalid: {
+    icon: '🚫', title: 'Invalid phone number',
+    body: "This number couldn't be recognised. Please check it and update it below.",
+    color: 'text-red-800', bg: 'bg-red-50', border: 'border-red-200',
+  },
+  active: {
+    icon: '✅', title: 'Your store is live', body: '',
+    color: 'text-emerald-800', bg: 'bg-emerald-50', border: 'border-emerald-200',
+  },
+}
+
+const SHOW_EDIT_NUMBER: OnboardingStatus[] = ['pending','number_in_use','number_personal','number_invalid','otp_failed']
+const SHOW_REQUEST_OTP: OnboardingStatus[] = ['added_to_waba','otp_failed']
+const SHOW_OTP_INPUT:   OnboardingStatus[] = ['otp_requested']
+
+function WhatsAppOnboardingSection({ token, onRefresh }: { token: string; onRefresh: () => void }) {
+  const [status,       setStatus]       = useState<OnboardingStatusResponse | null>(null)
+  const [loading,      setLoading]      = useState(true)
+  const [newNumber,    setNewNumber]    = useState('')
+  const [numberSaving, setNumberSaving] = useState(false)
+  const [numberErr,    setNumberErr]    = useState('')
+  const [numberMsg,    setNumberMsg]    = useState('')
+  const [otpLoading,   setOtpLoading]   = useState(false)
+  const [otpErr,       setOtpErr]       = useState('')
+  const [code,         setCode]         = useState('')
+  const [codeLoading,  setCodeLoading]  = useState(false)
+  const [codeErr,      setCodeErr]      = useState('')
+  const [codeMsg,      setCodeMsg]      = useState('')
+  const [showConfirm,  setShowConfirm]  = useState(false)
+
+  const loadStatus = useCallback(async () => {
+    try {
+      const s = await getOnboardingStatus(token)
+      setStatus(s)
+      setNewNumber(s.whatsapp_number || '')
+    } catch {}
+    finally { setLoading(false) }
+  }, [token])
+
+  useEffect(() => { loadStatus() }, [loadStatus])
+
+  if (!loading && status?.is_active) return null
+
+  const st  = status?.onboarding_status ?? 'pending'
+  const cfg = ONBOARDING_CONFIG[st]
+  const locked = status?.number_locked ?? false
+
+  async function handleSaveNumber(e: React.FormEvent) {
+    e.preventDefault()
+    setNumberErr(''); setNumberMsg('')
+    const clean = newNumber.replace(/[^\d]/g, '')
+    if (!clean || clean.length < 7 || clean.length > 15)
+      return setNumberErr('Enter a valid number with country code, digits only.')
+    setNumberSaving(true)
+    try {
+      await updateWhatsappNumber(token, clean)
+      setNumberMsg('Number updated ✓')
+      await loadStatus()
+      onRefresh()
+    } catch (err: any) {
+      setNumberErr(err.detail ?? 'Could not update number.')
+    } finally { setNumberSaving(false) }
+  }
+
+  async function handleRequestOtp() {
+    setOtpErr(''); setShowConfirm(false); setOtpLoading(true)
+    try {
+      await requestOtp(token, 'SMS')
+      await loadStatus()
+    } catch (err: any) {
+      setOtpErr(err.detail ?? 'Could not send code. Try again.')
+    } finally { setOtpLoading(false) }
+  }
+
+  async function handleSubmitCode(e: React.FormEvent) {
+    e.preventDefault()
+    setCodeErr(''); setCodeMsg('')
+    if (!code || !/^\d{6}$/.test(code)) return setCodeErr('Enter the 6-digit code from your phone.')
+    setCodeLoading(true)
+    try {
+      const res = await submitOtp(token, code)
+      setCodeMsg(res.message)
+      setCode('')
+      await loadStatus()
+    } catch (err: any) {
+      setCodeErr(err.detail ?? 'Could not submit code. Try again.')
+    } finally { setCodeLoading(false) }
+  }
+
+  return (
+    <div className={cn('rounded-3xl border p-7 mb-6 space-y-5', cfg.bg, cfg.border)}>
+      {loading ? (
+        <div className="space-y-3">
+          {[1,2].map(i => <div key={i} className="skeleton h-4 rounded w-3/4" />)}
+        </div>
+      ) : (
+        <>
+          <div>
+            <div className="flex items-center gap-2.5 mb-1.5">
+              <span className="text-xl">{cfg.icon}</span>
+              <h3 className={cn('font-display font-bold text-base tracking-tight', cfg.color)}>
+                {cfg.title}
+              </h3>
+            </div>
+            {cfg.body && <p className={cn('text-sm leading-relaxed ml-9', cfg.color)}>{cfg.body}</p>}
+          </div>
+
+          {SHOW_EDIT_NUMBER.includes(st) && !locked && (
+            <form onSubmit={handleSaveNumber} className="space-y-3">
+              <div>
+                <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink-3 mb-1.5">
+                  Your WhatsApp number
+                </label>
+                <div className="flex gap-2">
+                  <input type="tel" inputMode="numeric" placeholder="2348012345678" maxLength={15}
+                    value={newNumber}
+                    onChange={e => { setNewNumber(e.target.value.replace(/[^\d]/g,'')); setNumberErr(''); setNumberMsg('') }}
+                    className={cn(INPUT, 'flex-1')} />
+                  <button type="submit" disabled={numberSaving}
+                    className="bg-ink text-white text-sm font-semibold px-4 py-2.5 rounded-xl
+                      hover:bg-ink-2 transition-all disabled:opacity-50 shrink-0">
+                    {numberSaving ? 'Saving…' : 'Update'}
+                  </button>
+                </div>
+                {numberErr && <p className="mt-1.5 text-xs text-red-600">{numberErr}</p>}
+                {numberMsg && <p className="mt-1.5 text-xs text-emerald-700 font-semibold">{numberMsg}</p>}
+                <p className="mt-1.5 text-xs text-ink-4">Include country code, digits only. e.g. 2348012345678</p>
+              </div>
+            </form>
+          )}
+
+          {SHOW_REQUEST_OTP.includes(st) && (
+            <div className="space-y-3">
+              {!showConfirm ? (
+                <button onClick={() => setShowConfirm(true)}
+                  className="flex items-center gap-2 bg-ink text-white text-sm font-semibold
+                    px-5 py-3 rounded-2xl hover:bg-ink-2 transition-all hover:-translate-y-0.5">
+                  📲 Request verification code
+                </button>
+              ) : (
+                <div className="bg-white rounded-2xl border border-border p-5 space-y-4">
+                  <div>
+                    <p className="text-sm font-semibold text-ink mb-1">Confirm your number before we send the code</p>
+                    <p className="text-sm text-ink-4 leading-relaxed">
+                      We'll send a 6-digit code to{' '}
+                      <strong className="text-ink">+{status?.whatsapp_number}</strong>{' '}
+                      via SMS. Meta may also call you instead.
+                    </p>
+                    <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200
+                      rounded-xl px-3 py-2.5 mt-3 leading-relaxed">
+                      ⚠️ Only proceed when you have that phone with you. The code expires quickly.
+                    </p>
+                  </div>
+                  <div className="flex gap-3">
+                    <button onClick={() => setShowConfirm(false)}
+                      className="flex-1 border border-border text-sm font-semibold text-ink-3
+                        py-2.5 rounded-xl hover:bg-bg hover:text-ink transition-all">
+                      That's not my number
+                    </button>
+                    <button onClick={handleRequestOtp} disabled={otpLoading}
+                      className="flex-1 bg-ink text-white text-sm font-semibold py-2.5 rounded-xl
+                        hover:bg-ink-2 transition-all disabled:opacity-50">
+                      {otpLoading ? 'Sending…' : 'Yes, send my code'}
+                    </button>
+                  </div>
+                  {otpErr && <p className="text-xs text-red-600">{otpErr}</p>}
+                </div>
+              )}
+            </div>
+          )}
+
+          {SHOW_OTP_INPUT.includes(st) && (
+            <form onSubmit={handleSubmitCode} className="space-y-3">
+              <div>
+                <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink-3 mb-1.5">
+                  Enter your 6-digit code
+                </label>
+                <div className="flex gap-2">
+                  <input type="text" inputMode="numeric" maxLength={6} placeholder="123456"
+                    value={code}
+                    onChange={e => { setCode(e.target.value.replace(/\D/g,'')); setCodeErr(''); setCodeMsg('') }}
+                    autoComplete="one-time-code"
+                    className={cn(INPUT, 'flex-1 font-mono text-center text-lg tracking-widest')} />
+                  <button type="submit" disabled={codeLoading || code.length !== 6}
+                    className="bg-wa text-white text-sm font-semibold px-5 py-2.5 rounded-xl
+                      shadow-wa hover:bg-wa-dark transition-all disabled:opacity-50 shrink-0">
+                    {codeLoading ? 'Submitting…' : 'Submit'}
+                  </button>
+                </div>
+                {codeErr && <p className="mt-1.5 text-xs text-red-600">{codeErr}</p>}
+                {codeMsg && <p className="mt-1.5 text-xs text-emerald-700 font-semibold leading-relaxed">{codeMsg}</p>}
+              </div>
+            </form>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 // ══════════════════════════════════════════════════════════════════════════
 // LOGIN VIEW
 // ══════════════════════════════════════════════════════════════════════════
@@ -1026,7 +1272,7 @@ type LoginView_Screen = 'login' | 'forgot' | 'reset'
 function LoginView({ onSuccess }: { onSuccess: (token: string) => void }) {
   const [screen,  setScreen]  = useState<LoginView_Screen>('login')
   // Login
-  const [mid,     setMid]     = useState('')
+  const [email,   setEmail]   = useState('')
   const [pin,     setPin]     = useState('')
   // Forgot
   const [fEmail,  setFEmail]  = useState('')
@@ -1043,17 +1289,17 @@ function LoginView({ onSuccess }: { onSuccess: (token: string) => void }) {
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
     setError('')
-    if (!mid.trim()) return setError('Enter your Merchant ID.')
-    if (!pin)        return setError('Enter your PIN.')
+    if (!email.trim()) return setError('Enter your email address.')
+    if (!pin)          return setError('Enter your PIN.')
     setLoading(true)
     try {
-      const data = await merchantLogin(mid.trim().toUpperCase(), pin)
+      const data = await merchantLogin(email.trim(), pin)
       sessionStorage.setItem('m_tok',  data.access_token)
       sessionStorage.setItem('m_id',   data.merchant_id)
       sessionStorage.setItem('m_name', data.name)
       onSuccess(data.access_token)
     } catch (err: any) {
-      setError(err.detail ?? 'Invalid Merchant ID or PIN.')
+      setError(err.detail ?? 'Invalid email or PIN.')
     } finally { setLoading(false) }
   }
 
@@ -1100,7 +1346,7 @@ function LoginView({ onSuccess }: { onSuccess: (token: string) => void }) {
                 Merchant sign in
               </h1>
               <p className="text-sm text-ink-4 mb-7 leading-relaxed">
-                Sign in with your Merchant ID and password.
+                Sign in with your email address and PIN.
               </p>
               {success && (
                 <div className="mb-5 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 text-sm text-emerald-800">
@@ -1108,10 +1354,10 @@ function LoginView({ onSuccess }: { onSuccess: (token: string) => void }) {
                 </div>
               )}
               <form onSubmit={handleLogin} className="space-y-4">
-                <FormField label="Merchant ID">
-                  <input type="text" placeholder="e.g. MR1001" value={mid}
-                    onChange={e => { setMid(e.target.value); setError(''); setSuccess('') }}
-                    autoComplete="username" autoCapitalize="characters" spellCheck={false}
+                <FormField label="Email Address">
+                  <input type="email" placeholder="you@example.com" value={email}
+                    onChange={e => { setEmail(e.target.value); setError(''); setSuccess('') }}
+                    autoComplete="email" spellCheck={false}
                     className={INPUT} />
                 </FormField>
                 <div>
@@ -1485,7 +1731,7 @@ function SettingsTab({ profile, clients, token, onRefresh }: {
     e.preventDefault()
     if (!selected) return
     setConfirm({
-      title:     'Save AI persona?',
+      title:     'Save store persona?',
       message:   `This updates the assistant name and personality for "${selected.name}".`,
       onConfirm: () => { setConfirm(null); doSavePersona() },
     })
@@ -1731,9 +1977,9 @@ function SettingsTab({ profile, clients, token, onRefresh }: {
           {/* ── AI Persona ── */}
           <div className="bg-white border border-border rounded-3xl p-7">
             <div className="mb-5">
-              <h3 className="font-display font-bold text-base text-ink tracking-tight">AI Persona</h3>
+              <h3 className="font-display font-bold text-base text-ink tracking-tight">Store Assistant Persona</h3>
               <p className="text-xs text-ink-4 mt-1">
-                This is the identity your WhatsApp AI assistant uses when talking to customers
+                This is the identity ShopprHQ uses when talking to customers on your behalf
                 {clients.length > 1 ? ` for ${selected?.name}` : ''}.
               </p>
             </div>
@@ -2386,6 +2632,11 @@ function DashboardView({ token, onLogout }: { token: string; onLogout: () => voi
               Retry
             </button>
           </div>
+        )}
+
+        {/* WhatsApp onboarding — only shown when waba_active is false */}
+        {!loading && profile && !profile.waba_active && (
+          <WhatsAppOnboardingSection token={token} onRefresh={loadData} />
         )}
 
         {/* Banners */}
