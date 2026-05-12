@@ -52,25 +52,7 @@ export interface MerchantProfile {
   email: string
   email_verified: boolean
   whatsapp_number?: string
-  waba_active: boolean
-}
-
-export type OnboardingStatus =
-  | 'pending'
-  | 'added_to_waba'
-  | 'otp_requested'
-  | 'otp_submitted'
-  | 'otp_failed'
-  | 'number_in_use'
-  | 'number_personal'
-  | 'number_invalid'
-  | 'active'
-
-export interface OnboardingStatusResponse {
-  onboarding_status: OnboardingStatus
-  whatsapp_number:   string
-  number_locked:     boolean
-  is_active:         boolean
+  waba_active?: boolean
 }
 
 export interface Client {
@@ -86,7 +68,6 @@ export interface Client {
   delivery_fee?: number
   has_login?: boolean
   client_changes_enabled?: boolean
-  onboarding_status?: OnboardingStatus
 }
 
 export interface InventoryInfo {
@@ -143,6 +124,7 @@ export interface OrderDetail extends Order {
 // ── Auth ───────────────────────────────────────────────────────────────────
 
 export async function merchantLogin(email: string, password: string) {
+  // FIX: was merchant_id — backend authenticate() queries by email
   return req<MerchantLoginResponse>('/api/v1/merchants/login', {
     method: 'POST',
     body: JSON.stringify({ email, password }),
@@ -155,11 +137,9 @@ export async function registerMerchant(payload: {
   password: string
   whatsapp_number: string | null
 }) {
-  const { whatsapp_number, ...rest } = payload
-  const body = whatsapp_number ? { ...rest, whatsapp_number } : rest
   return req<RegisterResponse>('/api/v1/merchants/', {
     method: 'POST',
-    body: JSON.stringify(body),
+    body: JSON.stringify(payload),
   })
 }
 
@@ -413,12 +393,11 @@ export async function deactivateSubaccount(token: string, clientId: string) {
   })
 }
 
-// ── Products ───────────────────────────────────────────────────────────────
+// ── Products (inventory endpoint — requires X-headers) ────────────────────
 
 export async function getInventory(token: string, merchantId: string, clientId: string) {
-  const qs = new URLSearchParams({ merchant_id: merchantId, client_id: clientId })
-  return req<Product[]>(`/api/v1/inventory/?${qs}`, {
-    headers: bearer(token),
+  return req<Product[]>('/api/v1/inventory/', {
+    headers: { ...bearer(token), 'X-Merchant-ID': merchantId, 'X-Client-ID': clientId },
   })
 }
 
@@ -428,11 +407,10 @@ export async function createProduct(
   clientId: string,
   data: { name: string; price: number; description?: string; category?: string; initial_stock?: number },
 ) {
-  const qs = new URLSearchParams({ merchant_id: merchantId, client_id: clientId })
-  return req<Product>(`/api/v1/products/admin/?${qs}`, {
+  return req<Product>('/api/v1/products/admin/', {
     method: 'POST',
-    headers: bearer(token),
-    body: JSON.stringify(data),
+    headers: { ...bearer(token), 'X-Merchant-ID': merchantId, 'X-Client-ID': clientId },
+    body: JSON.stringify({ ...data, merchant_id: merchantId, client_id: clientId }),
   })
 }
 
@@ -443,10 +421,9 @@ export async function updateProduct(
   productId: string,
   data: { name?: string; price?: number; description?: string; category?: string },
 ) {
-  const qs = new URLSearchParams({ merchant_id: merchantId, client_id: clientId })
-  return req<Product>(`/api/v1/products/admin/${productId}?${qs}`, {
+  return req<Product>(`/api/v1/products/admin/${productId}`, {
     method: 'PATCH',
-    headers: bearer(token),
+    headers: { ...bearer(token), 'X-Merchant-ID': merchantId, 'X-Client-ID': clientId },
     body: JSON.stringify(data),
   })
 }
@@ -458,10 +435,9 @@ export async function updateStock(
   productId: string,
   quantity: number,
 ) {
-  const qs = new URLSearchParams({ merchant_id: merchantId, client_id: clientId })
-  return req(`/api/v1/inventory/${productId}/stock?${qs}`, {
+  return req(`/api/v1/inventory/${productId}/stock`, {
     method: 'PATCH',
-    headers: bearer(token),
+    headers: { ...bearer(token), 'X-Merchant-ID': merchantId, 'X-Client-ID': clientId },
     body: JSON.stringify({ quantity }),
   })
 }
@@ -499,35 +475,5 @@ export async function dispatchOrder(token: string, orderId: string, merchantId: 
   return req(`/api/v1/orders/${orderId}/mark-out-for-delivery?merchant_id=${merchantId}`, {
     method: 'POST',
     headers: bearer(token),
-  })
-}
-
-export async function getOnboardingStatus(token: string) {
-  return req<OnboardingStatusResponse>('/api/v1/merchants/onboarding-status', {
-    headers: bearer(token),
-  })
-}
-
-export async function updateWhatsappNumber(token: string, whatsapp_number: string) {
-  return req<{ ok: boolean; whatsapp_number: string }>('/api/v1/merchants/whatsapp-number', {
-    method: 'PATCH',
-    headers: bearer(token),
-    body: JSON.stringify({ whatsapp_number }),
-  })
-}
-
-export async function requestOtp(token: string, method: 'SMS' | 'VOICE' = 'SMS') {
-  return req<{ ok: boolean; method: string }>('/api/v1/merchants/request-otp', {
-    method: 'POST',
-    headers: bearer(token),
-    body: JSON.stringify({ method }),
-  })
-}
-
-export async function submitOtp(token: string, code: string) {
-  return req<{ ok: boolean; message: string }>('/api/v1/merchants/submit-otp', {
-    method: 'POST',
-    headers: bearer(token),
-    body: JSON.stringify({ code }),
   })
 }
