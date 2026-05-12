@@ -52,6 +52,25 @@ export interface MerchantProfile {
   email: string
   email_verified: boolean
   whatsapp_number?: string
+  waba_active: boolean
+}
+
+export type OnboardingStatus =
+  | 'pending'
+  | 'added_to_waba'
+  | 'otp_requested'
+  | 'otp_submitted'
+  | 'otp_failed'
+  | 'number_in_use'
+  | 'number_personal'
+  | 'number_invalid'
+  | 'active'
+
+export interface OnboardingStatusResponse {
+  onboarding_status: OnboardingStatus
+  whatsapp_number:   string
+  number_locked:     boolean
+  is_active:         boolean
 }
 
 export interface Client {
@@ -67,6 +86,7 @@ export interface Client {
   delivery_fee?: number
   has_login?: boolean
   client_changes_enabled?: boolean
+  onboarding_status?: OnboardingStatus
 }
 
 export interface InventoryInfo {
@@ -479,5 +499,35 @@ export async function dispatchOrder(token: string, orderId: string, merchantId: 
   return req(`/api/v1/orders/${orderId}/mark-out-for-delivery?merchant_id=${merchantId}`, {
     method: 'POST',
     headers: bearer(token),
+  })
+}
+
+export async function getOnboardingStatus(token: string) {
+  return req<OnboardingStatusResponse>('/api/v1/merchants/onboarding-status', {
+    headers: bearer(token),
+  })
+}
+
+export async function updateWhatsappNumber(token: string, whatsapp_number: string) {
+  return req<{ ok: boolean; whatsapp_number: string }>('/api/v1/merchants/whatsapp-number', {
+    method: 'PATCH',
+    headers: bearer(token),
+    body: JSON.stringify({ whatsapp_number }),
+  })
+}
+
+export async function requestOtp(token: string, method: 'SMS' | 'VOICE' = 'SMS') {
+  return req<{ ok: boolean; method: string }>('/api/v1/merchants/request-otp', {
+    method: 'POST',
+    headers: bearer(token),
+    body: JSON.stringify({ method }),
+  })
+}
+
+export async function submitOtp(token: string, code: string) {
+  return req<{ ok: boolean; message: string }>('/api/v1/merchants/submit-otp', {
+    method: 'POST',
+    headers: bearer(token),
+    body: JSON.stringify({ code }),
   })
 }
