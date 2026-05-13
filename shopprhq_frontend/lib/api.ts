@@ -510,6 +510,17 @@ export async function getOnboardingStatus(token: string) {
   })
 }
 
+export async function submitWhatsappNumber(token: string, whatsapp_number: string) {
+  return req<{ ok: boolean; whatsapp_number: string; message: string }>(
+    '/api/v1/merchants/submit-number',
+    {
+      method: 'POST',
+      headers: bearer(token),
+      body: JSON.stringify({ whatsapp_number }),
+    },
+  )
+}
+
 export async function updateWhatsappNumber(token: string, whatsapp_number: string) {
   return req<{ ok: boolean; whatsapp_number: string }>('/api/v1/merchants/whatsapp-number', {
     method: 'PATCH',

@@ -92,14 +92,11 @@ function SuccessCard({ mid, email, storeName }: { mid: string; email: string; st
           </div>
           <p className="text-xs text-ink-4 mb-6 leading-relaxed">
             This is your <strong>Merchant ID</strong> — save it somewhere safe.
-            You'll need it every time you sign in.
           </p>
 
           <p className="text-xs text-ink-3 mb-8 leading-relaxed">
-            Verify your email from the dashboard, then{' '}
-            <strong>add your products</strong> while you wait. Once you set
-            your operator number, your onboarding specialist will activate
-            your WhatsApp store.
+            Next: submit your WhatsApp number for activation. You can also set up your
+            product catalogue while we get your store live — usually within 24 hours.
           </p>
 
           <Link
@@ -108,7 +105,7 @@ function SuccessCard({ mid, email, storeName }: { mid: string; email: string; st
               text-sm py-3.5 px-6 rounded-2xl shadow-wa hover:bg-wa-dark
               transition-all hover:-translate-y-0.5"
           >
-            Set up your store →
+            Complete your setup →
           </Link>
 
           <p className="mt-5 text-xs text-ink-4">
@@ -126,7 +123,7 @@ function SuccessCard({ mid, email, storeName }: { mid: string; email: string; st
 
 // ── Main page ──────────────────────────────────────────────────────────────
 
-type FieldErrors = Partial<Record<'name' | 'email' | 'pin' | 'pin2' | 'wa', string>>
+type FieldErrors = Partial<Record<'name' | 'email' | 'pin' | 'pin2', string>>
 
 export default function RegisterPage() {
   const [form, setForm] = useState({
@@ -134,7 +131,6 @@ export default function RegisterPage() {
     email: '',
     pin:   '',
     pin2:  '',
-    wa:    '',
   })
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
   const [serverError, setServerError] = useState('')
@@ -151,17 +147,12 @@ export default function RegisterPage() {
   }
 
   function validate(): FieldErrors {
-    const { name, email, pin, pin2, wa } = form
-    const waClean = wa.replace(/^\+/, '').replace(/\s+/g, '')
+    const { name, email, pin, pin2 } = form
     const errs: FieldErrors = {}
-
-    if (!name.trim())                          errs.name  = 'Enter your business name.'
-    if (!email || !email.includes('@'))        errs.email = 'Enter a valid email address.'
-    if (!/^\d{6,}$/.test(pin))                errs.pin   = 'PIN must be at least 6 digits.'
-    if (pin !== pin2)                          errs.pin2  = 'PINs do not match.'
-    if (waClean && !/^\d{7,15}$/.test(waClean))
-      errs.wa = 'Include country code, digits only, no + or spaces.'
-
+    if (!name.trim())                   errs.name  = 'Enter your business name.'
+    if (!email || !email.includes('@')) errs.email = 'Enter a valid email address.'
+    if (!/^\d{6,}$/.test(pin))         errs.pin   = 'PIN must be at least 6 digits.'
+    if (pin !== pin2)                   errs.pin2  = 'PINs do not match.'
     return errs
   }
 
@@ -173,20 +164,12 @@ export default function RegisterPage() {
       return
     }
 
-    const { name, email, pin, wa } = form
-    const waClean = wa.replace(/^\+/, '').replace(/\s+/g, '') || null
-
+    const { name, email, pin } = form
     setLoading(true)
     try {
-      const data = await registerMerchant({
-        name,
-        email,
-        password: pin,
-        whatsapp_number: waClean,
-      })
+      const data = await registerMerchant({ name, email, password: pin, whatsapp_number: null })
       setSuccess({ mid: data.id, email, storeName: name })
     } catch (err: any) {
-      // If the server returns structured detail, try to map it back to fields
       const detail = err.detail
       if (Array.isArray(detail)) {
         const mapped: FieldErrors = {}
@@ -195,7 +178,6 @@ export default function RegisterPage() {
           if (loc === 'password') mapped.pin = d.msg
           else if (loc === 'email') mapped.email = d.msg
           else if (loc === 'name') mapped.name = d.msg
-          else if (loc === 'whatsapp_number') mapped.wa = d.msg
         }
         if (Object.keys(mapped).length) { setFieldErrors(mapped); return }
       }
@@ -280,39 +262,6 @@ export default function RegisterPage() {
                 className={inputClass(!!fieldErrors.pin2)}
               />
             </Field>
-
-            <Field
-              label={
-                <span className="flex items-center gap-2">
-                  Store WhatsApp Number
-                  <span className="text-[10px] text-ink-4 font-normal normal-case tracking-normal">
-                    (optional — add later)
-                  </span>
-                </span>
-              }
-              hint="Include country code, digits only. Example: 2348012345678"
-              error={fieldErrors.wa}
-            >
-              <input
-                type="tel"
-                placeholder="2348012345678"
-                inputMode="numeric"
-                maxLength={15}
-                value={form.wa}
-                onChange={set('wa')}
-                autoComplete="tel"
-                className={inputClass(!!fieldErrors.wa)}
-              />
-            </Field>
-
-            {/* Warning */}
-            <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3
-              text-xs text-amber-800 leading-relaxed">
-              ⚠️{' '}
-              <strong>Important:</strong> This number must{' '}
-              <strong>not</strong> be active on WhatsApp or WhatsApp Business App.
-              Your onboarding specialist will guide you through removing it.
-            </div>
 
             {serverError && <ErrorBox msg={serverError} />}
 

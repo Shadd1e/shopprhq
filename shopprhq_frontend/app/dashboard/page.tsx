@@ -1024,6 +1024,7 @@ function FormField({ label, hint, children }: { label: string; hint?: string; ch
 // WHATSAPP ONBOARDING SECTION
 // ══════════════════════════════════════════════════════════════════════════
 
+// Note: number_submitted handled above in pending config
 const ONBOARDING_CONFIG: Record<OnboardingStatus, {
   icon: string; title: string; body: string
   color: string; bg: string; border: string
@@ -1074,9 +1075,51 @@ const ONBOARDING_CONFIG: Record<OnboardingStatus, {
   },
 }
 
-const SHOW_EDIT_NUMBER: OnboardingStatus[] = ['pending','number_in_use','number_personal','number_invalid','otp_failed']
+const SHOW_EDIT_NUMBER: OnboardingStatus[] = ['number_in_use','number_personal','number_invalid','otp_failed']
 const SHOW_REQUEST_OTP: OnboardingStatus[] = ['added_to_waba','otp_failed']
 const SHOW_OTP_INPUT:   OnboardingStatus[] = ['otp_requested']
+
+
+// ── OTP countdown timer ───────────────────────────────────────────────────────
+
+function OtpTimer({ onExpire }: { onExpire: () => void }) {
+  const [seconds, setSeconds] = useState(600) // 10 minutes
+
+  useEffect(() => {
+    if (seconds <= 0) { onExpire(); return }
+    const id = setTimeout(() => setSeconds(s => s - 1), 1000)
+    return () => clearTimeout(id)
+  }, [seconds, onExpire])
+
+  const mins = Math.floor(seconds / 60)
+  const secs = seconds % 60
+  const expired = seconds <= 0
+  const urgent  = seconds <= 60
+
+  if (expired) {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-xs text-red-700 leading-relaxed">
+        <strong>Your code has expired.</strong> Request a new one.
+      </div>
+    )
+  }
+
+  return (
+    <div className={cn(
+      'flex items-center gap-2 text-xs font-semibold rounded-xl px-3 py-2.5',
+      urgent ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-ink-1/5 text-ink-4',
+    )}>
+      <span>{urgent ? '⏰' : '⏱'}</span>
+      <span>
+        Code expires in{' '}
+        <strong className={urgent ? 'text-red-700' : 'text-ink'}>
+          {mins}:{secs.toString().padStart(2, '0')}
+        </strong>
+        {urgent && ' — enter it now'}
+      </span>
+    </div>
+  )
+}
 
 function WhatsAppOnboardingSection({ token, onRefresh }: { token: string; onRefresh: () => void }) {
   const [status,       setStatus]       = useState<OnboardingStatusResponse | null>(null)
@@ -1236,6 +1279,7 @@ function WhatsAppOnboardingSection({ token, onRefresh }: { token: string; onRefr
 
           {SHOW_OTP_INPUT.includes(st) && (
             <form onSubmit={handleSubmitCode} className="space-y-3">
+              <OtpTimer onExpire={() => loadStatus()} />
               <div>
                 <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink-3 mb-1.5">
                   Enter your 6-digit code

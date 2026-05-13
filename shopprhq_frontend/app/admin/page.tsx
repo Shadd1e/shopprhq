@@ -34,7 +34,7 @@ interface StoreRecord {
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════
 
-const BASE = '/admin/whatsapp-setup'
+const BASE = `${process.env.NEXT_PUBLIC_API_URL ?? 'https://api.shopprhq.com'}/admin/whatsapp-setup`
 
 // ══════════════════════════════════════════════════════════════════════════
 // SHARED STYLES
