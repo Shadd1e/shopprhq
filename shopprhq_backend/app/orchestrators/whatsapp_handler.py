@@ -502,7 +502,7 @@ async def handle_whatsapp_message(
                         )
                         # get_history() returns newest-first (LPUSH order); DeepSeek expects oldest-first.
                         # Reverse so classify_intent receives chronological order.
-                        if settings.DEBUG and len(conversation_history) >= 2:
+                        if getattr(settings, 'DEBUG', False) and len(conversation_history) >= 2:
                             assert conversation_history[0]["timestamp"] >= conversation_history[-1]["timestamp"], \
                                 "get_history() did not return newest-first"
                         conversation_history = list(reversed(conversation_history))
