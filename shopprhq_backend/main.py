@@ -154,6 +154,7 @@ from app.api.v1.checkout import router as checkout_router
 from app.api.v1.debug import router as debug_router
 from app.api.v1.subaccount import router as subaccount_router
 from app.api.v1.admin_whatsapp import router as admin_whatsapp_router
+from app.api.v1.admin_whatsapp import merchant_router as onboarding_router
 from app.api.v1.paystack import router as paystack_router
 
 API_V1_PREFIX = "/api/v1"
@@ -172,6 +173,7 @@ app.include_router(debug_router, prefix=API_V1_PREFIX, tags=["Debug"])
 app.include_router(subaccount_router, prefix=API_V1_PREFIX, tags=["Subaccounts"])
 
 app.include_router(admin_whatsapp_router)
+app.include_router(onboarding_router, prefix=API_V1_PREFIX, tags=["Merchant Onboarding"])
 
 # --------------------------------------------------
 # Health & Root

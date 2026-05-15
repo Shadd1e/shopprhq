@@ -54,7 +54,7 @@ function Field({
 // ── Progress bar ──────────────────────────────────────────────────────────
 
 function ProgressBar({ stage }: { stage: 1 | 2 | 3 }) {
-  const steps = ['Create account', 'Verify email', 'Set up store']
+  const steps = ['Create account', 'Verify email', 'Activate number']
   return (
     <div className="flex items-center gap-0 mb-8">
       {steps.map((label, i) => {
@@ -163,7 +163,7 @@ function StageRegister({ onSuccess }: {
             autoComplete="organization" className={inputClass(!!fieldErrors.name)} />
         </Field>
         <Field label="Email Address"
-          hint="Your Merchant ID and verification code arrive here."
+          hint="Your verification code and Merchant ID will be sent here."
           error={fieldErrors.email}>
           <input type="email" placeholder="you@example.com"
             value={form.email} onChange={set('email')}
@@ -323,52 +323,71 @@ function StageVerify({ email, token, mid, storeName, onSuccess, onWrongEmail }: 
   }
 
   return (
-    <div className="bg-white rounded-3xl border border-border shadow-lg p-9">
-      {/* Header */}
-      <div className="text-center mb-8">
-        <div className="w-14 h-14 rounded-full bg-gradient-to-br from-wa/20 to-wa/10
-          flex items-center justify-center mx-auto mb-5 text-2xl">
+    <div className="bg-white rounded-3xl border border-border shadow-lg overflow-hidden">
+
+      {/* Top banner */}
+      <div className="bg-gradient-to-br from-wa/10 to-transparent px-9 pt-9 pb-7 text-center border-b border-border">
+        <div className="w-16 h-16 rounded-2xl bg-white border border-border shadow-sm
+          flex items-center justify-center mx-auto mb-5 text-3xl">
           ✉️
         </div>
         <h2 className="font-display font-extrabold text-xl tracking-tight text-ink mb-2">
           Check your email
         </h2>
-        <p className="text-sm text-ink-4 leading-relaxed">
+        <p className="text-sm text-ink-4 leading-relaxed mb-3">
           We sent a 6-digit code to
         </p>
-        <p className="mt-1 font-mono text-sm font-semibold text-ink bg-bg
-          border border-border rounded-xl px-4 py-1.5 inline-block">
-          {maskEmail(email)}
-        </p>
+        <div className="inline-flex items-center gap-2 bg-white border border-border
+          rounded-2xl px-5 py-2.5 shadow-sm">
+          <span className="text-xs text-ink-4">📧</span>
+          <span className="font-mono text-sm font-bold text-ink tracking-wide">
+            {maskEmail(email)}
+          </span>
+        </div>
       </div>
 
-      {/* Merchant ID chip */}
-      <div className="bg-bg border border-border rounded-2xl py-3 px-6 text-center mb-6">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-4 mb-1">
-          Your Merchant ID — save this
-        </p>
-        <p className="font-display font-extrabold text-2xl tracking-widest text-ink">
-          {mid}
-        </p>
-      </div>
+      <div className="px-9 py-7 space-y-6">
 
-      {/* Code boxes */}
-      <div className="space-y-4">
-        <OtpBoxes
-          value={code}
-          onChange={v => { setCode(v); setError('') }}
-          error={!!error}
-          disabled={loading}
-        />
+        {/* Merchant ID chip */}
+        <div className="bg-bg border border-border rounded-2xl py-4 px-6 text-center">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-4 mb-2">
+            Your Merchant ID — save this somewhere safe
+          </p>
+          <p className="font-display font-extrabold text-3xl tracking-widest text-ink">
+            {mid}
+          </p>
+        </div>
 
-        {error && (
-          <p className="text-center text-xs text-red-600 font-semibold">{error}</p>
-        )}
+        {/* Code instruction */}
+        <p className="text-center text-xs text-ink-4 leading-relaxed">
+          Enter the 6-digit code from your email below.
+          The code expires in 15 minutes.
+        </p>
+
+        {/* Code boxes */}
+        <div className="space-y-4">
+          <OtpBoxes
+            value={code}
+            onChange={v => { setCode(v); setError('') }}
+            error={!!error}
+            disabled={loading}
+          />
+
+          {error && (
+            <p className="text-center text-sm text-red-600 font-semibold bg-red-50
+              border border-red-200 rounded-xl py-2.5 px-4">
+              {error}
+            </p>
+          )}
+        </div>
 
         {/* Resend */}
-        <div className="text-center space-y-1">
+        <div className="text-center space-y-2 pt-1">
           {resendMsg && (
-            <p className="text-xs text-emerald-700 font-semibold">{resendMsg}</p>
+            <p className="text-xs text-emerald-700 font-semibold bg-emerald-50
+              border border-emerald-200 rounded-xl py-2 px-4 inline-block">
+              {resendMsg}
+            </p>
           )}
           {resendCount >= MAX_RESENDS ? (
             <p className="text-xs text-ink-4">
@@ -384,19 +403,26 @@ function StageVerify({ email, token, mid, storeName, onSuccess, onWrongEmail }: 
             </p>
           ) : (
             <button type="button" onClick={handleResend} disabled={resending}
-              className="text-xs font-semibold text-wa-dark hover:underline disabled:opacity-50">
+              className="text-sm font-semibold text-wa-dark hover:underline disabled:opacity-50
+                flex items-center gap-1.5 mx-auto">
+              <span>↺</span>
               {resending ? 'Resending…' : "Didn't get it? Resend code"}
             </button>
           )}
+          <p className="text-xs text-ink-4/60">
+            Check your spam folder if you don't see it.
+          </p>
         </div>
 
         {/* Wrong email */}
-        <div className="text-center pt-1">
+        <div className="text-center border-t border-border pt-4">
           <button type="button" onClick={onWrongEmail}
-            className="text-xs text-ink-4 hover:text-ink transition-colors underline underline-offset-2">
-            Wrong email? Start over
+            className="text-xs text-ink-4 hover:text-ink transition-colors
+              flex items-center gap-1.5 mx-auto">
+            <span>←</span> Wrong email? Start over
           </button>
         </div>
+
       </div>
     </div>
   )
@@ -423,7 +449,7 @@ function StageVerified({ storeName }: { storeName: string }) {
         Email verified!
       </h2>
       <p className="text-sm text-ink-4 leading-relaxed">
-        Welcome, {storeName}. Setting up your store now…
+        Welcome, {storeName}. Taking you to activate your ShopprHQ number…
       </p>
       <div className="mt-5 flex justify-center">
         <div className="w-6 h-6 border-2 border-wa border-t-transparent rounded-full animate-spin" />
