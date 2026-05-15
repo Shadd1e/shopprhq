@@ -6,8 +6,6 @@ import Link from 'next/link'
 import Logo from '@/components/Logo'
 import {
   getMerchantProfile, getClients, getInventory, getSubaccount,
-  submitWhatsappNumber, getOnboardingStatus,
-  type OnboardingStatus,
 } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
@@ -159,195 +157,6 @@ function ConfirmModal({ number, onConfirm, onCancel, loading }: {
   )
 }
 
-// ── WhatsApp activation form ──────────────────────────────────────────────
-
-function WhatsAppActivation({ token, onSubmitted }: {
-  token: string; onSubmitted: () => void
-}) {
-  const [cc,           setCC]           = useState('234')
-  const [local,        setLocal]        = useState('')
-  const [checks,       setChecks]       = useState({ notActive: false, canReceive: false, understood: false })
-  const [showConfirm,  setShowConfirm]  = useState(false)
-  const [submitting,   setSubmitting]   = useState(false)
-  const [localErr,     setLocalErr]     = useState('')
-  const [serverErr,    setServerErr]    = useState('')
-  const [submitted,    setSubmitted]    = useState(false)
-  const [attemptsLeft, setAttemptsLeft] = useState(3)
-
-  const allChecked = Object.values(checks).every(Boolean)
-  const preview    = formatPreview(local, cc)
-  const fullNumber = buildFull(local, cc)
-
-  function handleNumberChange(raw: string) {
-    setLocal(normaliseLocal(raw, cc))
-    setLocalErr(''); setServerErr('')
-  }
-
-  function handleSubmitRequest(e: React.FormEvent) {
-    e.preventDefault()
-    const err = validateLocal(local, cc)
-    if (err) { setLocalErr(err); return }
-    if (!allChecked) { setLocalErr('Please tick all boxes above before continuing.'); return }
-    setShowConfirm(true)
-  }
-
-  async function handleConfirm() {
-    setSubmitting(true); setServerErr('')
-    try {
-      await submitWhatsappNumber(token, fullNumber)
-      setSubmitted(true)
-      onSubmitted()
-    } catch (err: any) {
-      const msg = err.detail ?? 'Could not submit your number. Please try again.'
-      setServerErr(msg)
-      if (err.status === 429) setAttemptsLeft(0)
-      else setAttemptsLeft(a => Math.max(0, a - 1))
-    } finally {
-      setSubmitting(false); setShowConfirm(false)
-    }
-  }
-
-  if (submitted) {
-    return (
-      <div className="bg-emerald-50 border border-emerald-200 rounded-3xl p-6 text-center space-y-3">
-        <div className="text-3xl">✅</div>
-        <h3 className="font-display font-bold text-base text-emerald-800 tracking-tight">
-          Number received
-        </h3>
-        <p className="text-sm text-emerald-700 leading-relaxed">
-          We will activate your store within 24 hours and notify you by email.
-          In the meantime, go ahead and set up your catalogue below.
-        </p>
-        <div className="bg-white border border-emerald-200 rounded-2xl py-2.5 px-5
-          font-mono font-bold text-lg text-ink inline-block">
-          {preview}
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <>
-      {showConfirm && (
-        <ConfirmModal
-          number={preview}
-          onConfirm={handleConfirm}
-          onCancel={() => setShowConfirm(false)}
-          loading={submitting}
-        />
-      )}
-      <div className="bg-white border border-border rounded-3xl p-6 space-y-5">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-lg">📲</span>
-            <h3 className="font-display font-bold text-base text-ink tracking-tight">
-              WhatsApp Activation
-            </h3>
-          </div>
-          <p className="text-xs text-ink-4 leading-relaxed">
-            This is the number customers will message to browse and order from your store.
-            Meta will send a single 6-digit code to verify it.
-          </p>
-        </div>
-
-        <form onSubmit={handleSubmitRequest} className="space-y-4">
-          {/* Checklist */}
-          <div className="space-y-2.5">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-3">
-              Confirm all of the following before continuing:
-            </p>
-            {[
-              { key: 'notActive' as const,  text: 'This number is not currently active on WhatsApp or WhatsApp Business App' },
-              { key: 'canReceive' as const, text: 'This number can receive SMS or phone calls (not a VoIP-only number)' },
-              { key: 'understood' as const, text: 'I understand Meta will send a 6-digit verification code to this number' },
-            ].map(({ key, text }) => (
-              <label key={key}
-                className={cn(
-                  'flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all',
-                  checks[key] ? 'bg-emerald-50 border-emerald-200' : 'bg-bg border-border hover:border-ink-3',
-                )}>
-                <input type="checkbox" checked={checks[key]}
-                  onChange={e => setChecks(p => ({ ...p, [key]: e.target.checked }))}
-                  className="mt-0.5 accent-emerald-600 shrink-0" />
-                <span className={cn('text-xs leading-relaxed', checks[key] ? 'text-emerald-800' : 'text-ink-3')}>
-                  {text}
-                </span>
-              </label>
-            ))}
-          </div>
-
-          <DeleteGuide />
-
-          {/* Number input */}
-          <div>
-            <label className="block text-[11px] font-semibold uppercase tracking-wider text-ink-3 mb-1.5">
-              Your WhatsApp number
-            </label>
-            <div className="flex gap-2">
-              <div className="relative">
-                <select value={cc} onChange={e => { setCC(e.target.value); setLocalErr(''); setServerErr('') }}
-                  className="h-full pl-3 pr-7 rounded-[13px] bg-bg border-[1.5px] border-border
-                    text-sm font-sans text-ink outline-none transition-all appearance-none
-                    focus:border-wa focus:ring-2 focus:ring-wa/10"
-                  style={{ minWidth: '5.5rem' }}>
-                  {COUNTRY_CODES.map(c => (
-                    <option key={c.code} value={c.code}>{c.flag} +{c.code}</option>
-                  ))}
-                </select>
-                <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-4 text-[10px]">▼</span>
-              </div>
-              <input type="tel" inputMode="numeric" placeholder="8012345678" maxLength={12}
-                value={local}
-                onChange={e => handleNumberChange(e.target.value)}
-                className={cn(
-                  'flex-1 px-3.5 py-2.5 rounded-[13px] bg-bg border-[1.5px]',
-                  'text-sm font-sans text-ink placeholder:text-ink-4/50 outline-none transition-all',
-                  localErr
-                    ? 'border-red-400 bg-red-50/40 focus:border-red-400 focus:ring-2 focus:ring-red-200/50'
-                    : 'border-border focus:border-wa focus:bg-white focus:ring-2 focus:ring-wa/10',
-                )} />
-            </div>
-            {preview && !localErr && (
-              <p className="mt-1.5 text-xs text-ink-4">
-                We will register: <strong className="text-ink font-mono">{preview}</strong>
-              </p>
-            )}
-            {localErr && (
-              <p className="mt-1.5 text-xs text-red-500 flex items-center gap-1">
-                <span>↑</span> {localErr}
-              </p>
-            )}
-            {!localErr && !preview && (
-              <p className="mt-1.5 text-xs text-ink-4">
-                Enter your number without the leading 0 — e.g. 8012345678
-              </p>
-            )}
-          </div>
-
-          {serverErr && (
-            <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-xs text-red-700 leading-relaxed">
-              {serverErr}
-              {attemptsLeft > 0 && attemptsLeft < 3 && (
-                <span className="block mt-1 font-semibold">{attemptsLeft} attempt{attemptsLeft !== 1 ? 's' : ''} remaining.</span>
-              )}
-              {attemptsLeft === 0 && (
-                <span className="block mt-1 font-semibold">No attempts remaining. Please contact support.</span>
-              )}
-            </div>
-          )}
-
-          <button type="submit"
-            disabled={!allChecked || !local || attemptsLeft === 0}
-            className="w-full bg-ink text-white font-semibold text-sm py-3.5 rounded-2xl
-              hover:bg-ink/80 transition-all hover:-translate-y-0.5
-              disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none">
-            Submit my number →
-          </button>
-        </form>
-      </div>
-    </>
-  )
-}
 
 // ── Step item ─────────────────────────────────────────────────────────────
 
@@ -388,10 +197,8 @@ export default function SetupPage() {
   const [token,            setToken]            = useState<string | null>(null)
   const [loading,          setLoading]          = useState(true)
   const [storeName,        setStoreName]        = useState('')
-  const [hasNumber,        setHasNumber]        = useState(false)
   const [hasProducts,      setHasProducts]      = useState(false)
   const [hasBankAccount,   setHasBankAccount]   = useState(false)
-  const [onboardingStatus, setOnboardingStatus] = useState<OnboardingStatus>('pending')
 
   useEffect(() => {
     const tok = sessionStorage.getItem('m_tok')
@@ -403,11 +210,6 @@ export default function SetupPage() {
     try {
       const prof = await getMerchantProfile(tok)
       setStoreName(prof.name)
-      try {
-        const ob = await getOnboardingStatus(tok)
-        setOnboardingStatus(ob.onboarding_status)
-        setHasNumber(ob.onboarding_status !== 'pending')
-      } catch {}
       const clientList = await getClients(tok)
       let foundProducts = false, foundBank = false
       for (const c of clientList) {
@@ -433,7 +235,7 @@ export default function SetupPage() {
 
   if (!checked) return null
 
-  const allDone = hasNumber && hasProducts && hasBankAccount
+  const allDone = hasProducts && hasBankAccount
 
   return (
     <div className="min-h-screen bg-bg p-5">
@@ -453,36 +255,11 @@ export default function SetupPage() {
         </div>
 
         <div className="space-y-4">
-          {loading ? (
-            <div className="skeleton h-64 rounded-3xl" />
-          ) : !hasNumber ? (
-            <WhatsAppActivation
-              token={token!}
-              onSubmitted={() => { setHasNumber(true); setOnboardingStatus('number_submitted') }}
-            />
-          ) : (
-            <div className={cn(
-              'flex items-center gap-4 p-4 rounded-2xl border',
-              onboardingStatus === 'active' ? 'bg-green-50 border-green-200' : 'bg-blue-50 border-blue-200',
-            )}>
-              <div className={cn(
-                'w-9 h-9 rounded-full flex items-center justify-center text-sm shrink-0 font-bold',
-                onboardingStatus === 'active' ? 'bg-green-500 text-white' : 'bg-blue-200 text-blue-700',
-              )}>
-                {onboardingStatus === 'active' ? '✓' : '⏳'}
-              </div>
-              <div>
-                <p className={cn('font-semibold text-sm', onboardingStatus === 'active' ? 'text-green-800' : 'text-blue-800')}>
-                  {onboardingStatus === 'active' ? 'WhatsApp store is live' : 'WhatsApp number submitted'}
-                </p>
-                <p className="text-xs text-ink-4 mt-0.5">
-                  {onboardingStatus === 'active'
-                    ? 'Your store is connected and receiving orders.'
-                    : 'We will activate your store within 24 hours. Check your dashboard for updates.'}
-                </p>
-              </div>
-            </div>
-          )}
+          {loading
+            ? <div className="skeleton h-[68px] rounded-2xl" />
+            : <StepItem done={false} label="Activate your WhatsApp number"
+                hint="Submit your number for Meta verification." href="/onboarding" />
+          }
 
           {loading
             ? <div className="skeleton h-[68px] rounded-2xl" />

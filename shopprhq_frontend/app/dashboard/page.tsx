@@ -1237,6 +1237,14 @@ function WhatsAppOnboardingSection({ token, onRefresh }: { token: string; onRefr
             </form>
           )}
 
+          {st === 'pending' && (
+            <a href="/onboarding"
+              className="inline-flex items-center gap-2 bg-ink text-white text-sm font-semibold
+                px-5 py-3 rounded-2xl hover:bg-ink/80 transition-all hover:-translate-y-0.5">
+              Activate my number →
+            </a>
+          )}
+
           {SHOW_REQUEST_OTP.includes(st) && (
             <div className="space-y-3">
               {!showConfirm ? (
