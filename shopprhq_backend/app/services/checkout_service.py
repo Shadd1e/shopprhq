@@ -182,7 +182,6 @@ class CheckoutService:
             initial_status = OrderStatus.PENDING_PAYMENT
         elif data.payment_method in {"cash", "wishlist"}:
             if delivery_type_value == DeliveryType.DELIVERY:
-                # Delivery cash orders sit at AWAITING_PICKUP until dispatched
                 initial_status = OrderStatus.AWAITING_PICKUP
             else:
                 initial_status = OrderStatus.AWAITING_PICKUP
@@ -200,7 +199,7 @@ class CheckoutService:
             user_id=data.user_id,
             customer_name=data.customer_name,
             payment_method=data.payment_method,
-            total_amount=float(grand_total),    # grand total (items + delivery fee)
+            total_amount=float(grand_total),
             order_code=generate_order_code(),
             status=initial_status,
             delivery_type=delivery_type_value,
@@ -248,9 +247,6 @@ class CheckoutService:
                     "Paystack link creation failed for order %s: %s",
                     order.id, pay_err,
                 )
-                # FIX: inventory was already deducted above for ALL payment methods.
-                # Restore every item's stock before re-opening the cart so we don't
-                # silently oversell while the customer retries.
                 for item in cart.items:
                     try:
                         await self.inventory_service.adjust_stock(
@@ -264,7 +260,6 @@ class CheckoutService:
                             "Inventory restore failed for product %s after payment link failure: %s",
                             item.product_id, inv_restore_err,
                         )
-                # Re-open the cart so the customer can retry checkout.
                 cart.checked_out = False
                 cart.checked_out_at = None
                 await self.db.flush()
@@ -304,9 +299,6 @@ class CheckoutService:
 
         # ----------------------------
         # PERSIST LAST ORDER ON PROFILE
-        # Allows repeat-order prompt on next visit ("Want the same again?").
-        # Only written for cash orders (card orders might not complete).
-        # Non-fatal — never blocks the checkout response.
         # ----------------------------
         if data.payment_method == "cash":
             try:
@@ -335,9 +327,6 @@ class CheckoutService:
         # ----------------------------
         # RESPONSE
         # ----------------------------
-        # FIX: was hardcoded "30–45 minutes" and "Store" — now reads from Client record.
-        # store_contact_number already exists on the Client model; estimated_fulfillment_minutes
-        # falls back to the hardcoded default if not set so existing tenants are unaffected.
         _estimated = getattr(data, "estimated_fulfillment_minutes", None)
         estimated_time_str = (
             f"{_estimated} minutes" if _estimated
@@ -374,7 +363,7 @@ class CheckoutService:
         user_id: str,
         payment_method: str,
         customer_name: Optional[str] = None,
-        delivery_type: Optional[str] = None,          # "pickup" | "delivery" | None
+        delivery_type: Optional[str] = None,
         delivery_address: Optional[str] = None,
         delivery_contact_number: Optional[str] = None,
         delivery_fee: Optional[float] = None,
@@ -402,7 +391,6 @@ class CheckoutService:
             delivery_type=delivery_type,
             delivery_contact_number=delivery_contact_number,
             delivery_fee=delivery_fee,
-            # FIX: pass store contact through so response is populated correctly
             store_contact_number=(
                 getattr(tenant_context, "store_contact_number", None)
                 if tenant_context else None
@@ -426,23 +414,28 @@ class CheckoutService:
         secret = os.getenv("PAYSTACK_SECRET_KEY")
         if not secret:
             raise ValueError("PAYSTACK_SECRET_KEY not configured")
+
         redirect_url = os.getenv("PAYSTACK_REDIRECT_URL", "")
-        # FIX: append order reference so /payment-success page can show the order code
         if redirect_url and reference:
             sep = "&" if "?" in redirect_url else "?"
             redirect_url = f"{redirect_url}{sep}ref={reference}"
+
         amount_kobo = int(amount_naira * 100)
+        email = f"{phone.replace('+', '')}@shopprhq.app"
+
         payload = {
             "reference": reference,
             "amount": amount_kobo,
             "currency": "NGN",
+            "email": email,          # ← top-level, required by Paystack
             "callback_url": redirect_url,
             "customer": {
                 "phone": phone,
-                "email": f"{phone.replace('+', '')}@shopprhq.app",
+                "email": email,
             },
             "channels": ["card", "bank", "ussd", "bank_transfer", "mobile_money"],
         }
+
         if subaccount_code:
             payload["subaccount"] = subaccount_code
             payload["bearer"] = "subaccount"
@@ -455,19 +448,23 @@ class CheckoutService:
                 "No Paystack subaccount for client — payment goes to platform account. "
                 "Register one via POST /api/v1/subaccounts/{client_id}"
             )
+
         headers = {
             "Authorization": f"Bearer {secret}",
             "Content-Type": "application/json",
         }
+
         async with httpx.AsyncClient(timeout=20.0) as client:
             response = await client.post(
                 "https://api.paystack.co/transaction/initialize",
                 json=payload,
                 headers=headers,
             )
+
         if response.status_code != 200:
             logger.error("Paystack init error %s: %s", response.status_code, response.text)
             raise ValueError("Failed to initialize Paystack payment")
+
         data = response.json()
         url = data.get("data", {}).get("authorization_url")
         if not url:
