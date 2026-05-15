@@ -30,6 +30,7 @@ class CheckoutRequestSchema(BaseModel):
     whatsapp_payment_details: Optional[dict] = None
 
     customer_name: Optional[str] = Field(None, max_length=100)
+    store_contact_number: Optional[str] = None
 
     # ── Delivery ───────────────────────────────────────────────────────────────
     # "pickup" | "delivery" | None (None = not asked yet / store has no delivery)
