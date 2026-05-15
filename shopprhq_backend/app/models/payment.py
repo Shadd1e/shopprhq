@@ -70,7 +70,7 @@ class Payment(Base):
     status = Column(
         SAEnum(
             PaymentStatus,
-            name="paymentstatus",
+            name="payment_status_enum",
             create_type=False,
         ),
         nullable=False,
