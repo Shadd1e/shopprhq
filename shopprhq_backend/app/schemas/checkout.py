@@ -2,7 +2,7 @@
 
 from typing import Optional, Literal
 from pydantic import BaseModel, Field, ConfigDict
-
+from typing import Optional
 
 class CheckoutRequestSchema(BaseModel):
     """
