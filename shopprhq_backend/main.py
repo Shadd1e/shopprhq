@@ -173,7 +173,7 @@ app.include_router(debug_router, prefix=API_V1_PREFIX, tags=["Debug"])
 app.include_router(subaccount_router, prefix=API_V1_PREFIX, tags=["Subaccounts"])
 
 app.include_router(admin_whatsapp_router)
-app.include_router(onboarding_router, prefix=API_V1_PREFIX, tags=["Merchant Onboarding"])
+app.include_router(onboarding_router)
 
 # --------------------------------------------------
 # Health & Root
