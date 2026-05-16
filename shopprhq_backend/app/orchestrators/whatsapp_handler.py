@@ -280,7 +280,7 @@ async def _handle_operator_command(
                 f"Type: {type_label}",
                 f"Payment: {order.payment_method}",
                 f"Total: ₦{float(order.total_amount):,.0f}",
-                f"Customer: +{str(order.user_id).lstrip('+')}" if order.user_id else "",
+                f"Customer: +{str(order.user_id).lstrip('+')} " if order.user_id else "",
             ]
             if order.customer_name:
                 lines.append(f"Name: {order.customer_name}")
@@ -409,11 +409,17 @@ async def handle_whatsapp_message(
                         await memory.delete("closed_notice_shown")
 
                 # ── Social message fast-path ──────────────────────────────────
+                # FIX: added awaiting_payment_resume so social words like "ok",
+                # "sure", "yes" are NOT swallowed by the social fast-path when the
+                # customer is trying to complete a pending card payment. Those words
+                # are valid affirmatives in handle_payment_resume and must reach the
+                # mode router in conversation_router.py.
                 _stateful_modes = (
                     "confirming_qty", "selecting", "payment",
                     "choosing_delivery_type",
                     "awaiting_delivery_address",
                     "awaiting_delivery_contact",
+                    "awaiting_payment_resume",
                 )
                 _current_mode = await memory.get_mode()
 
@@ -467,6 +473,8 @@ async def handle_whatsapp_message(
                 if intent is None:
 
                     # Bare digit in non-stateful mode → session expired
+                    # FIX: also exclude awaiting_payment_resume so a digit doesn't
+                    # trigger search_expired while the payment resume flow is active.
                     if (
                         user_text.isdigit()
                         and _current_mode not in (
@@ -474,6 +482,7 @@ async def handle_whatsapp_message(
                             "choosing_delivery_type",
                             "awaiting_delivery_address",
                             "awaiting_delivery_contact",
+                            "awaiting_payment_resume",
                             "shopping",
                         )
                     ):

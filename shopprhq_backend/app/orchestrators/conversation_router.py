@@ -89,6 +89,11 @@ class ConversationRouter:
         if current_mode == "awaiting_delivery_contact":
             return await self.checkout.handle_delivery_contact(self.ctx.user_text)
 
+        # FIX: resume a pending card payment — send the existing Paystack link
+        # instead of repeating the "you have an unpaid order" warning on every reply.
+        if current_mode == "awaiting_payment_resume":
+            return await self.checkout.handle_payment_resume(self.ctx.user_text)
+
         if current_mode == "confirming_new_order":
             # FLOW-4: customer saw the cart-clear warning — any affirmative confirms it
             _text_lower = self.ctx.user_text.strip().lower()

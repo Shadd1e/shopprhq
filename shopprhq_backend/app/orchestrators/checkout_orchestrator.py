@@ -15,10 +15,6 @@ logger = logging.getLogger(__name__)
 _KEY_DELIVERY_TYPE    = "checkout_delivery_type"
 _KEY_DELIVERY_ADDRESS = "checkout_delivery_address"
 
-# FIX: card payment links are valid for up to 2 hours and the stale order cleanup
-# window matches that. Default SESSION_TTL is also 2 hours, meaning a session
-# started at checkout could expire before the payment webhook fires.
-# Double the TTL for all checkout modes so the session always outlives the payment window.
 _CHECKOUT_SESSION_TTL = SESSION_TTL * 2  # 4 hours
 
 
@@ -60,12 +56,6 @@ class CheckoutOrchestrator:
     # INTERNAL: extend session TTL for the checkout window
     # ----------------------------------------------------------
     async def _extend_checkout_session(self) -> None:
-        """
-        Bump the Redis session TTL to _CHECKOUT_SESSION_TTL (4 hours).
-        Called at the start of every checkout step that involves waiting.
-        Safe to call multiple times — just resets the expiry clock.
-        Fails silently so a Redis blip never breaks checkout.
-        """
         try:
             from app.core.redis_client import redis_service, Keys
             client = await redis_service.get_client()
@@ -105,6 +95,8 @@ class CheckoutOrchestrator:
             stale_order = _res.scalar_one_or_none()
 
             if stale_order:
+                await self.memory.set("pending_card_order_id", str(stale_order.id))
+                await self.memory.set_mode("awaiting_payment_resume")
                 return (
                     f"You have an unpaid card order (*{stale_order.order_code}*) still open. "
                     f"Complete the payment, or send *new* to cancel it and start fresh."
@@ -113,7 +105,6 @@ class CheckoutOrchestrator:
             pass
 
         if self.tenant.delivery_ready:
-            # FIX: extend session TTL as soon as checkout begins
             await self._extend_checkout_session()
             await self.memory.set_mode("choosing_delivery_type")
             return Humanizer.checkout_delivery_type_prompt(
@@ -123,7 +114,7 @@ class CheckoutOrchestrator:
             )
 
         # No delivery → go straight to payment method
-        await self._extend_checkout_session()  # FIX: extend even on direct-to-payment path
+        await self._extend_checkout_session()
         await self.memory.set_mode("payment")
         return Humanizer.checkout_prompt(summary["total"], self.tenant.persona_style)
 
@@ -159,7 +150,7 @@ class CheckoutOrchestrator:
             await self.memory.delete(_KEY_DELIVERY_ADDRESS)
             await self.memory.set(_KEY_DELIVERY_TYPE, "pickup")
             await self.memory.set_mode("payment")
-            await self._extend_checkout_session()  # FIX: refresh TTL at each step
+            await self._extend_checkout_session()
             summary = await self.cart_service.get_cart_summary(
                 merchant_id=self.merchant_id,
                 client_id=self.client_id,
@@ -169,7 +160,7 @@ class CheckoutOrchestrator:
 
         await self.memory.set(_KEY_DELIVERY_TYPE, "delivery")
         await self.memory.set_mode("awaiting_delivery_address")
-        await self._extend_checkout_session()  # FIX: refresh TTL at each step
+        await self._extend_checkout_session()
         return Humanizer.ask_delivery_address(self.tenant.delivery_area)
 
     # ==========================================================
@@ -192,7 +183,7 @@ class CheckoutOrchestrator:
 
         await self.memory.set(_KEY_DELIVERY_ADDRESS, address)
         await self.memory.set_mode("awaiting_delivery_contact")
-        await self._extend_checkout_session()  # FIX: refresh TTL at each step
+        await self._extend_checkout_session()
 
         delivery_area = self.tenant.delivery_area
         if delivery_area:
@@ -233,9 +224,9 @@ class CheckoutOrchestrator:
 
         await self.memory.set("checkout_delivery_contact", contact_number)
         await self.memory.set_mode("payment")
-        await self._extend_checkout_session()  # FIX: refresh TTL at each step
+        await self._extend_checkout_session()
 
-        summary = await self.cart_service.get_cart_summary(
+        summary        = await self.cart_service.get_cart_summary(
             merchant_id=self.merchant_id,
             client_id=self.client_id,
             user_id=self.user_id,
@@ -321,7 +312,7 @@ class CheckoutOrchestrator:
             )
             await self.memory.set("pending_payment_method", _raw)
             await self.memory.set_mode("confirming_order")
-            await self._extend_checkout_session()  # FIX: customer may take time to confirm
+            await self._extend_checkout_session()
             return confirmation_msg
 
         if payment_method == "card":
@@ -425,3 +416,90 @@ class CheckoutOrchestrator:
             total=result.total_amount,
             instructions="Your payment is being processed.", style=self.tenant.persona_style,
         )
+
+    # ==========================================================
+    # RESUME PENDING CARD PAYMENT
+    # ==========================================================
+
+    async def handle_payment_resume(self, user_input: str) -> str:
+        _raw = user_input.strip().lower()
+
+        _COMPLETE_WORDS = {
+            "complete", "complete the payment", "complete payment",
+            "pay", "pay now", "make payment", "i want to pay",
+            "i want to complete the payment", "finish payment",
+            "yes", "ok", "okay", "sure", "proceed", "go ahead",
+            "send link", "resend link", "payment link",
+        }
+
+        if _raw not in _COMPLETE_WORDS:
+            # They said something else — drop out of this mode and re-evaluate
+            await self.memory.set_mode("idle")
+            await self.memory.delete("pending_card_order_id")
+            return await self.initiate_checkout()
+
+        order_id = await self.memory.get("pending_card_order_id")
+        if not order_id:
+            await self.memory.set_mode("idle")
+            return await self.initiate_checkout()
+
+        try:
+            from sqlalchemy import select as _sa_select
+            from app.models.payment import Payment, PaymentStatus
+            from app.models.order import Order
+            from app.services.paystack_subaccount_service import PaystackSubaccountService
+
+            # Fetch the order
+            _order_res = await self.ctx.db.execute(
+                _sa_select(Order).where(Order.id == order_id)
+            )
+            order = _order_res.scalar_one_or_none()
+            if not order:
+                await self.memory.set_mode("idle")
+                await self.memory.delete("pending_card_order_id")
+                return "Couldn't find that order. Send *new* to start fresh."
+
+            # Fetch the pending payment to get the reference
+            _pay_res = await self.ctx.db.execute(
+                _sa_select(Payment).where(
+                    Payment.order_id == order_id,
+                    Payment.status   == PaymentStatus.PENDING,
+                ).limit(1)
+            )
+            payment = _pay_res.scalar_one_or_none()
+            if not payment:
+                await self.memory.set_mode("idle")
+                await self.memory.delete("pending_card_order_id")
+                return (
+                    f"Couldn't find an active payment for order *{order.order_code}*. "
+                    f"Send *new* to cancel and start fresh."
+                )
+
+            # Regenerate the Paystack link using the existing reference
+            subaccount_service = PaystackSubaccountService(self.ctx.db)
+            subaccount_code = await subaccount_service.get_subaccount_code(
+                client_id=self.client_id,
+                merchant_id=self.merchant_id,
+            )
+
+            payment_link = await self.checkout_service.create_paystack_payment_link(
+                reference=payment.external_reference,
+                amount_naira=float(order.total_amount),
+                phone=self.user_id,
+                subaccount_code=subaccount_code,
+            )
+
+            await self.memory.set_mode("idle")
+            await self.memory.delete("pending_card_order_id")
+            await self._extend_checkout_session()
+
+            return Humanizer.checkout_pending(payment_link, self.tenant.persona_style)
+
+        except Exception as e:
+            logger.error("Payment resume failed for order %s: %s", order_id, e)
+            await self.memory.set_mode("idle")
+            await self.memory.delete("pending_card_order_id")
+            return (
+                "Sorry, I couldn't regenerate your payment link. "
+                "Send *new* to cancel that order and start fresh."
+            )
