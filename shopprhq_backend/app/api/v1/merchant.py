@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
 
-from app.schemas.merchant import MerchantCreate, MerchantRead, MerchantUpdate, MerchantLogin
+from app.schemas.merchant import MerchantCreate, MerchantRead, MerchantUpdate, MerchantLogin, MerchantApply
 from app.services.merchant_service import MerchantService
 from app.db.deps import get_db
 
@@ -20,66 +20,81 @@ def _require_merchant(request: Request) -> str:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# REGISTER  (public)
+# REGISTER  (DISABLED — public self-registration is no longer available)
+# Merchants must apply via POST /merchants/apply and be approved by an admin.
 # ─────────────────────────────────────────────────────────────────────────────
 
-@router.post("/", response_model=MerchantRead, status_code=201)
-async def create_merchant(payload: MerchantCreate, db: AsyncSession = Depends(get_db)):
-    service = MerchantService(db)
+@router.post("/", status_code=410)
+async def create_merchant_disabled():
+    raise HTTPException(
+        status_code=410,
+        detail=(
+            "Self-registration is no longer available. "
+            "Please apply at shopprhq.com — our team will review and create your account."
+        ),
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# APPLY  (public)
+# Accepts the "Apply to Use" form, sends a confirmation to the applicant and an
+# alert to the ShopprHQ team. No account is created.
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.post("/apply", status_code=200)
+async def apply_to_use(payload: MerchantApply):
+    """
+    Public endpoint: submit a merchant application.
+    Fires two emails (confirmation to applicant, alert to team) and returns
+    a success message. No database write occurs.
+    """
     try:
-        merchant = await service.create(payload)
-        if not merchant:
-            raise HTTPException(status_code=400, detail="An account with this email already exists")
+        from app.services.email_service import (
+            send_application_received_email,
+            send_team_application_alert,
+        )
+        from app.api.v1.workers.background_tasks import fire_and_forget
 
-        await db.commit()
-        await db.refresh(merchant)
+        fire_and_forget(
+            send_application_received_email(
+                to_email=payload.email,
+                applicant_name=payload.full_name,
+                business_name=payload.business_name,
+            ),
+            name="send_application_received_email",
+        )
 
-        client_id = getattr(merchant, "_auto_client_id", None)
+        fire_and_forget(
+            send_team_application_alert(application=payload.model_dump()),
+            name="send_team_application_alert",
+        )
 
-        # ── Verification email ─────────────────────────────────────────────
-        # Includes the WhatsApp number so the merchant sees it was captured.
-        try:
-            from app.services.email_service import send_verification_email
-            from app.api.v1.workers.background_tasks import fire_and_forget
-            fire_and_forget(send_verification_email(
-                to_email=merchant.email,
-                merchant_name=merchant.name,
-                merchant_id=merchant.id,
-                client_id=client_id,
-                token=merchant.email_verification_token,
-                whatsapp_number=merchant.whatsapp_number,
-            ), name="send_verification_email")
-        except Exception as e:
-            logger.warning("Failed to schedule verification email: %s", e)
-
-        # ── Slack alert — new merchant registered ──────────────────────────
-        # Includes the submitted WhatsApp number so you can start onboarding.
+        # Non-critical Slack alert
         try:
             from app.infrastructure.alerting.slack import alert
-            from app.api.v1.workers.background_tasks import fire_and_forget
             fire_and_forget(alert(
-                title="New Merchant Registered",
-                detail=f"*{merchant.name}* just signed up on ShopprHQ.",
+                title="New Merchant Application",
+                detail=f"*{payload.business_name}* ({payload.full_name}) just applied.",
                 level="info",
                 fields={
-                    "Merchant ID":    merchant.id,
-                    "Email":          merchant.email,
-                    "Store ID":       client_id or "—",
-                    "WhatsApp Number": f"+{merchant.whatsapp_number}" if merchant.whatsapp_number else "Not submitted",
+                    "Email":    payload.email,
+                    "Phone":    payload.phone_number,
+                    "WhatsApp": payload.whatsapp_number,
+                    "City":     payload.city_state,
+                    "Type":     payload.business_type,
+                    "Volume":   payload.monthly_order_volume,
                 },
-            ), name="slack_new_merchant")
+            ), name="slack_new_application")
         except Exception:
             pass
 
-        return merchant
+        return {"message": "Application received. We'll be in touch within 1–2 business days."}
 
     except HTTPException:
         raise
-    except IntegrityError:
-        raise HTTPException(status_code=400, detail="An account with this email already exists")
-    except Exception as e:
-        logger.exception("Merchant registration failed")
-        raise HTTPException(status_code=500, detail="Registration failed. Please try again.")
+    except Exception:
+        logger.exception("Merchant application submission failed")
+        raise HTTPException(status_code=500, detail="Submission failed. Please try again.")
 
 
 # ─────────────────────────────────────────────────────────────────────────────

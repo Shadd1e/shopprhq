@@ -861,3 +861,116 @@ async def _clear_pending_otp(db: AsyncSession, client_id: str) -> None:
     if cl:
         cl.pending_otp_code = None
         await db.commit()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# APPROVE MERCHANT  (admin only)
+# Creates a merchant account manually after reviewing their application.
+# Protected by ADMIN_SECRET (same guard used across this file).
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.post("/approve-merchant", tags=["Admin — Merchant Approval"])
+async def approve_merchant(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(_require_admin),
+):
+    """
+    Admin-only. Creates a merchant account from an approved application.
+
+    Request body (JSON):
+        name            str   — merchant/business name
+        email           str   — merchant email
+        whatsapp_number str   — optional, digits only or with leading +
+        initial_password str  — optional; if omitted a secure one is generated
+
+    On success:
+        - Creates the Merchant + default Client records in the DB
+        - Sends the merchant an email with their login credentials
+        - Returns the new merchant's ID and credentials summary
+    """
+    import secrets
+    import string
+
+    body = await request.json()
+
+    from app.schemas.merchant import AdminApproveMerchant, MerchantCreate
+    try:
+        payload = AdminApproveMerchant(**body)
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+    # Generate password if not supplied
+    if payload.initial_password:
+        password = payload.initial_password
+    else:
+        alphabet = string.ascii_letters + string.digits + "!@#$%"
+        password = "".join(secrets.choice(alphabet) for _ in range(16))
+
+    # Re-use existing MerchantService.create() so ID generation, auto-store, etc. stay consistent
+    from app.services.merchant_service import MerchantService
+
+    create_payload = MerchantCreate(
+        name=payload.name,
+        email=payload.email,
+        password=password,
+        whatsapp_number=payload.whatsapp_number,
+    )
+
+    service = MerchantService(db)
+    merchant = await service.create(create_payload)
+
+    if not merchant:
+        raise HTTPException(
+            status_code=400,
+            detail="A merchant account with this email already exists.",
+        )
+
+    # Mark immediately as email-verified (admin has already vetted them)
+    merchant.email_verified = True
+    await db.commit()
+    await db.refresh(merchant)
+
+    merchant_id = merchant.id
+    client_id   = getattr(merchant, "_auto_client_id", None)
+
+    # Send welcome email with credentials
+    try:
+        from app.services.email_service import send_approved_merchant_welcome_email
+        from app.api.v1.workers.background_tasks import fire_and_forget
+        fire_and_forget(
+            send_approved_merchant_welcome_email(
+                to_email=merchant.email,
+                merchant_name=merchant.name,
+                merchant_id=merchant_id,
+                initial_password=password,
+            ),
+            name="send_approved_merchant_welcome_email",
+        )
+    except Exception as e:
+        logger.warning("Failed to send approval email: %s", e)
+
+    # Slack alert
+    try:
+        from app.infrastructure.alerting.slack import alert
+        from app.api.v1.workers.background_tasks import fire_and_forget
+        fire_and_forget(alert(
+            title="Merchant Approved & Created ✅",
+            detail=f"*{merchant.name}* has been approved. Account created and credentials emailed.",
+            level="info",
+            fields={
+                "Merchant ID": merchant_id,
+                "Email":       merchant.email,
+                "Store ID":    client_id or "—",
+            },
+        ), name="slack_merchant_approved")
+    except Exception:
+        pass
+
+    return {
+        "ok":          True,
+        "merchant_id": merchant_id,
+        "client_id":   client_id,
+        "email":       merchant.email,
+        "message":     f"Account created. Welcome email with login credentials sent to {merchant.email}.",
+    }

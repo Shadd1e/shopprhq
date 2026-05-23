@@ -826,3 +826,273 @@ the store password in Settings to revoke access.
 Dashboard: {app_url}/dashboard
 """
     return await send_email(to_email, subject, html, text)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# APPLICATION RECEIVED — sent to the applicant immediately on form submission
+# ─────────────────────────────────────────────────────────────────────────────
+async def send_application_received_email(
+    to_email: str,
+    applicant_name: str,
+    business_name: str,
+) -> bool:
+    cfg        = _cfg()
+    first_name = applicant_name.split()[0]
+    subject    = f"We got your application, {first_name}! 🎉"
+
+    html = f"""<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#F5F4F0;font-family:'DM Sans',Arial,sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F5F4F0;padding:40px 20px">
+    <tr><td align="center">
+      <table width="520" cellpadding="0" cellspacing="0"
+        style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)">
+        <tr><td style="background:#111110;padding:32px 40px 28px;text-align:center">
+          <div style="font-size:26px;font-weight:700;color:#fff;letter-spacing:-.02em">ShopprHQ</div>
+          <div style="font-size:11px;color:rgba(255,255,255,.4);margin-top:5px;
+            letter-spacing:.08em;text-transform:uppercase">WhatsApp Commerce</div>
+        </td></tr>
+        <tr><td style="padding:40px 40px 32px">
+          <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#111">
+            Application received! ✅
+          </h1>
+          <p style="margin:0 0 20px;font-size:15px;color:#555;line-height:1.6">
+            Hi {first_name}, thanks for applying to use ShopprHQ for
+            <strong>{business_name}</strong>.
+          </p>
+          <p style="margin:0 0 20px;font-size:15px;color:#555;line-height:1.6">
+            Our team will review your application and reach out to you within
+            <strong>1–2 business days</strong>. When approved, you'll receive an email
+            with your login details and instructions to get your store live.
+          </p>
+          <p style="margin:0 0 24px;font-size:15px;color:#555;line-height:1.6">
+            In the meantime, feel free to reply to this email if you have any questions.
+          </p>
+          <div style="background:#f9f9f7;border-radius:10px;padding:16px 20px;margin-bottom:24px">
+            <p style="margin:0;font-size:13px;color:#888;line-height:1.6">
+              <strong style="color:#333">Business:</strong> {business_name}<br>
+              <strong style="color:#333">Applicant:</strong> {applicant_name}<br>
+              <strong style="color:#333">Email:</strong> {to_email}
+            </p>
+          </div>
+        </td></tr>
+        <tr><td style="padding:16px 40px;border-top:1px solid #eee;text-align:center">
+          <p style="margin:0;font-size:12px;color:#bbb">ShopprHQ · WhatsApp Commerce · Nigeria</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>"""
+
+    text = f"""Hi {first_name},
+
+Thanks for applying to use ShopprHQ for {business_name}.
+
+Our team will review your application and reach out within 1–2 business days. When approved, you'll receive your login credentials by email.
+
+If you have any questions, just reply to this email.
+
+— The ShopprHQ Team
+"""
+    return await send_email(to_email, subject, html, text)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEAM APPLICATION ALERT — sent to the ShopprHQ team when a new application arrives
+# ─────────────────────────────────────────────────────────────────────────────
+async def send_team_application_alert(
+    application: dict,
+) -> bool:
+    """
+    Sends a rich HTML summary of the application to the TEAM_EMAIL env var.
+    `application` is a dict of the MerchantApply payload fields.
+    """
+    import os
+    cfg       = _cfg()
+    team_email = os.getenv("TEAM_EMAIL", cfg["from_email"])
+    if not team_email:
+        logger.warning("TEAM_EMAIL not configured — application alert skipped")
+        return False
+
+    biz   = application.get("business_name", "—")
+    name  = application.get("full_name", "—")
+    email = application.get("email", "—")
+    phone = application.get("phone_number", "—")
+    wa    = application.get("whatsapp_number", "—")
+    btype = application.get("business_type", "—")
+    city  = application.get("city_state", "—")
+    branches = application.get("num_branches", "—")
+    volume   = application.get("monthly_order_volume", "—")
+    uses_wa  = "Yes" if application.get("uses_whatsapp_manual") else "No"
+    uses_del = "Yes" if application.get("uses_delivery_service") else "No"
+    heard    = application.get("heard_about_us", "—")
+    comments = application.get("comments") or "—"
+
+    subject = f"[ShopprHQ Application] {biz} — {name}"
+
+    def _row(label, value):
+        return f"""<tr>
+          <td style="padding:8px 12px;font-size:13px;color:#666;white-space:nowrap;
+            border-bottom:1px solid #f0f0f0;width:180px">{label}</td>
+          <td style="padding:8px 12px;font-size:13px;color:#111;
+            border-bottom:1px solid #f0f0f0;font-weight:500">{value}</td>
+        </tr>"""
+
+    html = f"""<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#F5F4F0;font-family:'DM Sans',Arial,sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F5F4F0;padding:40px 20px">
+    <tr><td align="center">
+      <table width="580" cellpadding="0" cellspacing="0"
+        style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)">
+        <tr><td style="background:#111110;padding:28px 40px;text-align:center">
+          <div style="font-size:20px;font-weight:700;color:#fff">🆕 New Merchant Application</div>
+          <div style="font-size:13px;color:rgba(255,255,255,.5);margin-top:4px">{biz}</div>
+        </td></tr>
+        <tr><td style="padding:32px 40px">
+          <table width="100%" cellpadding="0" cellspacing="0"
+            style="border:1px solid #eee;border-radius:10px;overflow:hidden">
+            {_row("Business Name", biz)}
+            {_row("Business Type", btype)}
+            {_row("City / State", city)}
+            {_row("Applicant Name", name)}
+            {_row("Email", f'<a href="mailto:{email}" style="color:#333">{email}</a>')}
+            {_row("Phone", phone)}
+            {_row("WhatsApp Number", wa)}
+            {_row("Branches", branches)}
+            {_row("Monthly Orders", volume)}
+            {_row("Manual WhatsApp Orders?", uses_wa)}
+            {_row("Uses Delivery Service?", uses_del)}
+            {_row("Heard About Us", heard)}
+            {_row("Comments", f'<span style="white-space:pre-wrap">{comments}</span>')}
+          </table>
+          <div style="margin-top:28px;text-align:center">
+            <p style="font-size:13px;color:#888;margin:0 0 12px">
+              To approve this applicant, call <code>POST /admin/approve-merchant</code>
+              with their details, or use the admin dashboard.
+            </p>
+          </div>
+        </td></tr>
+        <tr><td style="padding:16px 40px;border-top:1px solid #eee;text-align:center">
+          <p style="margin:0;font-size:12px;color:#bbb">ShopprHQ Internal · Do not forward</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>"""
+
+    text = f"""New Merchant Application — {biz}
+
+Business: {biz}
+Type:     {btype}
+City:     {city}
+Name:     {name}
+Email:    {email}
+Phone:    {phone}
+WhatsApp: {wa}
+Branches: {branches}
+Volume:   {volume}
+Manual WA orders: {uses_wa}
+Delivery service: {uses_del}
+Heard from:       {heard}
+Comments: {comments}
+"""
+    return await send_email(team_email, subject, html, text)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# APPROVED MERCHANT WELCOME — sent to the merchant when admin approves them
+# Includes their login credentials.
+# ─────────────────────────────────────────────────────────────────────────────
+async def send_approved_merchant_welcome_email(
+    to_email: str,
+    merchant_name: str,
+    merchant_id: str,
+    initial_password: str,
+) -> bool:
+    cfg        = _cfg()
+    first_name = merchant_name.split()[0]
+    dashboard  = f"{cfg['app_url']}/dashboard"
+    subject    = f"You're approved, {first_name}! Here are your ShopprHQ login details."
+
+    html = f"""<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#F5F4F0;font-family:'DM Sans',Arial,sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F5F4F0;padding:40px 20px">
+    <tr><td align="center">
+      <table width="520" cellpadding="0" cellspacing="0"
+        style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)">
+        <tr><td style="background:#111110;padding:32px 40px 28px;text-align:center">
+          <div style="font-size:26px;font-weight:700;color:#fff;letter-spacing:-.02em">ShopprHQ</div>
+          <div style="font-size:11px;color:rgba(255,255,255,.4);margin-top:5px;
+            letter-spacing:.08em;text-transform:uppercase">WhatsApp Commerce</div>
+        </td></tr>
+        <tr><td style="padding:40px 40px 32px">
+          <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#111">
+            You're approved, {first_name}! 🎉
+          </h1>
+          <p style="margin:0 0 20px;font-size:15px;color:#555;line-height:1.6">
+            Welcome to ShopprHQ. Your merchant account is ready. Use the details below to sign in.
+          </p>
+
+          <div style="background:#f9f9f7;border-radius:10px;padding:20px 24px;margin-bottom:24px">
+            <p style="margin:0 0 8px;font-size:12px;font-weight:700;color:#999;
+              text-transform:uppercase;letter-spacing:.06em">Your login credentials</p>
+            <p style="margin:0 0 6px;font-size:14px;color:#333">
+              <strong>Email:</strong> {to_email}
+            </p>
+            <p style="margin:0;font-size:14px;color:#333">
+              <strong>Password:</strong>
+              <code style="background:#eee;padding:2px 8px;border-radius:5px;font-size:13px">
+                {initial_password}
+              </code>
+            </p>
+          </div>
+
+          <p style="margin:0 0 20px;font-size:14px;color:#888;line-height:1.6">
+            ⚠️ Please change your password immediately after your first login.
+          </p>
+
+          <a href="{dashboard}"
+            style="display:block;background:#111;color:#fff;text-align:center;
+              padding:14px 24px;border-radius:10px;font-weight:600;font-size:15px;
+              text-decoration:none;margin-bottom:24px">
+            Sign in to ShopprHQ →
+          </a>
+
+          <p style="margin:0;font-size:14px;color:#555;line-height:1.6">
+            Your next step is to add your products and connect your WhatsApp number.
+            The onboarding guide is inside your dashboard — it takes under 5 minutes.
+          </p>
+        </td></tr>
+        <tr><td style="padding:16px 40px;border-top:1px solid #eee;text-align:center">
+          <p style="margin:0;font-size:12px;color:#bbb">ShopprHQ · WhatsApp Commerce · Nigeria</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>"""
+
+    text = f"""Hi {first_name},
+
+Your ShopprHQ account is approved and ready.
+
+Login details:
+  Email:    {to_email}
+  Password: {initial_password}
+
+Sign in at: {dashboard}
+
+Please change your password immediately after your first login.
+
+Your next step is to add your products and connect your WhatsApp number — the onboarding guide is inside your dashboard.
+
+— The ShopprHQ Team
+"""
+    return await send_email(to_email, subject, html, text)

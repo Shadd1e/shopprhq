@@ -109,3 +109,86 @@ class MerchantUpdate(BaseModel):
 class MerchantLogin(BaseModel):
     email:    EmailStr
     password: str
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# APPLY — submitted by a prospective merchant via the public "Apply to Use" form
+# No account is created; this just fires an email to the ShopprHQ team.
+# ─────────────────────────────────────────────────────────────────────────────
+class MerchantApply(BaseModel):
+    # Business info
+    business_name:        str  = Field(..., min_length=2, max_length=255)
+    business_type:        str  = Field(..., min_length=2, max_length=100,
+                                       description="e.g. Food & Beverages, Fashion, Electronics")
+    city_state:           str  = Field(..., min_length=2, max_length=150,
+                                       description="e.g. Lagos, Nigeria")
+
+    # Applicant info
+    full_name:            str  = Field(..., min_length=2, max_length=255)
+    email:                EmailStr
+    phone_number:         str  = Field(..., description="Applicant's contact phone")
+    whatsapp_number:      str  = Field(..., description="WhatsApp number to connect to the store")
+
+    # Operations info
+    num_branches:         int  = Field(..., ge=1, le=500,
+                                       description="Number of stores/branches")
+    monthly_order_volume: str  = Field(..., description="e.g. '<50', '50-200', '200-500', '500+'")
+    uses_whatsapp_manual: bool = Field(...,
+                                       description="Do you currently take orders on WhatsApp manually?")
+    uses_delivery_service:bool = Field(...,
+                                       description="Do you use a delivery/logistics service?")
+
+    # Discovery & comments
+    heard_about_us:       str  = Field(..., max_length=200,
+                                       description="How did you hear about ShopprHQ?")
+    comments:             Optional[str] = Field(None, max_length=2000)
+
+    @field_validator("phone_number", "whatsapp_number", mode="before")
+    @classmethod
+    def normalise_phones(cls, v):
+        return _normalise_phone(v)
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "business_name":        "Mama Tee Foods",
+                "business_type":        "Food & Beverages",
+                "city_state":           "Lagos, Nigeria",
+                "full_name":            "Temi Adeyemi",
+                "email":                "temi@mamatee.ng",
+                "phone_number":         "2348012345678",
+                "whatsapp_number":      "2348012345678",
+                "num_branches":         1,
+                "monthly_order_volume": "50-200",
+                "uses_whatsapp_manual": True,
+                "uses_delivery_service":False,
+                "heard_about_us":       "Instagram",
+                "comments":             "We run a catering business and want to automate orders.",
+            }
+        }
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ADMIN APPROVE — posted by the ShopprHQ team to manually create a merchant account
+# Protected by ADMIN_SECRET.
+# ─────────────────────────────────────────────────────────────────────────────
+class AdminApproveMerchant(BaseModel):
+    # Core account fields
+    name:            str      = Field(..., min_length=2, max_length=255,
+                                      description="Merchant's full name or business name")
+    email:           EmailStr
+    whatsapp_number: Optional[str] = Field(
+        None,
+        description="WhatsApp number to connect (digits only or with leading +).",
+    )
+    # Optional: if omitted a random secure password is generated and emailed
+    initial_password: Optional[str] = Field(
+        None, min_length=8, max_length=128,
+        description="If omitted, a secure password is auto-generated and emailed to the merchant.",
+    )
+
+    @field_validator("whatsapp_number", mode="before")
+    @classmethod
+    def normalise_whatsapp(cls, v):
+        return _normalise_phone(v)

@@ -544,3 +544,28 @@ export async function submitOtp(token: string, code: string) {
     body: JSON.stringify({ code }),
   })
 }
+
+// ── Merchant Application (public) ─────────────────────────────────────────
+
+export interface MerchantApplicationPayload {
+  business_name:         string
+  business_type:         string
+  city_state:            string
+  full_name:             string
+  email:                 string
+  phone_number:          string
+  whatsapp_number:       string
+  num_branches:          number
+  monthly_order_volume:  string
+  uses_whatsapp_manual:  boolean
+  uses_delivery_service: boolean
+  heard_about_us:        string
+  comments?:             string
+}
+
+export async function submitMerchantApplication(payload: MerchantApplicationPayload) {
+  return req<{ message: string }>('/api/v1/merchants/apply', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}

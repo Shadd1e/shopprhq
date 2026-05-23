@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 2   # 2 hours
 
+    # Internal team email — receives merchant application alerts
+    TEAM_EMAIL: str = ""
+
     @field_validator("DATABASE_URL", mode="before")
     @classmethod
     def fix_database_url(cls, v: str) -> str:
