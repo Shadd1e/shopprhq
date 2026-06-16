@@ -4,7 +4,7 @@ TEST GROUP 04 — Checkout & Payment Service
 Tests the checkout flow end-to-end:
 - Inventory validation before order creation
 - Cash vs card order path divergence
-- Flutterwave link generation
+- Paystack transaction initialization
 - Payment record creation
 - Cart closure logic (the Bug 4 scenario)
 - Cash payment confirmation
