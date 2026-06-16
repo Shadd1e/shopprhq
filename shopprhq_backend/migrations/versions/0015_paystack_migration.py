@@ -1,14 +1,14 @@
 """paystack migration — add provider column to subaccounts
 
 Revision ID: 0015
-Revises: 0002_fix_id_column_lengths
+Revises: 0014_customer_last_order
 Create Date: 2026-04-28
 """
 from alembic import op
 import sqlalchemy as sa
 
 revision = "0015"
-down_revision = "0002_fix_id_column_lengths"
+down_revision = "0014_customer_last_order"
 branch_labels = None
 depends_on = None
 
