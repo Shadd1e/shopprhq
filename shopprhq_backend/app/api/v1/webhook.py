@@ -263,10 +263,45 @@ async def receive_webhook(request: Request):
                         from app.conversation.humanizer import Humanizer
 
                         ctx_svc = CustomerContextService()
-                        profile = await ctx_svc.touch_profile(
+                        profile, is_new_customer = await ctx_svc.touch_profile(
                             db=db,
                             phone_number=from_number,
                         )
+
+                        # ── New-customer admin alert ─────────────────────────
+                        # Fires once, on the very first message this phone
+                        # number has ever sent to ANY store on the platform.
+                        # Mirrors the merchant-onboarding alerts elsewhere
+                        # (see client_api.py / admin_whatsapp.py) so admin
+                        # gets a Slack ping whenever anyone — merchant or
+                        # customer — onboards, not just merchants.
+                        if is_new_customer:
+                            try:
+                                from app.infrastructure.alerting.slack import alert
+                                from app.services.merchant_service import MerchantService as _MS
+                                from app.api.v1.workers.background_tasks import fire_and_forget
+
+                                _merchant = await _MS(db).get(tenant_context.merchant_id)
+                                fire_and_forget(alert(
+                                    title="New Customer Onboarded",
+                                    detail=(
+                                        f"A new customer just messaged "
+                                        f"*{tenant_context.client_name or tenant_context.client_id}* "
+                                        f"for the first time on WhatsApp."
+                                    ),
+                                    level="info",
+                                    fields={
+                                        "Customer Phone": f"+{from_number}",
+                                        "Store":           tenant_context.client_name or "—",
+                                        "Store ID":        str(tenant_context.client_id),
+                                        "Merchant":        _merchant.name if _merchant else "—",
+                                        "Merchant ID":     str(tenant_context.merchant_id),
+                                    },
+                                ), name="slack_new_customer_onboarded")
+                            except Exception as _e:
+                                logger.warning(
+                                    "New-customer Slack alert failed (non-fatal): %s", _e
+                                )
 
                         memory = await ConversationMemory.load(
                             str(tenant_context.client_id),

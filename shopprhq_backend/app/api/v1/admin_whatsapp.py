@@ -864,67 +864,46 @@ async def _clear_pending_otp(db: AsyncSession, client_id: str) -> None:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# APPROVE MERCHANT  (admin only)
-# Creates a merchant account manually after reviewing their application.
-# Protected by ADMIN_SECRET (same guard used across this file).
+# SHARED: create a Merchant + Client account
+# Used by both /approve-merchant (manual entry) and
+# /applications/{id}/approve (from a stored application). Keeping this in one
+# place means both paths create accounts, send the welcome email, and post
+# the Slack alert identically.
 # ─────────────────────────────────────────────────────────────────────────────
 
-@router.post("/approve-merchant", tags=["Admin — Merchant Approval"])
-async def approve_merchant(
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-    _: None = Depends(_require_admin),
-):
-    """
-    Admin-only. Creates a merchant account from an approved application.
-
-    Request body (JSON):
-        name            str   — merchant/business name
-        email           str   — merchant email
-        whatsapp_number str   — optional, digits only or with leading +
-        initial_password str  — optional; if omitted a secure one is generated
-
-    On success:
-        - Creates the Merchant + default Client records in the DB
-        - Sends the merchant an email with their login credentials
-        - Returns the new merchant's ID and credentials summary
-    """
+async def _create_merchant_account(
+    *,
+    db: AsyncSession,
+    name: str,
+    email: str,
+    whatsapp_number: "str | None",
+    initial_password: "str | None",
+) -> dict:
     import secrets
     import string
 
-    body = await request.json()
-
-    from app.schemas.merchant import AdminApproveMerchant, MerchantCreate
-    try:
-        payload = AdminApproveMerchant(**body)
-    except Exception as e:
-        raise HTTPException(status_code=422, detail=str(e))
-
-    # Generate password if not supplied
-    if payload.initial_password:
-        password = payload.initial_password
+    if initial_password:
+        password = initial_password
     else:
         alphabet = string.ascii_letters + string.digits + "!@#$%"
         password = "".join(secrets.choice(alphabet) for _ in range(16))
 
     # Re-use existing MerchantService.create() so ID generation, auto-store, etc. stay consistent
     from app.services.merchant_service import MerchantService
+    from app.schemas.merchant import MerchantCreate
 
     create_payload = MerchantCreate(
-        name=payload.name,
-        email=payload.email,
+        name=name,
+        email=email,
         password=password,
-        whatsapp_number=payload.whatsapp_number,
+        whatsapp_number=whatsapp_number,
     )
 
-    service = MerchantService(db)
+    service  = MerchantService(db)
     merchant = await service.create(create_payload)
 
     if not merchant:
-        raise HTTPException(
-            status_code=400,
-            detail="A merchant account with this email already exists.",
-        )
+        return {"ok": False, "detail": "A merchant account with this email already exists."}
 
     # Mark immediately as email-verified (admin has already vetted them)
     merchant.email_verified = True
@@ -972,5 +951,181 @@ async def approve_merchant(
         "merchant_id": merchant_id,
         "client_id":   client_id,
         "email":       merchant.email,
-        "message":     f"Account created. Welcome email with login credentials sent to {merchant.email}.",
+        "response": {
+            "ok":          True,
+            "merchant_id": merchant_id,
+            "client_id":   client_id,
+            "email":       merchant.email,
+            "message":     f"Account created. Welcome email with login credentials sent to {merchant.email}.",
+        },
     }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# APPROVE MERCHANT  (admin only, manual entry)
+# Creates a merchant account by hand-typing the details — used when there's
+# no stored application (e.g. someone applied before this table existed, or
+# admin is creating an account directly). Protected by ADMIN_SECRET.
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.post("/approve-merchant", tags=["Admin — Merchant Approval"])
+async def approve_merchant(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(_require_admin),
+):
+    """
+    Admin-only. Creates a merchant account from hand-typed details.
+
+    Request body (JSON):
+        name            str   — merchant/business name
+        email           str   — merchant email
+        whatsapp_number str   — optional, digits only or with leading +
+        initial_password str  — optional; if omitted a secure one is generated
+
+    On success:
+        - Creates the Merchant + default Client records in the DB
+        - Sends the merchant an email with their login credentials
+        - Returns the new merchant's ID and credentials summary
+    """
+    body = await request.json()
+
+    from app.schemas.merchant import AdminApproveMerchant
+    try:
+        payload = AdminApproveMerchant(**body)
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+    result = await _create_merchant_account(
+        db=db,
+        name=payload.name,
+        email=payload.email,
+        whatsapp_number=payload.whatsapp_number,
+        initial_password=payload.initial_password,
+    )
+    if not result["ok"]:
+        raise HTTPException(status_code=400, detail=result["detail"])
+    return result["response"]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# APPLICATIONS  (admin only)
+# The "Apply to Use" form (POST /merchants/apply) writes a row here with
+# status="pending". These endpoints let admin see that queue on the
+# WhatsApp-setup dashboard and act on it without leaving the page.
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/applications", tags=["Admin — Merchant Approval"])
+async def list_applications(request: Request, db: AsyncSession = Depends(get_db)):
+    await _require_admin(request)
+    from app.models.merchant_application import MerchantApplication
+
+    result = await db.execute(
+        select(MerchantApplication).order_by(MerchantApplication.created_at.desc())
+    )
+    apps = result.scalars().all()
+    return {
+        "applications": [
+            {
+                "id":                    a.id,
+                "business_name":         a.business_name,
+                "business_type":         a.business_type,
+                "city_state":            a.city_state,
+                "full_name":             a.full_name,
+                "email":                 a.email,
+                "phone_number":          a.phone_number,
+                "whatsapp_number":       a.whatsapp_number,
+                "num_branches":          a.num_branches,
+                "monthly_order_volume":  a.monthly_order_volume,
+                "uses_whatsapp_manual":  a.uses_whatsapp_manual,
+                "uses_delivery_service": a.uses_delivery_service,
+                "heard_about_us":        a.heard_about_us,
+                "comments":              a.comments,
+                "status":                a.status,
+                "merchant_id":           a.merchant_id,
+                "created_at":            a.created_at.isoformat() if a.created_at else None,
+            }
+            for a in apps
+        ]
+    }
+
+
+@router.post("/applications/{application_id}/approve", tags=["Admin — Merchant Approval"])
+async def approve_application(
+    application_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(_require_admin),
+):
+    """
+    Admin-only. Turns a pending application into a real Merchant + Client
+    account (same effect as /approve-merchant) and marks the application
+    "approved" so it drops out of the pending queue.
+
+    Request body (JSON, all optional — defaults come from the application):
+        name             str — override the account/business name
+        email            str — override the email
+        whatsapp_number  str — override the WhatsApp number
+        initial_password str — if omitted, a secure one is generated
+    """
+    from app.models.merchant_application import MerchantApplication
+
+    res = await db.execute(
+        select(MerchantApplication).where(MerchantApplication.id == application_id)
+    )
+    application = res.scalar_one_or_none()
+    if not application:
+        raise HTTPException(status_code=404, detail="Application not found")
+    if application.status != "pending":
+        raise HTTPException(status_code=400, detail=f"Application already {application.status}")
+
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    body = body or {}
+
+    result = await _create_merchant_account(
+        db=db,
+        name=body.get("name") or application.business_name,
+        email=body.get("email") or application.email,
+        whatsapp_number=body.get("whatsapp_number") or application.whatsapp_number,
+        initial_password=body.get("initial_password"),
+    )
+    if not result["ok"]:
+        raise HTTPException(status_code=400, detail=result["detail"])
+
+    from datetime import datetime, timezone
+    application.status      = "approved"
+    application.merchant_id = result["merchant_id"]
+    application.reviewed_at = datetime.now(timezone.utc)
+    await db.commit()
+
+    return result["response"]
+
+
+@router.post("/applications/{application_id}/reject", tags=["Admin — Merchant Approval"])
+async def reject_application(
+    application_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(_require_admin),
+):
+    """Admin-only. Dismisses a pending application without creating an account."""
+    from app.models.merchant_application import MerchantApplication
+
+    res = await db.execute(
+        select(MerchantApplication).where(MerchantApplication.id == application_id)
+    )
+    application = res.scalar_one_or_none()
+    if not application:
+        raise HTTPException(status_code=404, detail="Application not found")
+    if application.status != "pending":
+        raise HTTPException(status_code=400, detail=f"Application already {application.status}")
+
+    from datetime import datetime, timezone
+    application.status      = "rejected"
+    application.reviewed_at = datetime.now(timezone.utc)
+    await db.commit()
+
+    return {"ok": True, "id": application_id, "status": "rejected"}

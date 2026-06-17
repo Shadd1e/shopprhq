@@ -4,12 +4,31 @@ logger = logging.getLogger(__name__)
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import select
 
 from app.schemas.merchant import MerchantCreate, MerchantRead, MerchantUpdate, MerchantLogin, MerchantApply
 from app.services.merchant_service import MerchantService
 from app.db.deps import get_db
 
 router = APIRouter(prefix="/merchants", tags=["Merchants"])
+
+
+async def _generate_application_id(db: AsyncSession) -> str:
+    """Generate a random Application ID e.g. APA3F7K2 (mirrors the MX/ST scheme
+    used for merchants/stores in MerchantService)."""
+    import secrets
+    import string
+    from app.models.merchant_application import MerchantApplication
+
+    alphabet = string.ascii_uppercase + string.digits
+    for _ in range(20):
+        candidate = "AP" + "".join(secrets.choice(alphabet) for _ in range(6))
+        exists = await db.execute(
+            select(MerchantApplication.id).where(MerchantApplication.id == candidate)
+        )
+        if not exists.scalar_one_or_none():
+            return candidate
+    raise RuntimeError("Failed to generate unique application ID after 20 attempts")
 
 
 def _require_merchant(request: Request) -> str:
@@ -37,18 +56,46 @@ async def create_merchant_disabled():
 
 # ─────────────────────────────────────────────────────────────────────────────
 # APPLY  (public)
-# Accepts the "Apply to Use" form, sends a confirmation to the applicant and an
-# alert to the ShopprHQ team. No account is created.
+# Accepts the "Apply to Use" form, saves it so admin can review it on the
+# WhatsApp-setup dashboard, and sends a confirmation to the applicant + an
+# alert to the ShopprHQ team. No Merchant/Client account is created yet —
+# that happens when admin approves the application.
 # ─────────────────────────────────────────────────────────────────────────────
 
 @router.post("/apply", status_code=200)
-async def apply_to_use(payload: MerchantApply):
+async def apply_to_use(payload: MerchantApply, db: AsyncSession = Depends(get_db)):
     """
     Public endpoint: submit a merchant application.
-    Fires two emails (confirmation to applicant, alert to team) and returns
-    a success message. No database write occurs.
+
+    Saves the application (status="pending") so it shows up in the admin
+    WhatsApp-setup dashboard's "Pending Applications" list, then fires two
+    emails (confirmation to applicant, alert to team) and a Slack alert.
+    Returns a success message.
     """
     try:
+        from app.models.merchant_application import MerchantApplication
+
+        application_id = await _generate_application_id(db)
+        application = MerchantApplication(
+            id=application_id,
+            business_name=payload.business_name,
+            business_type=payload.business_type,
+            city_state=payload.city_state,
+            full_name=payload.full_name,
+            email=payload.email,
+            phone_number=payload.phone_number,
+            whatsapp_number=payload.whatsapp_number,
+            num_branches=payload.num_branches,
+            monthly_order_volume=payload.monthly_order_volume,
+            uses_whatsapp_manual=payload.uses_whatsapp_manual,
+            uses_delivery_service=payload.uses_delivery_service,
+            heard_about_us=payload.heard_about_us,
+            comments=payload.comments,
+            status="pending",
+        )
+        db.add(application)
+        await db.commit()
+
         from app.services.email_service import (
             send_application_received_email,
             send_team_application_alert,
@@ -74,9 +121,13 @@ async def apply_to_use(payload: MerchantApply):
             from app.infrastructure.alerting.slack import alert
             fire_and_forget(alert(
                 title="New Merchant Application",
-                detail=f"*{payload.business_name}* ({payload.full_name}) just applied.",
+                detail=(
+                    f"*{payload.business_name}* ({payload.full_name}) just applied. "
+                    f"Review it on the admin WhatsApp-setup page."
+                ),
                 level="info",
                 fields={
+                    "Application ID": application_id,
                     "Email":    payload.email,
                     "Phone":    payload.phone_number,
                     "WhatsApp": payload.whatsapp_number,

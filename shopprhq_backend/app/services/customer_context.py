@@ -90,13 +90,21 @@ class CustomerContextService:
         *,
         db: AsyncSession,
         phone_number: str,
-    ) -> "CustomerProfile":  # type: ignore[name-defined]
+    ) -> tuple:  # (Optional["CustomerProfile"], bool)
         """
         Ensure a CustomerProfile row exists for this phone number and update
         last_seen_at. Creates the record on first contact.
 
-        Returns the profile object (with .name possibly None if not yet given).
-        Never raises — returns None on failure.
+        Returns a tuple of (profile, is_new):
+          - profile: the profile object (with .name possibly None if not yet
+            given), or None on failure.
+          - is_new: True only when this call created the row, i.e. this is
+            this phone number's very first message to ANY store on the
+            platform. Callers can use this as the true onboarding signal
+            (distinct from CustomerContextService.is_first_time(), which
+            stays True until a name is captured for welcome-message gating).
+
+        Never raises — returns (None, False) on failure.
         """
         from app.models.customer_profile import CustomerProfile
 
@@ -109,6 +117,7 @@ class CustomerContextService:
             profile = result.scalar_one_or_none()
 
             now = datetime.now(timezone.utc)
+            is_new = profile is None
 
             if profile is None:
                 profile = CustomerProfile(
@@ -123,11 +132,11 @@ class CustomerContextService:
                 profile.last_seen_at = now
 
             await db.flush()
-            return profile
+            return profile, is_new
 
         except Exception:
             logger.exception("touch_profile failed for %s", phone_number)
-            return None
+            return None, False
 
     async def get_profile(
         self,

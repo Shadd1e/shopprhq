@@ -11,6 +11,7 @@ from app.db.base import Base
 
 # ── Core tenant models ────────────────────────────────────────────────────────
 from app.models.merchant import Merchant
+from app.models.merchant_application import MerchantApplication
 from app.models.client_model   import Client
 
 # ── Customer identity (cross-store, not tenant-scoped) ────────────────────────
@@ -43,6 +44,7 @@ __all__ = [
 
     # Tenant
     "Merchant",
+    "MerchantApplication",
     "Client",
 
     # Customer identity
