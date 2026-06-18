@@ -27,10 +27,12 @@ function bearer(token: string) {
 // ── Types ──────────────────────────────────────────────────────────────────
 
 export interface MerchantLoginResponse {
-  access_token: string
-  merchant_id: string
-  name: string
-  email: string
+  access_token:         string
+  merchant_id:          string
+  name:                 string
+  email:                string
+  email_verified?:      boolean
+  must_change_password?: boolean
 }
 
 export interface RegisterResponse {

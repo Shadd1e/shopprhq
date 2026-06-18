@@ -15,6 +15,12 @@ class Merchant(Base):
     password_hash                    = Column(String(255), nullable=False)
     failed_attempts                  = Column(Integer,     default=0, nullable=False)
     email_verified                   = Column(Boolean,     default=False, nullable=False)
+    must_change_password             = Column(
+        Boolean, default=False, nullable=False,
+        comment="Set True when an account is created by admin with a generated password. "
+                "Cleared on first successful password reset. Prevents use of the "
+                "auto-generated initial password indefinitely.",
+    )
     email_verification_token         = Column(String(64),  nullable=True, index=True)
     email_verification_token_expiry  = Column(DateTime(timezone=True), nullable=True)
     waba_active                      = Column(Boolean,     default=False, nullable=False)

@@ -1346,6 +1346,23 @@ function LoginView({ onSuccess }: { onSuccess: (token: string) => void }) {
     setLoading(true)
     try {
       const data = await merchantLogin(email.trim(), pin)
+
+      if (data.must_change_password) {
+        // Admin-created account — the initial password must be changed before
+        // the merchant can access the dashboard. Route them straight into the
+        // existing forgot → reset flow. Pre-fill their email and fire the code
+        // automatically so they don't have to do the extra step themselves.
+        setFEmail(email.trim().toLowerCase())
+        try {
+          await forgotPassword(email.trim().toLowerCase())
+        } catch {
+          // Non-fatal — they can always use "Resend code" on the reset screen
+        }
+        setSuccess('For your security, please set a personal password before continuing.')
+        setScreen('reset')
+        return
+      }
+
       sessionStorage.setItem('m_tok',  data.access_token)
       sessionStorage.setItem('m_id',   data.merchant_id)
       sessionStorage.setItem('m_name', data.name)

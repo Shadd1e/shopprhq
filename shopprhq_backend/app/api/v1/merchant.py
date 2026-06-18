@@ -411,13 +411,15 @@ async def login_merchant(payload: MerchantLogin, request: Request, db: AsyncSess
         raise HTTPException(status_code=401, detail="Invalid credentials or account locked")
     token          = create_access_token(subject=merchant.id)
     email_verified = getattr(merchant, "email_verified", False) or False
+    must_change_pw = getattr(merchant, "must_change_password", False) or False
     return {
-        "access_token":   token,
-        "token_type":     "bearer",
-        "merchant_id":    merchant.id,
-        "name":           merchant.name,
-        "email":          merchant.email,
-        "email_verified": email_verified,
+        "access_token":        token,
+        "token_type":          "bearer",
+        "merchant_id":         merchant.id,
+        "name":                merchant.name,
+        "email":               merchant.email,
+        "email_verified":      email_verified,
+        "must_change_password": must_change_pw,
     }
 
 
@@ -526,8 +528,9 @@ async def reset_password(request: Request, db: AsyncSession = Depends(get_db)):
     if not merchant:
         raise HTTPException(status_code=400, detail="Incorrect or expired code. Request a new one.")
 
-    merchant.password_hash    = get_password_hash(new_password)
-    merchant.failed_attempts  = 0   # clear any lockout
+    merchant.password_hash        = get_password_hash(new_password)
+    merchant.failed_attempts      = 0   # clear any lockout
+    merchant.must_change_password = False  # first-login gate satisfied
     await db.commit()
 
     # Consume the code so it cannot be reused

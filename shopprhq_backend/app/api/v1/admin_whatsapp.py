@@ -905,8 +905,11 @@ async def _create_merchant_account(
     if not merchant:
         return {"ok": False, "detail": "A merchant account with this email already exists."}
 
-    # Mark immediately as email-verified (admin has already vetted them)
-    merchant.email_verified = True
+    # Mark immediately as email-verified (admin has already vetted them).
+    # Also flag that the initial password must be changed on first login —
+    # the welcome email says to expect a prompt; this enforces it.
+    merchant.email_verified      = True
+    merchant.must_change_password = True
     await db.commit()
     await db.refresh(merchant)
 
