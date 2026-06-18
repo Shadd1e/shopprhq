@@ -835,10 +835,53 @@ async def send_application_received_email(
     to_email: str,
     applicant_name: str,
     business_name: str,
+    whatsapp_number: str = None,
+    link_token: str = None,
 ) -> bool:
+    """
+    The one email sent the moment someone submits the "Apply to Use" form.
+
+    Branches on whether they gave a WhatsApp number:
+      - Gave one: tells them we'll contact THEM on that number.
+      - Didn't:   tells them plainly, with a link to add it
+                  (templates/add_whatsapp_number.html, via link_token).
+    """
     cfg        = _cfg()
     first_name = applicant_name.split()[0]
     subject    = f"We got your application, {first_name}! 🎉"
+
+    if whatsapp_number:
+        next_step_html = f"""
+          <div style="background:#f9f9f7;border-radius:10px;padding:16px 20px;margin-bottom:24px">
+            <p style="margin:0;font-size:14px;color:#333;line-height:1.6">
+              📱 When we're ready to set you up, we'll message you directly on WhatsApp at
+              <strong>+{whatsapp_number}</strong> — that's how we'll verify your number and
+              get your store connected, so keep an eye on it.
+            </p>
+          </div>"""
+        next_step_text = (
+            f"When we're ready to set you up, we'll message you directly on WhatsApp at "
+            f"+{whatsapp_number} to verify your number and connect your store. Keep an eye on it."
+        )
+    else:
+        add_number_url = f"{cfg['app_url']}/apply/whatsapp-number?token={link_token}"
+        next_step_html = f"""
+          <div style="background:#fff7ed;border:1px solid #fde4c2;border-radius:10px;padding:16px 20px;margin-bottom:24px">
+            <p style="margin:0 0 12px;font-size:14px;color:#7a4a00;line-height:1.6">
+              ⚠️ You didn't include a WhatsApp number for us to reach you on. We need one
+              to verify and connect your store.
+            </p>
+            <a href="{add_number_url}"
+              style="display:inline-block;background:#111;color:#fff;text-align:center;
+                padding:10px 18px;border-radius:8px;font-weight:600;font-size:14px;
+                text-decoration:none">
+              Add your WhatsApp number →
+            </a>
+          </div>"""
+        next_step_text = (
+            f"You didn't include a WhatsApp number for us to reach you on, and we need one "
+            f"to verify and connect your store. Add it here: {add_number_url}"
+        )
 
     html = f"""<!DOCTYPE html>
 <html>
@@ -862,14 +905,14 @@ async def send_application_received_email(
             <strong>{business_name}</strong>.
           </p>
           <p style="margin:0 0 20px;font-size:15px;color:#555;line-height:1.6">
-            Our team will review your application and reach out to you within
-            <strong>1–2 business days</strong>. When approved, you'll receive an email
-            with your login details and instructions to get your store live.
+            Our team will review your application within <strong>1–2 business days</strong>.
           </p>
+          {next_step_html}
           <p style="margin:0 0 24px;font-size:15px;color:#555;line-height:1.6">
+            Once approved, you'll receive a separate email with your login details.
             In the meantime, feel free to reply to this email if you have any questions.
           </p>
-          <div style="background:#f9f9f7;border-radius:10px;padding:16px 20px;margin-bottom:24px">
+          <div style="background:#f9f9f7;border-radius:10px;padding:16px 20px">
             <p style="margin:0;font-size:13px;color:#888;line-height:1.6">
               <strong style="color:#333">Business:</strong> {business_name}<br>
               <strong style="color:#333">Applicant:</strong> {applicant_name}<br>
@@ -890,7 +933,11 @@ async def send_application_received_email(
 
 Thanks for applying to use ShopprHQ for {business_name}.
 
-Our team will review your application and reach out within 1–2 business days. When approved, you'll receive your login credentials by email.
+Our team will review your application within 1–2 business days.
+
+{next_step_text}
+
+Once approved, you'll receive your login credentials by separate email.
 
 If you have any questions, just reply to this email.
 
@@ -901,6 +948,10 @@ If you have any questions, just reply to this email.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TEAM APPLICATION ALERT — sent to the ShopprHQ team when a new application arrives
+# NOTE: no longer called by apply_to_use(). The Slack alert + the admin
+# dashboard's "Pending Applications" panel cover this now, so a separate
+# team email would just be a third duplicate notification. Left defined
+# here in case it's ever wanted again.
 # ─────────────────────────────────────────────────────────────────────────────
 async def send_team_application_alert(
     application: dict,
@@ -1014,10 +1065,22 @@ async def send_approved_merchant_welcome_email(
     merchant_id: str,
     initial_password: str,
 ) -> bool:
+    """
+    Sent the moment admin approves an application. Deliberately does NOT say
+    "you're all set" — the account exists, but WhatsApp isn't connected yet,
+    and that distinction matters (the merchant still owes us a Meta
+    verification code, given personally over WhatsApp, before they're live).
+    """
     cfg        = _cfg()
     first_name = merchant_name.split()[0]
     dashboard  = f"{cfg['app_url']}/dashboard"
-    subject    = f"You're approved, {first_name}! Here are your ShopprHQ login details."
+    support_wa = cfg["support_wa"]
+    subject    = f"You're approved, {first_name}! Here's what happens next"
+
+    support_line_html = (
+        f"<strong>+{support_wa}</strong>" if support_wa
+        else "our team"
+    )
 
     html = f"""<!DOCTYPE html>
 <html>
@@ -1037,7 +1100,8 @@ async def send_approved_merchant_welcome_email(
             You're approved, {first_name}! 🎉
           </h1>
           <p style="margin:0 0 20px;font-size:15px;color:#555;line-height:1.6">
-            Welcome to ShopprHQ. Your merchant account is ready. Use the details below to sign in.
+            Your ShopprHQ account is ready. <strong>Your store is not yet live on
+            WhatsApp</strong> — there are a couple of quick steps left, outlined below.
           </p>
 
           <div style="background:#f9f9f7;border-radius:10px;padding:20px 24px;margin-bottom:24px">
@@ -1061,13 +1125,92 @@ async def send_approved_merchant_welcome_email(
           <a href="{dashboard}"
             style="display:block;background:#111;color:#fff;text-align:center;
               padding:14px 24px;border-radius:10px;font-weight:600;font-size:15px;
-              text-decoration:none;margin-bottom:24px">
+              text-decoration:none;margin-bottom:28px">
             Sign in to ShopprHQ →
           </a>
 
-          <p style="margin:0;font-size:14px;color:#555;line-height:1.6">
-            Your next step is to add your products and connect your WhatsApp number.
-            The onboarding guide is inside your dashboard — it takes under 5 minutes.
+          <p style="margin:0 0 10px;font-size:12px;font-weight:700;color:#999;
+            text-transform:uppercase;letter-spacing:.06em">What happens next</p>
+          <ol style="margin:0 0 24px;padding-left:20px;font-size:14px;color:#555;line-height:1.8">
+            <li>We'll message you personally on WhatsApp from {support_line_html} to get
+              a quick verification code from Meta.</li>
+            <li>We'll use that code to activate your number.</li>
+            <li>You'll get a separate "you're live" email the moment it's connected.</li>
+          </ol>
+
+          <p style="margin:0;font-size:14px;color:#888;line-height:1.6">
+            That WhatsApp message is how we'll reach you for this step — not email —
+            so please reply when you see it.
+          </p>
+        </td></tr>
+        <tr><td style="padding:16px 40px;border-top:1px solid #eee;text-align:center">
+          <p style="margin:0;font-size:12px;color:#bbb">ShopprHQ · WhatsApp Commerce · Nigeria</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>"""
+
+    support_line_text = f"+{support_wa}" if support_wa else "our team"
+    text = f"""Hi {first_name},
+
+Your ShopprHQ account is ready. Your store is NOT yet live on WhatsApp — here's what's left:
+
+Login details:
+  Email:    {to_email}
+  Password: {initial_password}
+
+Sign in at: {dashboard}
+
+Please change your password immediately after your first login.
+
+What happens next:
+  1. We'll message you personally on WhatsApp from {support_line_text} for a quick Meta verification code.
+  2. We'll use that code to activate your number.
+  3. You'll get a separate "you're live" email once it's connected.
+
+That WhatsApp message is how we'll reach you for this step, not email — please reply when you see it.
+
+— The ShopprHQ Team
+"""
+    return await send_email(to_email, subject, html, text)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# APPLICATION DECLINED — sent when admin rejects a pending application
+# ─────────────────────────────────────────────────────────────────────────────
+async def send_application_declined_email(
+    to_email: str,
+    applicant_name: str,
+    business_name: str,
+) -> bool:
+    cfg        = _cfg()
+    first_name = applicant_name.split()[0]
+    subject    = "An update on your ShopprHQ application"
+
+    html = f"""<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#F5F4F0;font-family:'DM Sans',Arial,sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F5F4F0;padding:40px 20px">
+    <tr><td align="center">
+      <table width="520" cellpadding="0" cellspacing="0"
+        style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)">
+        <tr><td style="background:#111110;padding:32px 40px 28px;text-align:center">
+          <div style="font-size:26px;font-weight:700;color:#fff;letter-spacing:-.02em">ShopprHQ</div>
+        </td></tr>
+        <tr><td style="padding:40px 40px 32px">
+          <h1 style="margin:0 0 12px;font-size:20px;font-weight:700;color:#111">
+            Hi {first_name},
+          </h1>
+          <p style="margin:0 0 18px;font-size:15px;color:#555;line-height:1.6">
+            Thanks for your interest in ShopprHQ for <strong>{business_name}</strong>.
+            After review, we're not able to move forward with your application at this time.
+          </p>
+          <p style="margin:0;font-size:15px;color:#555;line-height:1.6">
+            You're welcome to apply again in the future if your circumstances change.
+            Thanks for considering us.
           </p>
         </td></tr>
         <tr><td style="padding:16px 40px;border-top:1px solid #eee;text-align:center">
@@ -1081,17 +1224,9 @@ async def send_approved_merchant_welcome_email(
 
     text = f"""Hi {first_name},
 
-Your ShopprHQ account is approved and ready.
+Thanks for your interest in ShopprHQ for {business_name}. After review, we're not able to move forward with your application at this time.
 
-Login details:
-  Email:    {to_email}
-  Password: {initial_password}
-
-Sign in at: {dashboard}
-
-Please change your password immediately after your first login.
-
-Your next step is to add your products and connect your WhatsApp number — the onboarding guide is inside your dashboard.
+You're welcome to apply again in the future if your circumstances change. Thanks for considering us.
 
 — The ShopprHQ Team
 """

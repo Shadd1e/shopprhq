@@ -227,6 +227,17 @@ _store_dash_static = os.path.join(os.path.dirname(__file__), "templates", "store
 app.mount("/store-dashboard-static", StaticFiles(directory=_store_dash_static), name="store_dashboard")
 
 
+# ── Apply-flow follow-up page ───────────────────────────────────────────────────
+# Linked from the apply-confirmation email when no WhatsApp number was given.
+# Public, token-driven (?token=...) — see GET/POST /merchants/apply/link/{token}.
+
+@app.get("/apply/whatsapp-number", response_class=HTMLResponse)
+async def apply_add_whatsapp_number_page():
+    _tpl = os.path.join(os.path.dirname(__file__), "templates", "add_whatsapp_number.html")
+    with open(_tpl, "r") as f:
+        return HTMLResponse(content=f.read())
+
+
 # ── Global static assets ───────────────────────────────────────────────────────
 _static_dir = os.path.join(os.path.dirname(__file__), "static")
 app.mount("/static", StaticFiles(directory=_static_dir), name="static")

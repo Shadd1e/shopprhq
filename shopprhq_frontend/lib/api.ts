@@ -561,6 +561,7 @@ export interface MerchantApplicationPayload {
   uses_delivery_service: boolean
   heard_about_us:        string
   comments?:             string
+  website?:              string  // honeypot — never filled by real users; backend silently drops submissions where this has a value
 }
 
 export async function submitMerchantApplication(payload: MerchantApplicationPayload) {

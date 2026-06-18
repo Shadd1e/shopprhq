@@ -182,6 +182,11 @@ header {
   margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);
 }
 .app-edit .field { margin-bottom: 12px; }
+.app-badge-attention {
+  background: #FEF3C7; color: #92400E; border: 1px solid #FDE68A;
+  border-radius: 8px; padding: 6px 12px; font-size: 12px; font-weight: 600;
+  margin-bottom: 12px;
+}
 </style>
 </head>
 <body>
@@ -198,6 +203,7 @@ header {
     </div>
     <button class="btn btn-dark" style="width:100%;margin-top:4px" onclick="doLogin()">Continue</button>
     <div class="err-msg" id="pw-err">Incorrect secret. Try again.</div>
+    <div class="err-msg" id="idle-msg" style="display:none">Signed out due to inactivity. Please sign in again.</div>
   </div>
 </div>
 
@@ -384,6 +390,7 @@ function doLogin() {
   const pw = document.getElementById('pw').value;
   const er = document.getElementById('pw-err');
   er.style.display = 'none';
+  document.getElementById('idle-msg').style.display = 'none';
 
   fetch('/admin/whatsapp-setup/verify-password', {
     method: 'POST',
@@ -398,6 +405,7 @@ function doLogin() {
       document.getElementById('main-screen').style.display  = 'block';
       loadClients();
       loadApplications();
+      startIdleWatch();
     } else {
       er.style.display = 'block';
     }
@@ -406,6 +414,7 @@ function doLogin() {
 }
 
 function doSignOut() {
+  stopIdleWatch();
   sessionStorage.removeItem('atok');
   location.reload();
 }
@@ -415,6 +424,45 @@ function H() {
     'Content-Type':  'application/json',
     'X-Admin-Token': sessionStorage.getItem('atok') || '',
   };
+}
+
+// ── IDLE TIMEOUT ─────────────────────────────────────────────────────────────
+// Solo-admin tool, so no per-user audit trail — just a simple safety net:
+// 15 minutes with no mouse/keyboard/touch activity signs the session out.
+const IDLE_LIMIT_MS = 15 * 60 * 1000;
+let lastActivityAt   = Date.now();
+let idleCheckHandle   = null;
+let idleListenersBound = false;
+
+function markActivity() { lastActivityAt = Date.now(); }
+
+function startIdleWatch() {
+  if (!idleListenersBound) {
+    ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'].forEach(evt =>
+      document.addEventListener(evt, markActivity, { passive: true })
+    );
+    idleListenersBound = true;
+  }
+  markActivity();
+  if (idleCheckHandle) clearInterval(idleCheckHandle);
+  idleCheckHandle = setInterval(() => {
+    if (Date.now() - lastActivityAt > IDLE_LIMIT_MS) {
+      signOutForInactivity();
+    }
+  }, 30000);
+}
+
+function stopIdleWatch() {
+  if (idleCheckHandle) clearInterval(idleCheckHandle);
+  idleCheckHandle = null;
+}
+
+function signOutForInactivity() {
+  stopIdleWatch();
+  sessionStorage.removeItem('atok');
+  document.getElementById('main-screen').style.display  = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('idle-msg').style.display     = 'block';
 }
 
 // ── CLIENTS ──────────────────────────────────────────────────────────────────
@@ -436,6 +484,7 @@ async function loadClients() {
 
 // ── PENDING APPLICATIONS ──────────────────────────────────────────────────────
 let APPS = [];
+const OPEN_APP_STATUSES = ['pending', 'needs_attention'];
 
 function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -456,7 +505,7 @@ async function loadApplications() {
   try {
     const r = await fetch('/admin/whatsapp-setup/applications', { headers: H() });
     const d = await r.json();
-    APPS = (d.applications || []).filter(a => a.status === 'pending');
+    APPS = (d.applications || []).filter(a => OPEN_APP_STATUSES.includes(a.status));
     renderApplications();
   } catch(e) {
     console.error(e);
@@ -477,12 +526,16 @@ function renderApplications() {
   count.style.display = 'inline-block';
   count.textContent   = APPS.length;
 
-  box.innerHTML = APPS.map(a => `
+  box.innerHTML = APPS.map(a => {
+    const waLine = a.whatsapp_number ? `+${esc(a.whatsapp_number)}` : 'no WhatsApp number given';
+    const needsAttention = a.status === 'needs_attention';
+    return `
     <div class="app-item" id="app-${a.id}">
+      ${needsAttention ? `<div class="app-badge-attention">⚠ Needs attention${a.last_error ? ' — ' + esc(a.last_error) : ''}</div>` : ''}
       <div class="app-item-head">
         <div>
           <div class="app-item-name">${esc(a.business_name)}</div>
-          <div class="app-item-meta">${esc(a.full_name)} · ${esc(a.email)} · +${esc(a.whatsapp_number)}</div>
+          <div class="app-item-meta">${esc(a.full_name)} · ${esc(a.email)} · ${waLine}</div>
         </div>
         <div class="app-item-meta">${timeAgo(a.created_at)}</div>
       </div>
@@ -496,12 +549,13 @@ function renderApplications() {
       </div>
       ${a.comments ? `<div class="app-comments">"${esc(a.comments)}"</div>` : ''}
       <div class="row" style="margin-top:14px">
-        <button class="btn btn-green" onclick="openApprove('${a.id}')">Approve & Create Account</button>
+        <button class="btn btn-green" onclick="openApprove('${a.id}')">Approve & Continue Setup</button>
         <button class="btn btn-ghost" onclick="rejectApp('${a.id}')">Dismiss</button>
       </div>
       <div class="app-edit" id="edit-${a.id}" style="display:none">
         <div class="card-sub" style="margin-bottom:14px">
           Review before creating the account — a login email goes to the address below.
+          Once created, Step 1 below will be pre-filled with this store's details.
         </div>
         <div class="field">
           <label class="f-label">Account / Business Name</label>
@@ -513,16 +567,16 @@ function renderApplications() {
         </div>
         <div class="field">
           <label class="f-label">WhatsApp Number</label>
-          <input class="f-input" id="edit-wa-${a.id}" value="${esc(a.whatsapp_number)}">
+          <input class="f-input" id="edit-wa-${a.id}" value="${esc(a.whatsapp_number || '')}" placeholder="2348012345678">
         </div>
         <div class="status" id="app-st-${a.id}"></div>
         <div class="row">
           <button class="btn btn-ghost" onclick="closeApprove('${a.id}')">Cancel</button>
-          <button class="btn btn-dark" id="app-confirm-${a.id}" onclick="confirmApprove('${a.id}')">Confirm & Create Account</button>
+          <button class="btn btn-dark" id="app-confirm-${a.id}" onclick="confirmApprove('${a.id}')">Confirm & Continue Setup</button>
         </div>
       </div>
     </div>
-  `).join('');
+  `; }).join('');
 }
 
 function openApprove(id) {
@@ -541,32 +595,46 @@ async function confirmApprove(id) {
     const el = document.getElementById(`app-st-${id}`);
     el.textContent = msg; el.className = `status s-${type}`; el.style.display = 'block';
   };
+  const name = document.getElementById(`edit-name-${id}`).value.trim();
+  const wa   = document.getElementById(`edit-wa-${id}`).value.trim();
+
   btn.disabled = true;
   btn.textContent = 'Creating…';
   try {
     const r = await fetch(`/admin/whatsapp-setup/applications/${id}/approve`, {
       method: 'POST', headers: H(),
       body: JSON.stringify({
-        name:            document.getElementById(`edit-name-${id}`).value.trim(),
+        name:            name,
         email:           document.getElementById(`edit-email-${id}`).value.trim(),
-        whatsapp_number: document.getElementById(`edit-wa-${id}`).value.trim(),
+        whatsapp_number: wa,
       }),
     });
     const d = await r.json();
-    if (!r.ok) { st(d.detail || 'Approval failed.', 'err'); btn.disabled = false; btn.textContent = 'Confirm & Create Account'; return; }
+    if (!r.ok) { st(d.detail || 'Approval failed.', 'err'); btn.disabled = false; btn.textContent = 'Confirm & Continue Setup'; return; }
 
     st(d.message || 'Account created.', 'ok');
     APPS = APPS.filter(a => a.id !== id);
-    setTimeout(() => { renderApplications(); loadClients(); }, 900);
+    renderApplications();
+
+    // Carry the new store straight into Step 1 — refresh the dropdown,
+    // select it, and pre-fill the number/name so admin isn't re-typing
+    // what was already on the application.
+    await loadClients();
+    const sel = document.getElementById('s1-client');
+    if (sel && d.client_id) sel.value = d.client_id;
+    document.getElementById('s1-phone').value = wa;
+    document.getElementById('s1-name').value  = name;
+    go(1);
+    document.getElementById('s1').scrollIntoView({ behavior: 'smooth', block: 'start' });
   } catch(e) {
     st('Network error. Check your connection.', 'err');
     btn.disabled = false;
-    btn.textContent = 'Confirm & Create Account';
+    btn.textContent = 'Confirm & Continue Setup';
   }
 }
 
 async function rejectApp(id) {
-  if (!confirm('Dismiss this application? This cannot be undone.')) return;
+  if (!confirm('Dismiss this application? The applicant will get a short decline email. This cannot be undone.')) return;
   try {
     const r = await fetch(`/admin/whatsapp-setup/applications/${id}/reject`, { method: 'POST', headers: H() });
     if (!r.ok) { alert('Could not dismiss — try again.'); return; }
@@ -749,6 +817,8 @@ if (sessionStorage.getItem('atok')) {
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('main-screen').style.display  = 'block';
   loadClients();
+  loadApplications();
+  startIdleWatch();
 }
 </script>
 </body>

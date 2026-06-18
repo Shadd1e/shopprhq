@@ -118,6 +118,7 @@ type FormData = {
   uses_delivery_service: string
   heard_about_us:        string
   comments:              string
+  website:               string  // honeypot — always empty for real users
 }
 
 const EMPTY_FORM: FormData = {
@@ -134,6 +135,7 @@ const EMPTY_FORM: FormData = {
   uses_delivery_service: '',
   heard_about_us:        '',
   comments:              '',
+  website:               '',
 }
 
 function inputCls(err?: string) {
@@ -223,6 +225,7 @@ function ApplicationForm() {
         uses_delivery_service: form.uses_delivery_service === 'yes',
         heard_about_us:        form.heard_about_us,
         comments:              form.comments.trim() || undefined,
+        website:               form.website,  // honeypot — always '' for real users
       }
       await submitMerchantApplication(payload)
       setSubmitted(true)
@@ -348,6 +351,18 @@ function ApplicationForm() {
               hover:bg-gray-800 transition-colors flex items-center justify-center gap-2">
             Continue <ArrowRight />
           </button>
+          {/* Honeypot — invisible to real users; bots fill every field they see.
+              Backend silently no-ops any submission where this has a value. */}
+          <input
+            type="text"
+            name="website"
+            value={form.website}
+            onChange={e => set('website', e.target.value)}
+            tabIndex={-1}
+            autoComplete="off"
+            aria-hidden="true"
+            style={{ display: 'none' }}
+          />
         </div>
       )}
 

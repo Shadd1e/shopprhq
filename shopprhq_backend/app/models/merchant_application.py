@@ -33,8 +33,14 @@ class MerchantApplication(Base):
     email            = Column(String(255), nullable=False, index=True)
     phone_number     = Column(String(30),  nullable=False)
     whatsapp_number  = Column(
-        String(30), nullable=False,
-        comment="WhatsApp number the applicant wants connected to their store.",
+        String(30), nullable=True,
+        comment="WhatsApp number the applicant wants connected to their store. "
+                "Optional at submission — may be filled in later via the link_token page.",
+    )
+    link_token = Column(
+        String(48), nullable=True, unique=True, index=True,
+        comment="Public, unguessable token for the 'add my WhatsApp number' page. "
+                "Not the same as id — id is shown in Slack/admin UI, this isn't.",
     )
 
     # ── Operations info ────────────────────────────────────────────────────
@@ -50,11 +56,15 @@ class MerchantApplication(Base):
     # ── Review state ───────────────────────────────────────────────────────
     status = Column(
         String(20), nullable=False, default="pending", index=True,
-        comment="pending | approved | rejected",
+        comment="pending | approved | rejected | needs_attention",
     )
     merchant_id = Column(
         String(20), nullable=True,
         comment="Set once approved — links to the Merchant row this application became.",
+    )
+    last_error = Column(
+        Text, nullable=True,
+        comment="Why the last approval attempt failed, when status='needs_attention'.",
     )
     reviewed_at = Column(DateTime(timezone=True), nullable=True)
 

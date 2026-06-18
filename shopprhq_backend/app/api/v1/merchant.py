@@ -31,6 +31,22 @@ async def _generate_application_id(db: AsyncSession) -> str:
     raise RuntimeError("Failed to generate unique application ID after 20 attempts")
 
 
+def _generate_link_token() -> str:
+    """
+    Generate the public, unguessable token used by the "add my WhatsApp
+    number" page link. Deliberately separate from the short application ID
+    (which shows up in Slack/admin UI) — this token is a bearer credential
+    for an unauthenticated public page, so it needs real entropy. 24 random
+    bytes (192 bits) makes brute-forcing it computationally meaningless, so
+    no DB-uniqueness retry loop is needed the way it is for the short ID.
+    """
+    import secrets
+    return secrets.token_urlsafe(24)
+
+
+_OPEN_APPLICATION_STATUSES = ("pending", "needs_attention")
+
+
 def _require_merchant(request: Request) -> str:
     merchant_id = getattr(request.state, "merchant_id", None)
     if not merchant_id:
@@ -57,27 +73,69 @@ async def create_merchant_disabled():
 # ─────────────────────────────────────────────────────────────────────────────
 # APPLY  (public)
 # Accepts the "Apply to Use" form, saves it so admin can review it on the
-# WhatsApp-setup dashboard, and sends a confirmation to the applicant + an
-# alert to the ShopprHQ team. No Merchant/Client account is created yet —
-# that happens when admin approves the application.
+# WhatsApp-setup dashboard, and sends ONE email to the applicant. No
+# Merchant/Client account is created yet — that happens when admin approves
+# the application.
 # ─────────────────────────────────────────────────────────────────────────────
 
 @router.post("/apply", status_code=200)
-async def apply_to_use(payload: MerchantApply, db: AsyncSession = Depends(get_db)):
+async def apply_to_use(
+    payload: MerchantApply,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
     """
     Public endpoint: submit a merchant application.
 
     Saves the application (status="pending") so it shows up in the admin
-    WhatsApp-setup dashboard's "Pending Applications" list, then fires two
-    emails (confirmation to applicant, alert to team) and a Slack alert.
+    WhatsApp-setup dashboard's "Pending Applications" list, sends the
+    applicant one confirmation email, and posts a Slack alert to the team.
     Returns a success message.
+
+    Guards: honeypot field (silent no-op for bots), IP rate limit (3/hr),
+    and a dedupe check against existing pending applications.
     """
+    # Honeypot — a real applicant never fills this. Pretend success so a bot
+    # doesn't learn it was detected, but skip everything else entirely.
+    if payload.website:
+        logger.warning(
+            "Honeypot triggered on /merchants/apply from %s",
+            request.client.host if request.client else "unknown",
+        )
+        return {"message": "Application received. We'll be in touch within 1–2 business days."}
+
+    from app.core.redis_client import check_apply_rate_limit
+    client_ip = request.client.host if request.client else "unknown"
+    if not await check_apply_rate_limit(client_ip):
+        raise HTTPException(
+            status_code=429,
+            detail="Too many submissions from this connection. Please try again in an hour.",
+        )
+
     try:
         from app.models.merchant_application import MerchantApplication
+        from sqlalchemy import or_
+
+        # Dedupe — don't create a second row for someone who already has a
+        # pending application (matches on email, and on WhatsApp number if given).
+        dedupe_conditions = [MerchantApplication.email == payload.email]
+        if payload.whatsapp_number:
+            dedupe_conditions.append(MerchantApplication.whatsapp_number == payload.whatsapp_number)
+
+        existing = await db.execute(
+            select(MerchantApplication).where(
+                MerchantApplication.status == "pending",
+                or_(*dedupe_conditions),
+            )
+        )
+        if existing.scalar_one_or_none():
+            return {"message": "We already have a pending application from you — we'll be in touch within 1–2 business days."}
 
         application_id = await _generate_application_id(db)
+        link_token     = _generate_link_token()
         application = MerchantApplication(
             id=application_id,
+            link_token=link_token,
             business_name=payload.business_name,
             business_type=payload.business_type,
             city_state=payload.city_state,
@@ -96,10 +154,7 @@ async def apply_to_use(payload: MerchantApply, db: AsyncSession = Depends(get_db
         db.add(application)
         await db.commit()
 
-        from app.services.email_service import (
-            send_application_received_email,
-            send_team_application_alert,
-        )
+        from app.services.email_service import send_application_received_email
         from app.api.v1.workers.background_tasks import fire_and_forget
 
         fire_and_forget(
@@ -107,16 +162,14 @@ async def apply_to_use(payload: MerchantApply, db: AsyncSession = Depends(get_db
                 to_email=payload.email,
                 applicant_name=payload.full_name,
                 business_name=payload.business_name,
+                whatsapp_number=payload.whatsapp_number,
+                link_token=link_token,
             ),
             name="send_application_received_email",
         )
 
-        fire_and_forget(
-            send_team_application_alert(application=payload.model_dump()),
-            name="send_team_application_alert",
-        )
-
-        # Non-critical Slack alert
+        # Team-facing notice — Slack + the admin dashboard's Pending
+        # Applications panel cover this now, so there's no separate team email.
         try:
             from app.infrastructure.alerting.slack import alert
             fire_and_forget(alert(
@@ -130,7 +183,7 @@ async def apply_to_use(payload: MerchantApply, db: AsyncSession = Depends(get_db
                     "Application ID": application_id,
                     "Email":    payload.email,
                     "Phone":    payload.phone_number,
-                    "WhatsApp": payload.whatsapp_number,
+                    "WhatsApp": payload.whatsapp_number or "— not provided —",
                     "City":     payload.city_state,
                     "Type":     payload.business_type,
                     "Volume":   payload.monthly_order_volume,
@@ -146,6 +199,80 @@ async def apply_to_use(payload: MerchantApply, db: AsyncSession = Depends(get_db
     except Exception:
         logger.exception("Merchant application submission failed")
         raise HTTPException(status_code=500, detail="Submission failed. Please try again.")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ADD WHATSAPP NUMBER  (public, token-based)
+# Backs the link sent in the apply-confirmation email when no WhatsApp number
+# was given at application time. Public template: templates/add_whatsapp_number.html
+# (served at GET /apply/whatsapp-number?token=... — see main.py).
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/apply/link/{token}")
+async def get_application_by_link(token: str, db: AsyncSession = Depends(get_db)):
+    from app.models.merchant_application import MerchantApplication
+
+    res = await db.execute(
+        select(MerchantApplication).where(MerchantApplication.link_token == token)
+    )
+    application = res.scalar_one_or_none()
+    if not application:
+        raise HTTPException(status_code=404, detail="This link isn't valid.")
+    if application.status not in _OPEN_APPLICATION_STATUSES:
+        raise HTTPException(status_code=410, detail="This application has already been processed.")
+
+    return {
+        "business_name":       application.business_name,
+        "full_name":            application.full_name,
+        "has_whatsapp_number": bool(application.whatsapp_number),
+    }
+
+
+@router.post("/apply/link/{token}")
+async def submit_whatsapp_number_for_application(
+    token: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    from app.models.merchant_application import MerchantApplication
+    from app.schemas.merchant import _normalise_phone
+
+    res = await db.execute(
+        select(MerchantApplication).where(MerchantApplication.link_token == token)
+    )
+    application = res.scalar_one_or_none()
+    if not application:
+        raise HTTPException(status_code=404, detail="This link isn't valid.")
+    if application.status not in _OPEN_APPLICATION_STATUSES:
+        raise HTTPException(status_code=410, detail="This application has already been processed.")
+
+    body = await request.json()
+    try:
+        whatsapp_number = _normalise_phone(str(body.get("whatsapp_number", "")))
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    if not whatsapp_number:
+        raise HTTPException(status_code=422, detail="Enter a valid WhatsApp number.")
+
+    application.whatsapp_number = whatsapp_number
+    await db.commit()
+
+    try:
+        from app.infrastructure.alerting.slack import alert
+        from app.api.v1.workers.background_tasks import fire_and_forget
+        fire_and_forget(alert(
+            title="Application Updated — WhatsApp Number Added",
+            detail=f"*{application.business_name}* added their WhatsApp number. Ready to review.",
+            level="info",
+            fields={
+                "Application ID": application.id,
+                "WhatsApp":       f"+{whatsapp_number}",
+            },
+        ), name="slack_application_number_added")
+    except Exception:
+        pass
+
+    return {"ok": True, "message": "Thanks! We'll reach out to you on WhatsApp to continue."}
 
 
 # ─────────────────────────────────────────────────────────────────────────────

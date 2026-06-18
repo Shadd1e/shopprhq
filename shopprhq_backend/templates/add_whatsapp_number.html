@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Add your WhatsApp number — ShopprHQ</title>
+<style>
+  :root{
+    --ink:#111110; --ink-2:#444; --ink-3:#888;
+    --bg:#F5F4F0; --white:#fff; --border:#e8e6e0;
+    --r:14px; --green:#1f9d55; --red:#c0392b; --amber:#a66400;
+  }
+  * { box-sizing: border-box; }
+  body{
+    margin:0; min-height:100vh; background:var(--bg);
+    font-family:'DM Sans',Arial,sans-serif; color:var(--ink);
+    display:flex; align-items:center; justify-content:center; padding:24px;
+  }
+  .card{
+    background:var(--white); border:1px solid var(--border); border-radius:20px;
+    padding:40px; width:100%; max-width:440px; box-shadow:0 4px 24px rgba(0,0,0,.07);
+  }
+  .brand{ font-size:20px; font-weight:700; letter-spacing:-.02em; margin-bottom:28px; }
+  h1{ font-size:21px; font-weight:700; margin:0 0 10px; }
+  p{ font-size:14px; color:var(--ink-2); line-height:1.6; margin:0 0 20px; }
+  .f-label{ display:block; font-size:12px; font-weight:600; color:var(--ink-3);
+    text-transform:uppercase; letter-spacing:.04em; margin-bottom:6px; }
+  .f-input{
+    width:100%; border:1px solid var(--border); border-radius:10px;
+    padding:13px 14px; font-size:15px; font-family:inherit; margin-bottom:6px;
+  }
+  .f-hint{ font-size:12px; color:var(--ink-3); margin-bottom:20px; }
+  .btn{
+    width:100%; background:var(--ink); color:#fff; border:none; border-radius:10px;
+    padding:14px; font-size:15px; font-weight:600; cursor:pointer; font-family:inherit;
+  }
+  .btn:disabled{ opacity:.5; cursor:default; }
+  .msg{ font-size:13px; margin-top:14px; display:none; }
+  .msg.err{ color:var(--red); display:block; }
+  .msg.ok{ color:var(--green); display:block; }
+  .state{ display:none; }
+  .state.active{ display:block; }
+  .big-icon{ font-size:36px; margin-bottom:14px; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="brand">ShopprHQ</div>
+
+    <div class="state active" id="loading-state">
+      <p>Loading your application…</p>
+    </div>
+
+    <div class="state" id="form-state">
+      <h1>Add your WhatsApp number</h1>
+      <p id="form-intro"></p>
+      <label class="f-label">WhatsApp Number</label>
+      <input class="f-input" id="wa-input" type="tel" placeholder="2348012345678"
+        oninput="this.value=this.value.replace(/[^0-9+]/g,'')">
+      <div class="f-hint">Include country code, e.g. 2348012345678 or +2348012345678.</div>
+      <button class="btn" id="submit-btn" onclick="submitNumber()">Submit</button>
+      <div class="msg" id="form-msg"></div>
+    </div>
+
+    <div class="state" id="success-state">
+      <div class="big-icon">✅</div>
+      <h1>Got it, thanks!</h1>
+      <p id="success-text"></p>
+    </div>
+
+    <div class="state" id="error-state">
+      <div class="big-icon">⚠️</div>
+      <h1 id="error-title">This link isn't valid</h1>
+      <p id="error-text">It may have already been used, or the application may have already been reviewed.</p>
+    </div>
+  </div>
+
+<script>
+function showState(id) {
+  document.querySelectorAll('.state').forEach(el => el.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function getToken() {
+  return new URLSearchParams(window.location.search).get('token') || '';
+}
+
+async function init() {
+  const token = getToken();
+  if (!token) {
+    document.getElementById('error-text').textContent = 'No application link was provided.';
+    showState('error-state');
+    return;
+  }
+
+  try {
+    const r = await fetch(`/merchants/apply/link/${encodeURIComponent(token)}`);
+    const d = await r.json();
+
+    if (!r.ok) {
+      if (r.status === 410) {
+        document.getElementById('error-title').textContent = 'Already taken care of';
+        document.getElementById('error-text').textContent = 'This application has already been reviewed — there\'s nothing more to do here.';
+      } else {
+        document.getElementById('error-text').textContent = d.detail || 'This link isn\'t valid.';
+      }
+      showState('error-state');
+      return;
+    }
+
+    if (d.has_whatsapp_number) {
+      document.getElementById('success-text').textContent =
+        `We already have a WhatsApp number on file for ${d.business_name}. No action needed.`;
+      showState('success-state');
+      return;
+    }
+
+    document.getElementById('form-intro').textContent =
+      `Thanks for applying with ${d.business_name}. You didn't include a WhatsApp number for us to reach you on — add it below so we can verify it and get your store connected.`;
+    showState('form-state');
+  } catch (e) {
+    document.getElementById('error-text').textContent = 'Something went wrong loading this page. Please try again.';
+    showState('error-state');
+  }
+}
+
+async function submitNumber() {
+  const token = getToken();
+  const input = document.getElementById('wa-input');
+  const btn   = document.getElementById('submit-btn');
+  const msg   = document.getElementById('form-msg');
+  const number = input.value.trim();
+
+  msg.className = 'msg';
+  msg.style.display = 'none';
+
+  if (!number) {
+    msg.textContent = 'Enter a WhatsApp number.';
+    msg.className = 'msg err';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Submitting…';
+
+  try {
+    const r = await fetch(`/merchants/apply/link/${encodeURIComponent(token)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ whatsapp_number: number }),
+    });
+    const d = await r.json();
+
+    if (!r.ok) {
+      msg.textContent = d.detail || 'Something went wrong. Please try again.';
+      msg.className = 'msg err';
+      btn.disabled = false;
+      btn.textContent = 'Submit';
+      return;
+    }
+
+    document.getElementById('success-text').textContent = d.message || 'Thanks — we\'ll be in touch on WhatsApp.';
+    showState('success-state');
+  } catch (e) {
+    msg.textContent = 'Network error. Please check your connection and try again.';
+    msg.className = 'msg err';
+    btn.disabled = false;
+    btn.textContent = 'Submit';
+  }
+}
+
+init();
+</script>
+</body>
+</html>

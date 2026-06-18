@@ -360,6 +360,34 @@ async def check_admin_rate_limit(ip: str) -> bool:
 
 
 # ==================================================
+# PUBLIC APPLY-FORM RATE LIMIT
+# Prevents the public "Apply to Use" endpoint (and the linked
+# add-WhatsApp-number page) from being spammed/flooded.
+# Limit: 3 submissions per IP per hour.
+# ==================================================
+
+APPLY_RATE_LIMIT_TTL = 3600   # 1 hour
+APPLY_RATE_LIMIT_MAX = 3       # max submissions per IP per window
+
+
+async def check_apply_rate_limit(ip: str) -> bool:
+    """
+    Sliding-window rate limit for POST /merchants/apply.
+    Returns True if the request is allowed, False if the IP is over the limit.
+    """
+    try:
+        client = await redis_service.get_client()
+        key = f"apply:ratelimit:{ip}"
+        count = await client.incr(key)
+        if count == 1:
+            await client.expire(key, APPLY_RATE_LIMIT_TTL)
+        return count <= APPLY_RATE_LIMIT_MAX
+    except Exception as e:
+        logger.warning("check_apply_rate_limit failed, allowing request: %s", e)
+        return True  # fail open — don't block real applicants if Redis blips
+
+
+# ==================================================
 # WHATSAPP OUTBOUND RATE LIMIT
 # Prevents bot loops and accidental message storms.
 # Limit: 30 outbound messages per user per 10 minutes.

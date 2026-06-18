@@ -1042,6 +1042,7 @@ async def list_applications(request: Request, db: AsyncSession = Depends(get_db)
                 "heard_about_us":        a.heard_about_us,
                 "comments":              a.comments,
                 "status":                a.status,
+                "last_error":            a.last_error,
                 "merchant_id":           a.merchant_id,
                 "created_at":            a.created_at.isoformat() if a.created_at else None,
             }
@@ -1058,9 +1059,14 @@ async def approve_application(
     _: None = Depends(_require_admin),
 ):
     """
-    Admin-only. Turns a pending application into a real Merchant + Client
-    account (same effect as /approve-merchant) and marks the application
-    "approved" so it drops out of the pending queue.
+    Admin-only. Turns a pending (or needs_attention) application into a real
+    Merchant + Client account (same effect as /approve-merchant) and marks
+    the application "approved" so it drops out of the queue.
+
+    If account creation fails (e.g. the email already belongs to a
+    merchant), the application is flagged "needs_attention" instead of
+    silently staying "pending" — so it's visibly distinct from an
+    untouched application, and can be retried after a fix.
 
     Request body (JSON, all optional — defaults come from the application):
         name             str — override the account/business name
@@ -1068,6 +1074,7 @@ async def approve_application(
         whatsapp_number  str — override the WhatsApp number
         initial_password str — if omitted, a secure one is generated
     """
+    from datetime import datetime, timezone
     from app.models.merchant_application import MerchantApplication
 
     res = await db.execute(
@@ -1076,7 +1083,7 @@ async def approve_application(
     application = res.scalar_one_or_none()
     if not application:
         raise HTTPException(status_code=404, detail="Application not found")
-    if application.status != "pending":
+    if application.status not in ("pending", "needs_attention"):
         raise HTTPException(status_code=400, detail=f"Application already {application.status}")
 
     try:
@@ -1093,9 +1100,12 @@ async def approve_application(
         initial_password=body.get("initial_password"),
     )
     if not result["ok"]:
+        application.status      = "needs_attention"
+        application.last_error  = result["detail"]
+        application.reviewed_at = datetime.now(timezone.utc)
+        await db.commit()
         raise HTTPException(status_code=400, detail=result["detail"])
 
-    from datetime import datetime, timezone
     application.status      = "approved"
     application.merchant_id = result["merchant_id"]
     application.reviewed_at = datetime.now(timezone.utc)
@@ -1111,7 +1121,9 @@ async def reject_application(
     db: AsyncSession = Depends(get_db),
     _: None = Depends(_require_admin),
 ):
-    """Admin-only. Dismisses a pending application without creating an account."""
+    """Admin-only. Dismisses a pending (or needs_attention) application without
+    creating an account, and sends the applicant a brief decline email."""
+    from datetime import datetime, timezone
     from app.models.merchant_application import MerchantApplication
 
     res = await db.execute(
@@ -1120,12 +1132,25 @@ async def reject_application(
     application = res.scalar_one_or_none()
     if not application:
         raise HTTPException(status_code=404, detail="Application not found")
-    if application.status != "pending":
+    if application.status not in ("pending", "needs_attention"):
         raise HTTPException(status_code=400, detail=f"Application already {application.status}")
 
-    from datetime import datetime, timezone
     application.status      = "rejected"
     application.reviewed_at = datetime.now(timezone.utc)
     await db.commit()
+
+    try:
+        from app.services.email_service import send_application_declined_email
+        from app.api.v1.workers.background_tasks import fire_and_forget
+        fire_and_forget(
+            send_application_declined_email(
+                to_email=application.email,
+                applicant_name=application.full_name,
+                business_name=application.business_name,
+            ),
+            name="send_application_declined_email",
+        )
+    except Exception as e:
+        logger.warning("Decline email failed (non-fatal): %s", e)
 
     return {"ok": True, "id": application_id, "status": "rejected"}

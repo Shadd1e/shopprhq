@@ -113,7 +113,7 @@ class MerchantLogin(BaseModel):
 
 # ─────────────────────────────────────────────────────────────────────────────
 # APPLY — submitted by a prospective merchant via the public "Apply to Use" form
-# No account is created; this just fires an email to the ShopprHQ team.
+# Saved to merchant_applications (status="pending") for admin review.
 # ─────────────────────────────────────────────────────────────────────────────
 class MerchantApply(BaseModel):
     # Business info
@@ -127,7 +127,11 @@ class MerchantApply(BaseModel):
     full_name:            str  = Field(..., min_length=2, max_length=255)
     email:                EmailStr
     phone_number:         str  = Field(..., description="Applicant's contact phone")
-    whatsapp_number:      str  = Field(..., description="WhatsApp number to connect to the store")
+    whatsapp_number:      Optional[str] = Field(
+        None,
+        description="WhatsApp number to connect to the store. Optional — if omitted, "
+                     "the applicant is emailed a link to add it later.",
+    )
 
     # Operations info
     num_branches:         int  = Field(..., ge=1, le=500,
@@ -142,6 +146,15 @@ class MerchantApply(BaseModel):
     heard_about_us:       str  = Field(..., max_length=200,
                                        description="How did you hear about ShopprHQ?")
     comments:             Optional[str] = Field(None, max_length=2000)
+
+    # Honeypot — a real applicant never sees or fills this field (it should be
+    # visually hidden on the actual form). Any value here means a bot filled
+    # every input it found; apply_to_use() treats this as spam and silently
+    # no-ops instead of creating an application.
+    website:              Optional[str] = Field(
+        None,
+        description="Leave blank. Honeypot field for spam detection — not a real field.",
+    )
 
     @field_validator("phone_number", "whatsapp_number", mode="before")
     @classmethod
