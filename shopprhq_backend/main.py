@@ -36,6 +36,23 @@ async def lifespan(app: FastAPI):
             logger.critical("Missing required environment variables: %s", _missing)
             import sys; sys.exit(1)
 
+        # ADMIN_SECRET guards the entire merchant onboarding dashboard — enforce
+        # a minimum length so a weak secret can never slip through to production.
+        _admin_secret = os.getenv("ADMIN_SECRET", "")
+        if not _admin_secret:
+            logger.critical(
+                "ADMIN_SECRET is not set. "
+                "Set a secure random value (32+ chars) in Railway environment variables."
+            )
+            import sys; sys.exit(1)
+        if len(_admin_secret) < 32:
+            logger.critical(
+                "ADMIN_SECRET is too short (%d chars). Minimum is 32. "
+                "Generate one with: python3 -c \"import secrets; print(secrets.token_urlsafe(32))\"",
+                len(_admin_secret),
+            )
+            import sys; sys.exit(1)
+
     from app.api.v1.workers.stale_order_cleanup import run_cleanup_loop
     cleanup_task = asyncio.create_task(run_cleanup_loop())
 
@@ -231,8 +248,8 @@ app.mount("/store-dashboard-static", StaticFiles(directory=_store_dash_static), 
 # Linked from the apply-confirmation email when no WhatsApp number was given.
 # Public, token-driven (?token=...) — see GET/POST /merchants/apply/link/{token}.
 
-@app.get("/apply/whatsapp-number", response_class=HTMLResponse)
-async def apply_add_whatsapp_number_page():
+@app.get("/apply/whatsapp-number/{token}", response_class=HTMLResponse)
+async def apply_add_whatsapp_number_page(token: str):
     _tpl = os.path.join(os.path.dirname(__file__), "templates", "add_whatsapp_number.html")
     with open(_tpl, "r") as f:
         return HTMLResponse(content=f.read())

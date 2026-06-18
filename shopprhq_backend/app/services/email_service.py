@@ -864,7 +864,7 @@ async def send_application_received_email(
             f"+{whatsapp_number} to verify your number and connect your store. Keep an eye on it."
         )
     else:
-        add_number_url = f"{cfg['app_url']}/apply/whatsapp-number?token={link_token}"
+        add_number_url = f"{cfg['app_url']}/apply/whatsapp-number/{link_token}"
         next_step_html = f"""
           <div style="background:#fff7ed;border:1px solid #fde4c2;border-radius:10px;padding:16px 20px;margin-bottom:24px">
             <p style="margin:0 0 12px;font-size:14px;color:#7a4a00;line-height:1.6">

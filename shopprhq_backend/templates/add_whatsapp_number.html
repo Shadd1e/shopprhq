@@ -82,7 +82,9 @@ function showState(id) {
 }
 
 function getToken() {
-  return new URLSearchParams(window.location.search).get('token') || '';
+  // Token is the last path segment: /apply/whatsapp-number/{token}
+  const parts = window.location.pathname.split('/').filter(Boolean);
+  return parts[parts.length - 1] || '';
 }
 
 async function init() {

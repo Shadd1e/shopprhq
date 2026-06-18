@@ -57,6 +57,7 @@ def _require_merchant_token(request: Request) -> str:
 @router.post("/login", response_model=ClientLoginResponse)
 async def store_login(
     payload: ClientLoginRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -64,6 +65,16 @@ async def store_login(
     The JWT embeds both client_id and merchant_id so all existing merchant-
     scoped endpoints keep working without changes.
     """
+    from app.core.redis_client import check_login_rate_limit
+
+    client_ip = request.client.host if request.client else "unknown"
+    if not await check_login_rate_limit(client_ip, payload.client_id):
+        raise HTTPException(
+            status_code=429,
+            detail="Too many login attempts. Please wait 15 minutes before trying again.",
+            headers={"Retry-After": "900"},
+        )
+
     service = ClientService(db)
     client  = await service.authenticate(payload.client_id, payload.password)
 

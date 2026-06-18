@@ -205,7 +205,7 @@ async def apply_to_use(
 # ADD WHATSAPP NUMBER  (public, token-based)
 # Backs the link sent in the apply-confirmation email when no WhatsApp number
 # was given at application time. Public template: templates/add_whatsapp_number.html
-# (served at GET /apply/whatsapp-number?token=... — see main.py).
+# (served at GET /apply/whatsapp-number/{token} — see main.py).
 # ─────────────────────────────────────────────────────────────────────────────
 
 @router.get("/apply/link/{token}")
@@ -393,10 +393,19 @@ async def delete_merchant(merchant_id: str, request: Request, db: AsyncSession =
 # ─────────────────────────────────────────────────────────────────────────────
 
 @router.post("/login")
-async def login_merchant(payload: MerchantLogin, db: AsyncSession = Depends(get_db)):
+async def login_merchant(payload: MerchantLogin, request: Request, db: AsyncSession = Depends(get_db)):
     from app.core.security import create_access_token
+    from app.core.redis_client import check_login_rate_limit
+
+    client_ip = request.client.host if request.client else "unknown"
+    if not await check_login_rate_limit(client_ip, payload.email):
+        raise HTTPException(
+            status_code=429,
+            detail="Too many login attempts. Please wait 15 minutes before trying again.",
+            headers={"Retry-After": "900"},
+        )
+
     service  = MerchantService(db)
-    # FIX: was payload.merchant_id — authenticate() queries by email, not merchant_id
     merchant = await service.authenticate(payload.email, payload.password)
     if not merchant:
         raise HTTPException(status_code=401, detail="Invalid credentials or account locked")
@@ -423,11 +432,18 @@ async def forgot_password(request: Request, db: AsyncSession = Depends(get_db)):
     Always returns 200 regardless of whether the email exists (no enumeration).
     Code is stored in Redis with a 10-minute TTL.
     """
+    from app.core.redis_client import check_login_rate_limit
+
     body  = await request.json()
     email = (body.get("email") or "").strip().lower()
 
     if not email or "@" not in email:
         raise HTTPException(status_code=400, detail="A valid email address is required.")
+
+    client_ip = request.client.host if request.client else "unknown"
+    if not await check_login_rate_limit(client_ip, email):
+        # Return the same generic message — don't confirm the email exists or reveal the limit
+        return {"detail": "If that email is registered, a reset code has been sent."}
 
     service  = MerchantService(db)
     from sqlalchemy import select as _sel

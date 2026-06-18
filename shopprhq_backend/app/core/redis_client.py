@@ -388,6 +388,53 @@ async def check_apply_rate_limit(ip: str) -> bool:
 
 
 # ==================================================
+# MERCHANT / STORE LOGIN RATE LIMIT
+# Protects POST /merchants/login, POST /clients/login,
+# and POST /merchants/forgot-password from brute-force
+# and email-bombing attacks.
+#
+# Keyed on IP + identifier (email or store ID) so:
+#   - One IP can't hammer a single account.
+#   - One account can't be targeted from many IPs
+#     without each IP also hitting its own limit.
+#
+# Thresholds are intentionally more generous than the
+# admin limit (5/5min) because real merchants mistype
+# passwords and we don't want to lock them out.
+# ==================================================
+
+LOGIN_RATE_LIMIT_TTL = 900   # 15-minute window
+LOGIN_RATE_LIMIT_MAX = 10    # max attempts per IP+identifier per window
+
+
+async def check_login_rate_limit(ip: str, identifier: str) -> bool:
+    """
+    Sliding-window rate limit for public login and password-reset endpoints.
+
+    Args:
+        ip:         The client's IP address.
+        identifier: The account being targeted — email for merchant login
+                    and forgot-password, client_id for store login.
+
+    Returns True if the request is allowed, False if the limit is exceeded.
+    Fails open (returns True) if Redis is unavailable so a Redis blip
+    never locks out real users.
+    """
+    try:
+        client = await redis_service.get_client()
+        # Hash the identifier so email addresses don't appear in Redis key listings
+        id_hash = hashlib.sha256(identifier.lower().encode()).hexdigest()[:16]
+        key     = f"login:ratelimit:{ip}:{id_hash}"
+        count   = await client.incr(key)
+        if count == 1:
+            await client.expire(key, LOGIN_RATE_LIMIT_TTL)
+        return count <= LOGIN_RATE_LIMIT_MAX
+    except Exception as e:
+        logger.warning("check_login_rate_limit failed, allowing request: %s", e)
+        return True  # fail open
+
+
+# ==================================================
 # WHATSAPP OUTBOUND RATE LIMIT
 # Prevents bot loops and accidental message storms.
 # Limit: 30 outbound messages per user per 10 minutes.
