@@ -18,185 +18,353 @@ function useReveal() {
   }, [])
 }
 
-/* ── Typing effect ── */
-const PAIN_LINES = [
-  'Chidi sent a message at 1:47am. No one replied.',
-  'Amaka spent 3 hours answering "how much is this?"',
-  'Another customer dropped off after "send your account number".',
-  'Tunde lost 4 orders while away from his phone.',
-  'Same questions. Every. Single. Day.',
-  'Bisi\'s staff couldn\'t handle the DM volume alone.',
+/* ── Rotating hero word ── */
+const ROTATING_WORDS = [
+  'employee',
+  'sales tool',
+  'assistant',
+  'closer',
+  'order-taker',
+  'best hire',
 ]
 
-function TypingLine() {
-  const [lineIdx, setLineIdx] = useState(0)
+function RotatingWord() {
+  const [wordIdx, setWordIdx] = useState(0)
   const [displayed, setDisplayed] = useState('')
   const [phase, setPhase] = useState<'typing' | 'pause' | 'erasing'>('typing')
 
   useEffect(() => {
-    const line = PAIN_LINES[lineIdx]
-    let timeout: ReturnType<typeof setTimeout>
-
+    const word = ROTATING_WORDS[wordIdx]
+    let t: ReturnType<typeof setTimeout>
     if (phase === 'typing') {
-      if (displayed.length < line.length) {
-        timeout = setTimeout(() => setDisplayed(line.slice(0, displayed.length + 1)), 38)
+      if (displayed.length < word.length) {
+        t = setTimeout(() => setDisplayed(word.slice(0, displayed.length + 1)), 55)
       } else {
-        timeout = setTimeout(() => setPhase('pause'), 2000)
+        t = setTimeout(() => setPhase('pause'), 1800)
       }
     } else if (phase === 'pause') {
-      timeout = setTimeout(() => setPhase('erasing'), 400)
+      t = setTimeout(() => setPhase('erasing'), 400)
     } else {
       if (displayed.length > 0) {
-        timeout = setTimeout(() => setDisplayed(displayed.slice(0, -1)), 18)
+        t = setTimeout(() => setDisplayed(displayed.slice(0, -1)), 30)
       } else {
-        setLineIdx((i) => (i + 1) % PAIN_LINES.length)
+        setWordIdx((i) => (i + 1) % ROTATING_WORDS.length)
         setPhase('typing')
       }
     }
-    return () => clearTimeout(timeout)
-  }, [displayed, phase, lineIdx])
+    return () => clearTimeout(t)
+  }, [displayed, phase, wordIdx])
 
   return (
-    <p className="text-ink-3 text-sm sm:text-base font-mono min-h-[1.5em]">
+    <span className="text-wa">
       {displayed}
-      <span className="cursor-blink text-wa">|</span>
-    </p>
+      <span className="cursor-blink">|</span>
+    </span>
   )
 }
 
-/* ── Live WhatsApp conversation ── */
-const CHAT_SCRIPT = [
-  { from: 'customer', text: 'Hi, do you have jollof rice?' },
-  { from: 'bot',      text: 'Yes! 👋 We have:\n• Jollof Rice — ₦2,500\n• Fried Rice — ₦2,800\n• Party Rice — ₦3,200\n\nHow many portions?' },
-  { from: 'customer', text: '2 jollof and add 1 chicken' },
-  { from: 'bot',      text: '✅ Got it!\n\n2× Jollof Rice — ₦5,000\n1× Chicken — ₦1,800\n\nTotal: ₦6,800\n\nCard or cash on delivery?' },
-  { from: 'customer', text: 'Card' },
-  { from: 'bot',      text: '💳 Pay here:\nhttps://pay.shopprhq.com/k8x2\n\nOrder confirmed once payment lands 🎉' },
-]
+/* ── Hand-drawn circle CTA ── */
+function ScribbleCTA() {
+  return (
+    <Link href="/book-demo" className="group inline-block relative">
+      <span className="relative z-10 font-bold text-base text-ink group-hover:text-wa transition-colors px-6 py-3 inline-block">
+        Book a demo →
+      </span>
+      <svg
+        className="absolute inset-0 w-full h-full pointer-events-none"
+        viewBox="0 0 160 46"
+        fill="none"
+        preserveAspectRatio="none"
+      >
+        <path
+          d="M8,23 C8,8 22,4 80,4 C138,4 152,8 152,23 C152,38 138,42 80,42 C22,42 8,38 8,23 Z"
+          stroke="#25D366"
+          strokeWidth="2.2"
+          strokeLinecap="round"
+          fill="none"
+          style={{
+            strokeDasharray: 310,
+            strokeDashoffset: 310,
+            animation: 'drawCircle 0.9s ease forwards 0.4s',
+          }}
+        />
+      </svg>
+    </Link>
+  )
+}
 
-function LiveChat() {
-  const [visible, setVisible] = useState<number[]>([])
-  const ref = useRef<HTMLDivElement>(null)
-  const started = useRef(false)
+/* ── Girl illustration ── */
+function GirlIllustration() {
+  return (
+    <svg
+      viewBox="0 0 280 310"
+      fill="none"
+      stroke="#0D0D0C"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="w-full max-w-[320px]"
+      aria-hidden="true"
+    >
+      {/* Hair behind head */}
+      <path d="M112,55 C106,38 116,22 140,20 C164,22 174,38 168,55" />
+      <path d="M168,26 C176,18 184,26 176,38" />
+      <path d="M112,26 C104,18 96,26 104,38" />
+      {/* Ponytail */}
+      <path d="M168,30 C188,28 192,44 182,52" />
+      <path d="M182,52 C178,62 172,60 168,55" />
 
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    const io = new IntersectionObserver(([e]) => {
-      if (e.isIntersecting && !started.current) {
-        started.current = true
-        CHAT_SCRIPT.forEach((_, i) => {
-          setTimeout(() => setVisible((v) => [...v, i]), i * 1100)
-        })
-      }
-    }, { threshold: 0.3 })
-    io.observe(el)
-    return () => io.disconnect()
-  }, [])
+      {/* Head */}
+      <ellipse cx="140" cy="58" rx="28" ry="30" />
+
+      {/* Eyebrows */}
+      <path d="M125,46 Q129,43 134,46" strokeWidth="1.6" />
+      <path d="M146,46 Q151,43 155,46" strokeWidth="1.6" />
+
+      {/* Eyes */}
+      <ellipse cx="129" cy="54" rx="4" ry="4.5" />
+      <ellipse cx="151" cy="54" rx="4" ry="4.5" />
+      <circle cx="129" cy="54" r="2.5" fill="#0D0D0C" stroke="none" />
+      <circle cx="151" cy="54" r="2.5" fill="#0D0D0C" stroke="none" />
+      <circle cx="130" cy="52.5" r="1" fill="white" stroke="none" />
+      <circle cx="152" cy="52.5" r="1" fill="white" stroke="none" />
+
+      {/* Nose */}
+      <path d="M138,62 C139,65 141,65 142,62" strokeWidth="1.2" />
+
+      {/* Smile */}
+      <path d="M129,72 C133,78 147,78 151,72" />
+
+      {/* Cheek blush */}
+      <ellipse cx="120" cy="68" rx="7" ry="4" strokeWidth="0.7" opacity="0.35" />
+      <ellipse cx="160" cy="68" rx="7" ry="4" strokeWidth="0.7" opacity="0.35" />
+
+      {/* Neck */}
+      <path d="M133,88 L133,100" />
+      <path d="M147,88 L147,100" />
+
+      {/* Collar */}
+      <path d="M133,100 C136,106 144,106 147,100" />
+
+      {/* Body - blouse/dress top */}
+      <path d="M95,105 L82,192 L198,192 L185,105 C174,97 106,97 95,105 Z" />
+      {/* Blouse detail */}
+      <path d="M118,118 C130,114 150,114 162,118" strokeWidth="1" />
+      <line x1="140" y1="100" x2="140" y2="192" strokeWidth="0.8" strokeDasharray="4 3" />
+
+      {/* Left arm extended forward */}
+      <path d="M95,118 C76,128 64,148 66,170" />
+      <path d="M66,170 C65,178 70,184 78,186" />
+
+      {/* Right arm extended forward */}
+      <path d="M185,118 C204,128 216,148 214,170" />
+      <path d="M214,170 C215,178 210,184 202,186" />
+
+      {/* Phone held in hands - facing viewer */}
+      <rect x="74" y="178" width="132" height="76" rx="10" strokeWidth="2" />
+      {/* Phone inner screen */}
+      <rect x="78" y="181" width="124" height="70" rx="7" />
+
+      {/* WA header bar */}
+      <rect x="78" y="181" width="124" height="18" rx="7" fill="#075E54" stroke="none" />
+      {/* Avatar circle */}
+      <circle cx="92" cy="190" r="6" fill="#25D366" stroke="none" />
+      {/* Name text placeholder */}
+      <rect x="102" y="186" width="44" height="4" rx="2" fill="rgba(255,255,255,0.75)" stroke="none" />
+      <rect x="102" y="192" width="28" height="2.5" rx="1" fill="rgba(255,255,255,0.4)" stroke="none" />
+
+      {/* Chat bubbles on screen */}
+      {/* Customer bubble right */}
+      <rect x="138" y="203" width="58" height="10" rx="5" fill="#DCF8C6" stroke="none" />
+      <rect x="142" y="206" width="45" height="3" rx="1.5" fill="#9DB" stroke="none" />
+
+      {/* Bot bubble left */}
+      <rect x="82" y="217" width="78" height="18" rx="5" fill="white" stroke="#E2E2E2" strokeWidth="0.8" />
+      <rect x="87" y="221" width="55" height="3" rx="1.5" fill="#CCC" stroke="none" />
+      <rect x="87" y="226" width="45" height="3" rx="1.5" fill="#CCC" stroke="none" />
+      <rect x="87" y="231" width="35" height="3" rx="1.5" fill="#CCC" stroke="none" />
+
+      {/* Customer again */}
+      <rect x="148" y="239" width="48" height="8" rx="4" fill="#DCF8C6" stroke="none" />
+      <rect x="152" y="242" width="35" height="3" rx="1.5" fill="#9DB" stroke="none" />
+
+      {/* Sitting legs */}
+      <path d="M108,192 C96,205 78,214 62,218" />
+      <path d="M172,192 C184,205 202,214 218,218" />
+      {/* Feet */}
+      <path d="M62,218 C56,224 60,230 70,228" />
+      <path d="M218,218 C224,224 220,230 210,228" />
+
+      {/* Motion sparkles around phone */}
+      <path d="M234,185 L237,178 L240,185 L237,192 Z" strokeWidth="1.2" />
+      <path d="M40,185 L37,178 L34,185 L37,192 Z" strokeWidth="1.2" />
+      <circle cx="238" cy="165" r="2" strokeWidth="1" />
+      <circle cx="42" cy="165" r="2" strokeWidth="1" />
+
+      {/* Small stars near head */}
+      <path d="M72,40 L74,35 L76,40 L74,45 Z" strokeWidth="1" />
+      <path d="M205,32 L207,27 L209,32 L207,37 Z" strokeWidth="1" />
+      <circle cx="68" cy="58" r="2" strokeWidth="1" />
+      <circle cx="212" cy="52" r="1.5" strokeWidth="1" />
+    </svg>
+  )
+}
+
+/* ── Realistic phone mockup ── */
+type Screen = 'catalog' | 'order' | 'payment'
+
+function PhoneMockup({ screen }: { screen: Screen }) {
+  const SCREENS = {
+    catalog: {
+      contact: 'Zara Fashion Hub',
+      initials: 'ZF',
+      messages: [
+        { from: 'customer', text: 'Hi! What clothes do you have available?' },
+        { from: 'bot', text: '👗 Here\'s our current collection:\n\n*Tops*\n• Ankara crop top — ₦8,500\n• Linen blouse — ₦12,000\n• Bodysuit (S-XL) — ₦7,200\n\n*Bottoms*\n• Wide-leg trousers — ₦14,500\n• Midi skirt — ₦11,000\n• Denim shorts — ₦9,800\n\nWhat catches your eye? 👀' },
+        { from: 'customer', text: 'The midi skirt — do you have it in green?' },
+      ],
+    },
+    order: {
+      contact: 'Mama Tee Foods',
+      initials: 'MT',
+      messages: [
+        { from: 'customer', text: '2 jollof rice, 1 fried rice and suya' },
+        { from: 'bot', text: '✅ Got it! Here\'s your order:\n\n2× Jollof Rice — ₦5,000\n1× Fried Rice — ₦2,800\n1× Suya platter — ₦3,500\n─────────────\nTotal: ₦11,300\n\nDeliver or pickup? 📍' },
+        { from: 'customer', text: 'Deliver to Lekki Phase 1' },
+        { from: 'bot', text: '📦 Delivery to Lekki Phase 1\nEstimated: 35–45 mins\n\nPay by card or cash?' },
+      ],
+    },
+    payment: {
+      contact: 'Mama Tee Foods',
+      initials: 'MT',
+      messages: [
+        { from: 'customer', text: 'Card please' },
+        { from: 'bot', text: '💳 Tap to pay securely:\n\nhttps://pay.shopprhq.com/mt8x2\n\nOrder #2841 · ₦11,300' },
+        { from: 'bot', text: '🎉 Payment confirmed!\n\nYour order is being prepared. You\'ll get a message when it\'s on the way.\n\nThank you for ordering from Mama Tee Foods! 🍽️' },
+      ],
+    },
+  }
+
+  const data = SCREENS[screen]
 
   return (
-    <div ref={ref} className="rounded-2xl overflow-hidden border border-ink/10 shadow-xl bg-[#111]">
-      {/* Header */}
-      <div className="bg-[#075E54] px-4 py-3 flex items-center gap-3">
-        <div className="w-8 h-8 rounded-full bg-[#25D366]/30 flex items-center justify-center text-xs font-bold text-[#25D366]">MT</div>
-        <div>
-          <p className="text-white text-sm font-semibold">Mama Tee Foods</p>
-          <p className="text-green-300 text-[10px] flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />
-            Online now
-          </p>
-        </div>
-      </div>
-      {/* Messages */}
-      <div className="bg-[#0d1b0f] p-4 space-y-2 min-h-[300px]">
-        {CHAT_SCRIPT.map((msg, i) =>
-          visible.includes(i) ? (
-            <div
-              key={i}
-              className={`flex ${msg.from === 'customer' ? 'justify-end' : 'justify-start'}`}
-              style={{ animation: 'msgIn .35s ease both' }}
-            >
-              <div className={[
-                'max-w-[82%] px-3 py-2 rounded-xl text-xs leading-relaxed whitespace-pre-line shadow-sm',
-                msg.from === 'customer'
-                  ? 'bg-[#1a3a22] text-white/90 rounded-br-sm'
-                  : 'bg-[#1c2b1e] text-white/80 rounded-bl-sm border border-white/5',
-              ].join(' ')}>
-                {msg.text}
+    <div className="mx-auto relative" style={{ width: 200 }}>
+      {/* Phone shell */}
+      <div className="rounded-[28px] bg-[#1a1a1a] p-[6px] shadow-xl">
+        {/* Screen */}
+        <div className="rounded-[22px] overflow-hidden bg-[#0d1b0f]">
+          {/* Status bar */}
+          <div className="bg-[#0d1b0f] px-3 pt-2 pb-1 flex justify-between items-center">
+            <span className="text-white text-[8px] font-medium">9:41</span>
+            <div className="w-12 h-2 bg-[#333] rounded-full" />
+            <div className="flex gap-1 items-center">
+              <div className="w-3 h-1.5 border border-white/40 rounded-sm">
+                <div className="w-2/3 h-full bg-white/60 rounded-sm" />
               </div>
             </div>
-          ) : null
-        )}
+          </div>
+          {/* WA header */}
+          <div className="bg-[#075E54] px-3 py-2 flex items-center gap-2">
+            <div className="text-[#25D366] text-[8px]">←</div>
+            <div className="w-6 h-6 rounded-full bg-[#25D366]/40 flex items-center justify-center text-[7px] font-bold text-[#25D366]">
+              {data.initials}
+            </div>
+            <div>
+              <p className="text-white text-[9px] font-semibold leading-none">{data.contact}</p>
+              <p className="text-green-300 text-[7px] mt-0.5">online</p>
+            </div>
+          </div>
+          {/* Messages */}
+          <div className="bg-[#0d1b0f] p-2 space-y-1.5 min-h-[200px]">
+            {data.messages.map((msg, i) => (
+              <div key={i} className={`flex ${msg.from === 'customer' ? 'justify-end' : 'justify-start'}`}>
+                <div className={[
+                  'max-w-[85%] px-2 py-1.5 text-[8px] leading-relaxed whitespace-pre-line rounded-lg',
+                  msg.from === 'customer'
+                    ? 'bg-[#1a5c2e] text-white/90 rounded-br-none'
+                    : 'bg-[#1e2e20] text-white/80 rounded-bl-none border border-white/5',
+                ].join(' ')}>
+                  {msg.text}
+                </div>
+              </div>
+            ))}
+          </div>
+          {/* Input bar */}
+          <div className="bg-[#111] px-2 py-1.5 flex items-center gap-1.5">
+            <div className="flex-1 bg-[#1e1e1e] rounded-full px-2 py-1 text-[7px] text-white/20">Message</div>
+            <div className="w-5 h-5 rounded-full bg-[#25D366] flex items-center justify-center text-white text-[8px]">↑</div>
+          </div>
+        </div>
+      </div>
+      {/* Home indicator */}
+      <div className="mt-1.5 flex justify-center">
+        <div className="w-16 h-0.5 bg-black/20 rounded-full" />
       </div>
     </div>
   )
 }
 
-/* ── Ticker ── */
-const TICKER_ITEMS = [
-  'Missed a 2am order',
-  'Sent account number manually',
-  'Staff couldn\'t keep up with DMs',
-  'Customer never replied after payment link',
-  'Answered "how much?" for the 50th time',
-  '4 hours on WhatsApp. Zero fulfilled orders.',
-  'Lost a sale while at a meeting',
-  'Customer went elsewhere',
-]
-
-function Ticker() {
-  const items = [...TICKER_ITEMS, ...TICKER_ITEMS]
-  return (
-    <div className="overflow-hidden border-y border-border py-3 bg-bg">
-      <div className="animate-marquee">
-        {items.map((item, i) => (
-          <span key={i} className="flex items-center gap-6 px-6 text-xs font-mono text-ink-3 whitespace-nowrap">
-            <span className="text-wa text-[8px]">✦</span>
-            {item}
-          </span>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-/* ── Why section cards ── */
+/* ── Why cards ── */
 const WHY_CARDS = [
   {
-    icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-      </svg>
-    ),
+    emoji: '🌙',
     title: 'Always on',
-    body: 'Handles orders at 2am, during weekends, public holidays. It doesn\'t clock out.',
+    body: 'Takes orders at 2am, on public holidays, while you sleep. It never clocks out.',
   },
   {
-    icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 0 1 .865-.501 48.172 48.172 0 0 0 3.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z" />
-      </svg>
-    ),
+    emoji: '💬',
     title: 'Handles the repetition',
-    body: '"Do you have this?" "How much?" "Is delivery available?" Answered instantly, every time.',
+    body: '"How much?" "Do you have this in blue?" "What\'s your delivery fee?" — answered instantly, every time.',
   },
   {
-    icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 21Z" />
-      </svg>
-    ),
-    title: 'Collects payment too',
-    body: 'No more sending account numbers. Customers pay by card in the chat, confirmed automatically.',
+    emoji: '💳',
+    title: 'Collects payment',
+    body: 'Sends a payment link in the chat. Customer pays by card, order confirmed automatically. No account numbers.',
   },
   {
-    icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" />
-      </svg>
-    ),
+    emoji: '📊',
     title: 'One dashboard',
-    body: 'Every order, every branch, every naira — visible in real time from one place.',
+    body: 'Every order, every branch, every naira — visible in real time. No spreadsheets.',
+  },
+  {
+    emoji: '⚡',
+    title: 'Concurrent carts',
+    body: 'Handles 50 customers at the same time, each in their own conversation. No queue, no waiting.',
+  },
+  {
+    emoji: '🔤',
+    title: 'Understands typos',
+    body: '"jelo rice", "tomatoe stew", "chiken" — it figures out what they mean and keeps the order moving.',
+  },
+  {
+    emoji: '🛍️',
+    title: 'Cross-sells naturally',
+    body: 'Orders jollof rice? It asks if they want a drink with that. Buys a dress? It mentions the matching bag.',
+  },
+  {
+    emoji: '🚚',
+    title: 'Delivery toggle',
+    body: 'Switch delivery on or off per store, any time. You control the radius, fee, and availability from the dashboard.',
+  },
+  {
+    emoji: '📦',
+    title: 'Smart inventory',
+    body: 'Tracks what\'s in stock as orders come in. You get notified when items run low — before customers ask for something you don\'t have.',
+  },
+  {
+    emoji: '🗂️',
+    title: 'Catalog management',
+    body: 'Add items, update prices, hide sold-out products — all from the dashboard. Changes go live on WhatsApp instantly.',
+  },
+  {
+    emoji: '🏪',
+    title: 'Multi-branch support',
+    body: 'Each branch gets its own WhatsApp number, its own catalog, and its own order stream — all under one account.',
+  },
+  {
+    emoji: '📋',
+    title: 'Order history',
+    body: 'Every order is logged with the customer\'s name, number, and what they bought. Repeat orders take seconds.',
   },
 ]
 
@@ -218,81 +386,84 @@ export default function HomePage() {
       <Navbar />
 
       {/* ── HERO ── */}
-      <section className="relative pt-36 pb-24 px-5 overflow-hidden">
-        <div className="max-w-4xl mx-auto text-center relative">
+      <section className="relative pt-32 pb-20 px-5 overflow-hidden">
+        <div className="max-w-6xl mx-auto">
+          <div className="grid lg:grid-cols-2 gap-12 lg:gap-8 items-center">
 
-          <h1
-            className="font-display font-extrabold text-[clamp(3rem,9vw,6.5rem)] tracking-tight leading-[0.95] text-ink mb-6 fade-in-up"
-            style={{ animationDelay: '80ms' }}
-          >
-            The employee<br />
-            <span className="text-wa">that pays you.</span>
-          </h1>
+            {/* Left: text */}
+            <div className="fade-in-up">
+              <h1 className="font-display font-extrabold text-[clamp(2.4rem,5.5vw,4.2rem)] tracking-tight leading-[1.0] text-ink mb-5">
+                The <RotatingWord /><br />
+                that pays you.
+              </h1>
 
-          <p
-            className="text-ink-3 text-lg sm:text-xl max-w-lg mx-auto mb-4 leading-relaxed fade-in-up"
-            style={{ animationDelay: '160ms' }}
-          >
-            From hello to completed sale. Every conversation, any hour, any volume.
-          </p>
+              <p className="text-ink-3 text-lg max-w-md mb-8 leading-relaxed">
+                From hello to completed sale. Every conversation, any hour, any volume — handled.
+              </p>
 
-          <div className="mb-10 fade-in-up" style={{ animationDelay: '220ms' }}>
-            <TypingLine />
-          </div>
+              <ScribbleCTA />
+              <p className="text-xs text-ink-4 mt-4 font-mono">No setup fee. We get paid when you do.</p>
+            </div>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 fade-in-up" style={{ animationDelay: '300ms' }}>
-            <Link
-              href="/book-demo"
-              className="inline-flex items-center gap-2 bg-wa text-white font-bold text-base px-8 py-4 rounded-full hover:bg-wa-dark transition-all hover:-translate-y-0.5 shadow-wa"
-            >
-              Book a demo
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 16 16">
-                <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </Link>
-            <Link
-              href="/how-it-works"
-              className="text-sm text-ink-3 hover:text-ink transition-colors underline underline-offset-4"
-            >
-              See how it works
-            </Link>
+            {/* Right: illustration */}
+            <div className="flex flex-col items-center fade-in-up" style={{ animationDelay: '180ms' }}>
+              <GirlIllustration />
+            </div>
+
           </div>
         </div>
       </section>
 
-      {/* ── TICKER ── */}
-      <Ticker />
-
-      {/* ── LIVE DEMO ── */}
-      <section className="py-24 px-5">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-16 reveal">
-            <p className="text-xs font-mono text-wa tracking-[.16em] uppercase mb-4">Live conversation</p>
-            <h2 className="font-display font-extrabold text-[clamp(2rem,5vw,3.2rem)] tracking-tight text-ink leading-tight">
-              Watch it sell<br />
-              <span className="text-ink-3">while you do nothing.</span>
+      {/* ── IN ACTION ── */}
+      <section className="py-24 px-5 bg-bg border-y border-border">
+        <div className="max-w-6xl mx-auto">
+          <div className="mb-16 reveal">
+            <p className="text-xs font-mono text-wa tracking-[.16em] uppercase mb-3">See it in action</p>
+            <h2 className="font-display font-extrabold text-[clamp(1.8rem,4vw,3rem)] tracking-tight text-ink leading-tight max-w-lg">
+              Every message handled.<br />
+              <span className="text-ink-3">Every sale captured.</span>
             </h2>
           </div>
 
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
-            <div className="reveal">
-              <LiveChat />
+          <div className="grid md:grid-cols-3 gap-8 items-start">
+            <div className="reveal text-center" style={{ transitionDelay: '0ms' }}>
+              <PhoneMockup screen="catalog" />
+              <p className="mt-5 font-semibold text-sm text-ink">Catalog browsing</p>
+              <p className="text-xs text-ink-3 mt-1 max-w-[160px] mx-auto">Customer asks, bot sends your full product list instantly</p>
             </div>
-            <div className="reveal space-y-6" style={{ transitionDelay: '120ms' }}>
-              <p className="text-ink-3 text-base leading-relaxed">
-                Your customer sends a message. ShopprHQ reads it, responds naturally, handles the cart, sends a payment link, and confirms the order — all before you've even looked at your phone.
-              </p>
-              <p className="text-ink-3 text-base leading-relaxed">
-                No menus. No buttons. Just a real conversation that ends in a completed sale.
-              </p>
-              <div className="pt-4 border-t border-border">
-                <p className="text-xs font-mono text-ink-4 uppercase tracking-widest mb-4">Works for</p>
-                <div className="flex flex-wrap gap-2">
-                  {['Food & restaurants', 'Fashion', 'Grocery', 'Pharmacy', 'Electronics', 'Beauty'].map(t => (
-                    <span key={t} className="text-xs text-ink-3 border border-border px-3 py-1 rounded-full bg-white">
-                      {t}
-                    </span>
-                  ))}
+            <div className="reveal text-center" style={{ transitionDelay: '100ms' }}>
+              <PhoneMockup screen="order" />
+              <p className="mt-5 font-semibold text-sm text-ink">Order & delivery</p>
+              <p className="text-xs text-ink-3 mt-1 max-w-[160px] mx-auto">Builds the cart, confirms the total, arranges delivery</p>
+            </div>
+            <div className="reveal text-center" style={{ transitionDelay: '200ms' }}>
+              <PhoneMockup screen="payment" />
+              <p className="mt-5 font-semibold text-sm text-ink">Payment & confirmation</p>
+              <p className="text-xs text-ink-3 mt-1 max-w-[160px] mx-auto">Sends a payment link, confirms when it lands. Done.</p>
+            </div>
+          </div>
+
+          <div className="mt-14 reveal">
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 pt-10 border-t border-border">
+              <div className="flex gap-3">
+                <span className="text-xl mt-0.5">🍔</span>
+                <div>
+                  <p className="font-semibold text-sm text-ink mb-1">Food &amp; restaurants</p>
+                  <p className="text-xs text-ink-3 leading-relaxed">Menu questions, order variations, delivery zones — all automatic.</p>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <span className="text-xl mt-0.5">👗</span>
+                <div>
+                  <p className="font-semibold text-sm text-ink mb-1">Fashion &amp; retail</p>
+                  <p className="text-xs text-ink-3 leading-relaxed">Size availability, colour options, restock alerts — handled.</p>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <span className="text-xl mt-0.5">💊</span>
+                <div>
+                  <p className="font-semibold text-sm text-ink mb-1">Pharmacy &amp; grocery</p>
+                  <p className="text-xs text-ink-3 leading-relaxed">High-volume daily orders with no staff bottleneck.</p>
                 </div>
               </div>
             </div>
@@ -301,44 +472,43 @@ export default function HomePage() {
       </section>
 
       {/* ── STATS ── */}
-      <section className="py-16 px-5 border-y border-border bg-bg">
-        <div className="max-w-3xl mx-auto">
+      <section className="py-16 px-5 border-b border-border bg-white">
+        <div className="max-w-4xl mx-auto">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-border rounded-2xl overflow-hidden">
             {STATS.map((s) => (
-              <div key={s.value} className="bg-bg px-6 py-8 text-center reveal">
-                <p className="font-display font-extrabold text-[2.5rem] leading-none text-ink tracking-tight">{s.value}</p>
+              <div key={s.value} className="bg-white px-6 py-8 text-center reveal">
+                <p className="font-display font-extrabold text-[2.6rem] leading-none text-ink tracking-tight">{s.value}</p>
                 <p className="text-xs text-ink-3 font-mono mt-2 uppercase tracking-widest">{s.label}</p>
               </div>
             ))}
           </div>
-          <p className="text-center text-sm text-ink-3 mt-6 font-medium">
+          <p className="text-center text-base font-bold text-ink mt-6">
             We only get paid when you do.
           </p>
+          <p className="text-center text-xs text-ink-3 mt-1">Zero setup. No monthly fee. Just a small cut of each transaction.</p>
         </div>
       </section>
 
       {/* ── WHY ── */}
-      <section id="why" className="py-24 px-5">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-16 reveal">
-            <p className="text-xs font-mono text-wa tracking-[.16em] uppercase mb-4">Why ShopprHQ</p>
-            <h2 className="font-display font-extrabold text-[clamp(2rem,5vw,3.2rem)] tracking-tight text-ink leading-tight">
+      <section id="why" className="py-24 px-5 bg-bg">
+        <div className="max-w-6xl mx-auto">
+          <div className="mb-16 reveal">
+            <p className="text-xs font-mono text-wa tracking-[.16em] uppercase mb-3">What it does</p>
+            <h2 className="font-display font-extrabold text-[clamp(1.8rem,4vw,3rem)] tracking-tight text-ink leading-tight">
               Not software.<br />
-              <span className="text-ink-3">A salesperson.</span>
+              <span className="text-ink-3">A full-time salesperson.</span>
             </h2>
           </div>
 
-          <div className="grid sm:grid-cols-2 gap-4">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {WHY_CARDS.map((card, i) => (
               <div
                 key={card.title}
-                className="reveal group border border-border rounded-2xl p-8 hover:border-wa/40 hover:bg-bg transition-all duration-300 bg-white"
-                style={{ transitionDelay: `${i * 60}ms` }}
+                className="reveal group border border-border rounded-2xl p-6 hover:border-wa/40 hover:bg-white transition-all duration-300 bg-white/60"
+                style={{ transitionDelay: `${i * 40}ms` }}
               >
-                <div className="w-10 h-10 rounded-xl border border-border flex items-center justify-center text-wa mb-5 group-hover:border-wa/40 transition-colors bg-white">
-                  {card.icon}
-                </div>
-                <h3 className="font-display font-bold text-lg text-ink mb-2">{card.title}</h3>
+                <div className="text-2xl mb-4">{card.emoji}</div>
+                <h3 className="font-display font-bold text-base text-ink mb-2">{card.title}</h3>
                 <p className="text-sm text-ink-3 leading-relaxed">{card.body}</p>
               </div>
             ))}
@@ -347,31 +517,25 @@ export default function HomePage() {
       </section>
 
       {/* ── CTA BAND ── */}
-      <section className="py-24 px-5 border-t border-border bg-bg">
+      <section className="py-24 px-5 border-t border-border bg-white">
         <div className="max-w-2xl mx-auto text-center reveal">
-          <h2 className="font-display font-extrabold text-[clamp(2.2rem,6vw,4rem)] tracking-tight text-ink leading-[0.95] mb-6">
+          <h2 className="font-display font-extrabold text-[clamp(2rem,5vw,3.5rem)] tracking-tight text-ink leading-[1.0] mb-6">
             Ready to stop<br />
             <span className="text-wa">missing sales?</span>
           </h2>
           <p className="text-ink-3 text-base mb-10 max-w-sm mx-auto leading-relaxed">
             Book a 20-minute demo. We'll show you exactly how it works for your type of business.
           </p>
-          <Link
-            href="/book-demo"
-            className="inline-flex items-center gap-2 bg-ink text-white font-bold text-base px-10 py-4 rounded-full hover:bg-ink-2 transition-all hover:-translate-y-0.5"
-          >
-            Book a demo
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 16 16">
-              <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </Link>
-          <p className="text-xs text-ink-4 mt-5 font-mono">Zero setup fee. Less than 1% per transaction. We only get paid when you do.</p>
+          <div className="flex justify-center">
+            <ScribbleCTA />
+          </div>
+          <p className="text-xs text-ink-4 mt-5 font-mono">Zero setup fee · less than 1% per transaction · we only get paid when you do</p>
         </div>
       </section>
 
       {/* ── FOOTER ── */}
-      <footer className="border-t border-border py-12 px-5 bg-white">
-        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+      <footer className="border-t border-border py-12 px-5 bg-bg">
+        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
           <div>
             <p className="font-display font-extrabold text-ink text-lg tracking-tight">
               Shoppr<span className="text-wa">HQ</span>
@@ -384,7 +548,7 @@ export default function HomePage() {
             <a href="mailto:hello@shopprhq.com" className="hover:text-ink transition-colors">hello@shopprhq.com</a>
           </div>
         </div>
-        <div className="max-w-5xl mx-auto mt-8 pt-6 border-t border-border">
+        <div className="max-w-6xl mx-auto mt-8 pt-6 border-t border-border">
           <p className="text-[11px] text-ink-4 font-mono">© 2025 ShopprHQ</p>
         </div>
       </footer>
