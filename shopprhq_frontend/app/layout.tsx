@@ -1,9 +1,6 @@
 import type { Metadata } from 'next'
 import { DM_Sans, Bricolage_Grotesque } from 'next/font/google'
 import './globals.css'
-import dynamic from 'next/dynamic'
-
-const DoodleBackground = dynamic(() => import('@/components/DoodleBackground'), { ssr: false })
 
 const dmSans = DM_Sans({
   subsets: ['latin'],
@@ -24,13 +21,13 @@ export const metadata: Metadata = {
     icon:  '/logo.png',
     apple: '/logo.png',
   },
-  title: 'ShopprHQ — WhatsApp Commerce',
+  title: 'ShopprHQ — The employee that pays you',
   description:
-    'Turn your WhatsApp number into a full storefront. Customers browse, add to cart, and pay — all in the chat. Set up in 60 seconds.',
+    'ShopprHQ turns your WhatsApp number into a fully automated storefront. From hello to completed sale — no staff, no missed orders, no chasing payments.',
   metadataBase: new URL('https://shopprhq.com'),
   openGraph: {
-    title: 'ShopprHQ — WhatsApp Commerce',
-    description: 'Turn your WhatsApp into a storefront. Live in under 24 hours.',
+    title: 'ShopprHQ — The employee that pays you',
+    description: 'From hello to completed sale. Handles every conversation, any hour, any volume.',
     url: 'https://shopprhq.com',
     siteName: 'ShopprHQ',
     locale: 'en_NG',
@@ -38,16 +35,15 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'ShopprHQ — WhatsApp Commerce',
-    description: 'Turn your WhatsApp into a storefront. Live in under 24 hours.',
+    title: 'ShopprHQ — The employee that pays you',
+    description: 'From hello to completed sale. Any hour. Any volume.',
   },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${dmSans.variable} ${bricolage.variable}`}>
-      <body className="font-sans bg-bg text-ink antialiased">
-        <DoodleBackground />
+      <body className="font-sans bg-[#0A1F10] text-white antialiased">
         <div className="relative z-[1]">{children}</div>
       </body>
     </html>

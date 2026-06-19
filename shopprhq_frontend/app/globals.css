@@ -17,7 +17,7 @@
 
   ::selection {
     background: #25D366;
-    color: #fff;
+    color: #0A1F10;
   }
 
   :focus-visible {
@@ -26,28 +26,97 @@
   }
 }
 
+/* ── Grain texture overlay ── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 128px 128px;
+}
+
 @layer utilities {
   /* Scroll-reveal */
   .reveal {
     opacity: 0;
-    transform: translateY(24px);
-    transition: opacity .55s ease, transform .55s ease;
+    transform: translateY(20px);
+    transition: opacity .6s ease, transform .6s ease;
   }
   .reveal.visible {
     opacity: 1;
     transform: none;
   }
 
+  /* Marquee */
+  @keyframes marquee {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-50%); }
+  }
+  .animate-marquee {
+    animation: marquee 28s linear infinite;
+    display: flex;
+    width: max-content;
+  }
+  .animate-marquee:hover {
+    animation-play-state: paused;
+  }
+
+  /* Typing cursor blink */
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0; }
+  }
+  .cursor-blink {
+    animation: blink 1s step-end infinite;
+  }
+
+  /* Count up pulse */
+  @keyframes countUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .count-up {
+    animation: countUp .4s ease both;
+  }
+
+  /* Fade in up */
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(28px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .fade-in-up {
+    animation: fadeInUp .7s ease both;
+  }
+
+  /* Subtle ambient glow pulse */
+  @keyframes glowPulse {
+    0%, 100% { opacity: 0.15; }
+    50%       { opacity: 0.25; }
+  }
+  .glow-pulse {
+    animation: glowPulse 4s ease-in-out infinite;
+  }
+
+  /* Chat message appear */
+  @keyframes msgIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
   /* Skeleton shimmer */
   .skeleton {
-    background: linear-gradient(
-      90deg,
-      #e8e7e2 25%,
-      #f0efe9 50%,
-      #e8e7e2 75%
-    );
+    background: linear-gradient(90deg, #1a3520 25%, #1f3d26 50%, #1a3520 75%);
     background-size: 200% 100%;
     animation: shimmer 1.6s linear infinite;
     border-radius: 8px;
+  }
+
+  @keyframes shimmer {
+    0%   { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
   }
 }

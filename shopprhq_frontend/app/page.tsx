@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
-import Logo from '@/components/Logo'
-import { submitMerchantApplication, MerchantApplicationPayload } from '@/lib/api'
+import { useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
+import Navbar from '@/components/Navbar'
 
-// ── Scroll-reveal hook ─────────────────────────────────────────────────────
+/* ── Scroll reveal ── */
 function useReveal() {
   useEffect(() => {
     const els = document.querySelectorAll<HTMLElement>('.reveal')
@@ -17,752 +17,380 @@ function useReveal() {
   }, [])
 }
 
-// ── Icons ──────────────────────────────────────────────────────────────────
-function ArrowRight({ className = 'w-4 h-4' }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 16 16">
-      <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.75"
-        strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
-}
-
-function CheckIcon() {
-  return (
-    <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 16 16">
-      <path d="M3 8l3.5 3.5L13 5" stroke="#25D366" strokeWidth="2"
-        strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
-}
-
-// ── Static data ────────────────────────────────────────────────────────────
-const stats = [
-  { value: '60s',  label: 'to go live' },
-  { value: '₦0',   label: 'zero setup fee' },
-  { value: '<1%',  label: 'per transaction' },
-  { value: '24/7', label: 'AI handles orders' },
+/* ── Typing effect ── */
+const PAIN_LINES = [
+  'Chidi sent a message at 1:47am. No one replied.',
+  'Amaka spent 3 hours answering "how much is this?"',
+  'Another customer dropped off after "send your account number".',
+  'Tunde lost 4 orders while away from his phone.',
+  'Same questions. Every. Single. Day.',
+  'Bisi\'s staff couldn\'t handle the DM volume alone.',
 ]
 
-const steps = [
-  {
-    n: '01',
-    title: 'Add your products',
-    body: 'Build your catalogue in minutes — names, prices, descriptions. Your store is ready before your next order.',
-  },
-  {
-    n: '02',
-    title: 'Connect your WhatsApp',
-    body: 'Customers message your number like they always have. ShopprHQ runs the conversation — taking orders, answering questions, collecting payments.',
-  },
-  {
-    n: '03',
-    title: 'Manage from your dashboard',
-    body: 'Every order appears live. Confirm, dispatch, track revenue — all from one clean screen. You stay in control.',
-  },
-]
+function TypingLine() {
+  const [lineIdx, setLineIdx] = useState(0)
+  const [displayed, setDisplayed] = useState('')
+  const [phase, setPhase] = useState<'typing' | 'pause' | 'erasing'>('typing')
 
-const benefits = [
-  'No missed orders from DMs',
-  'Automatic order confirmation messages',
-  'Card and cash on delivery payments',
-  'Real-time stock tracking',
-  'Multiple branches, one dashboard',
-  'Daily revenue summaries',
-]
+  useEffect(() => {
+    const line = PAIN_LINES[lineIdx]
+    let timeout: ReturnType<typeof setTimeout>
 
-const businessTypes = [
-  'Food & Beverages',
-  'Fashion & Clothing',
-  'Electronics & Gadgets',
-  'Pharmacy & Health',
-  'Beauty & Cosmetics',
-  'Agriculture & Food Production',
-  'Home & Furniture',
-  'Books & Stationery',
-  'Auto Parts & Accessories',
-  'Other',
-]
-
-const volumeOptions = [
-  { value: 'under-50',   label: 'Under 50 orders/month' },
-  { value: '50-200',     label: '50–200 orders/month' },
-  { value: '200-500',    label: '200–500 orders/month' },
-  { value: '500-1000',   label: '500–1,000 orders/month' },
-  { value: 'over-1000',  label: 'Over 1,000 orders/month' },
-]
-
-const heardOptions = [
-  'Instagram',
-  'Twitter / X',
-  'Facebook',
-  'WhatsApp / Word of mouth',
-  'Google Search',
-  'TechCabal / Techpoint',
-  'A friend or colleague',
-  'Other',
-]
-
-// ── Application Form ───────────────────────────────────────────────────────
-type FormData = {
-  business_name:         string
-  business_type:         string
-  city_state:            string
-  full_name:             string
-  email:                 string
-  phone_number:          string
-  whatsapp_number:       string
-  num_branches:          string
-  monthly_order_volume:  string
-  uses_whatsapp_manual:  string
-  uses_delivery_service: string
-  heard_about_us:        string
-  comments:              string
-  website:               string  // honeypot — always empty for real users
-}
-
-const EMPTY_FORM: FormData = {
-  business_name:         '',
-  business_type:         '',
-  city_state:            '',
-  full_name:             '',
-  email:                 '',
-  phone_number:          '',
-  whatsapp_number:       '',
-  num_branches:          '1',
-  monthly_order_volume:  '',
-  uses_whatsapp_manual:  '',
-  uses_delivery_service: '',
-  heard_about_us:        '',
-  comments:              '',
-  website:               '',
-}
-
-function inputCls(err?: string) {
-  return [
-    'w-full px-4 py-3 rounded-xl border text-sm outline-none transition-all bg-white',
-    err
-      ? 'border-red-400 focus:ring-2 focus:ring-red-200'
-      : 'border-gray-200 focus:border-green-400 focus:ring-2 focus:ring-green-100',
-  ].join(' ')
-}
-
-function Label({ children }: { children: React.ReactNode }) {
-  return (
-    <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5">
-      {children}
-    </label>
-  )
-}
-
-function FieldErr({ msg }: { msg?: string }) {
-  if (!msg) return null
-  return <p className="mt-1.5 text-xs text-red-500">{msg}</p>
-}
-
-function ApplicationForm() {
-  const [form, setForm] = useState<FormData>(EMPTY_FORM)
-  const [errors, setErrors] = useState<Partial<FormData>>({})
-  const [step, setStep] = useState<1 | 2>(1)
-  const [submitting, setSubmitting] = useState(false)
-  const [submitted, setSubmitted] = useState(false)
-  const [serverError, setServerError] = useState('')
-  const topRef = useRef<HTMLDivElement>(null)
-
-  function set(field: keyof FormData, value: string) {
-    setForm((f) => ({ ...f, [field]: value }))
-    setErrors((e) => ({ ...e, [field]: '' }))
-  }
-
-  function validateStep1(): boolean {
-    const e: Partial<FormData> = {}
-    if (!form.business_name.trim())  e.business_name  = 'Required'
-    if (!form.business_type)         e.business_type  = 'Required'
-    if (!form.city_state.trim())     e.city_state     = 'Required'
-    if (!form.full_name.trim())      e.full_name      = 'Required'
-    if (!form.email.includes('@'))   e.email          = 'Enter a valid email'
-    if (!form.phone_number.trim())   e.phone_number   = 'Required'
-    if (!form.whatsapp_number.trim())e.whatsapp_number= 'Required'
-    setErrors(e)
-    return Object.keys(e).length === 0
-  }
-
-  function validateStep2(): boolean {
-    const e: Partial<FormData> = {}
-    if (!form.num_branches || isNaN(Number(form.num_branches)) || Number(form.num_branches) < 1)
-      e.num_branches = 'Enter a valid number'
-    if (!form.monthly_order_volume)   e.monthly_order_volume  = 'Required'
-    if (!form.uses_whatsapp_manual)   e.uses_whatsapp_manual  = 'Required'
-    if (!form.uses_delivery_service)  e.uses_delivery_service = 'Required'
-    if (!form.heard_about_us)         e.heard_about_us        = 'Required'
-    setErrors(e)
-    return Object.keys(e).length === 0
-  }
-
-  function nextStep() {
-    if (validateStep1()) {
-      setStep(2)
-      topRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    }
-  }
-
-  async function handleSubmit() {
-    if (!validateStep2()) return
-    setSubmitting(true)
-    setServerError('')
-    try {
-      const payload: MerchantApplicationPayload = {
-        business_name:         form.business_name.trim(),
-        business_type:         form.business_type,
-        city_state:            form.city_state.trim(),
-        full_name:             form.full_name.trim(),
-        email:                 form.email.trim(),
-        phone_number:          form.phone_number.trim(),
-        whatsapp_number:       form.whatsapp_number.trim(),
-        num_branches:          Number(form.num_branches),
-        monthly_order_volume:  form.monthly_order_volume,
-        uses_whatsapp_manual:  form.uses_whatsapp_manual === 'yes',
-        uses_delivery_service: form.uses_delivery_service === 'yes',
-        heard_about_us:        form.heard_about_us,
-        comments:              form.comments.trim() || undefined,
-        website:               form.website,  // honeypot — always '' for real users
+    if (phase === 'typing') {
+      if (displayed.length < line.length) {
+        timeout = setTimeout(() => setDisplayed(line.slice(0, displayed.length + 1)), 38)
+      } else {
+        timeout = setTimeout(() => setPhase('pause'), 2000)
       }
-      await submitMerchantApplication(payload)
-      setSubmitted(true)
-      topRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    } catch (err: any) {
-      setServerError(err?.detail ?? 'Something went wrong. Please try again.')
-    } finally {
-      setSubmitting(false)
+    } else if (phase === 'pause') {
+      timeout = setTimeout(() => setPhase('erasing'), 400)
+    } else {
+      if (displayed.length > 0) {
+        timeout = setTimeout(() => setDisplayed(displayed.slice(0, -1)), 18)
+      } else {
+        setLineIdx((i) => (i + 1) % PAIN_LINES.length)
+        setPhase('typing')
+      }
     }
-  }
-
-  if (submitted) {
-    return (
-      <div className="text-center py-16 px-6">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 mb-6">
-          <svg className="w-8 h-8 text-green-600" fill="none" viewBox="0 0 24 24">
-            <path d="M5 13l4 4L19 7" stroke="currentColor" strokeWidth="2.5"
-              strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </div>
-        <h3 className="text-2xl font-bold text-gray-900 mb-3">Application received!</h3>
-        <p className="text-gray-500 text-base leading-relaxed max-w-sm mx-auto">
-          We'll review your details and reach out within <strong>1–2 business days</strong>.
-          Check your inbox for a confirmation email.
-        </p>
-      </div>
-    )
-  }
+    return () => clearTimeout(timeout)
+  }, [displayed, phase, lineIdx])
 
   return (
-    <div ref={topRef}>
-      {/* Step indicator */}
-      <div className="flex items-center gap-0 mb-8">
-        {['Business details', 'Operations & submit'].map((label, i) => {
-          const n = i + 1
-          const active = n === step
-          const done = n < step
-          return (
-            <div key={n} className="flex items-center flex-1 last:flex-none">
-              <div className="flex flex-col items-center gap-1">
-                <div className={[
-                  'w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all',
-                  done   ? 'bg-green-500 text-white'
-                  : active ? 'bg-gray-900 text-white ring-4 ring-gray-900/10'
-                  :          'bg-gray-100 text-gray-400 border-2 border-gray-200',
-                ].join(' ')}>
-                  {done ? '✓' : n}
-                </div>
-                <span className={[
-                  'text-[10px] font-semibold whitespace-nowrap',
-                  active ? 'text-gray-800' : 'text-gray-400',
-                ].join(' ')}>{label}</span>
-              </div>
-              {i < 1 && (
-                <div className={[
-                  'flex-1 h-0.5 mx-2 mt-[-14px] rounded transition-colors',
-                  done ? 'bg-green-400' : 'bg-gray-200',
-                ].join(' ')} />
-              )}
-            </div>
-          )
-        })}
-      </div>
-
-      {/* Step 1 */}
-      {step === 1 && (
-        <div className="space-y-4">
-          <div className="grid sm:grid-cols-2 gap-4">
-            <div>
-              <Label>Business name *</Label>
-              <input className={inputCls(errors.business_name)} placeholder="e.g. Mama Tee Foods"
-                value={form.business_name} onChange={e => set('business_name', e.target.value)} />
-              <FieldErr msg={errors.business_name} />
-            </div>
-            <div>
-              <Label>Business type *</Label>
-              <select className={inputCls(errors.business_type)}
-                value={form.business_type} onChange={e => set('business_type', e.target.value)}>
-                <option value="">Select type…</option>
-                {businessTypes.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
-              <FieldErr msg={errors.business_type} />
-            </div>
-          </div>
-          <div>
-            <Label>City / State *</Label>
-            <input className={inputCls(errors.city_state)} placeholder="e.g. Lagos, Nigeria"
-              value={form.city_state} onChange={e => set('city_state', e.target.value)} />
-            <FieldErr msg={errors.city_state} />
-          </div>
-          <div className="grid sm:grid-cols-2 gap-4">
-            <div>
-              <Label>Your full name *</Label>
-              <input className={inputCls(errors.full_name)} placeholder="e.g. Temi Adeyemi"
-                value={form.full_name} onChange={e => set('full_name', e.target.value)} />
-              <FieldErr msg={errors.full_name} />
-            </div>
-            <div>
-              <Label>Email address *</Label>
-              <input type="email" className={inputCls(errors.email)} placeholder="you@business.com"
-                value={form.email} onChange={e => set('email', e.target.value)} />
-              <FieldErr msg={errors.email} />
-            </div>
-          </div>
-          <div className="grid sm:grid-cols-2 gap-4">
-            <div>
-              <Label>Phone number *</Label>
-              <input type="tel" className={inputCls(errors.phone_number)} placeholder="+2348012345678"
-                value={form.phone_number} onChange={e => set('phone_number', e.target.value)} />
-              <FieldErr msg={errors.phone_number} />
-            </div>
-            <div>
-              <Label>WhatsApp number to connect *</Label>
-              <input type="tel" className={inputCls(errors.whatsapp_number)}
-                placeholder="+2348012345678"
-                value={form.whatsapp_number} onChange={e => set('whatsapp_number', e.target.value)} />
-              <p className="mt-1.5 text-xs text-gray-400">The number your customers will order from</p>
-              <FieldErr msg={errors.whatsapp_number} />
-            </div>
-          </div>
-          <button onClick={nextStep}
-            className="w-full mt-2 bg-gray-900 text-white font-semibold py-3.5 rounded-xl
-              hover:bg-gray-800 transition-colors flex items-center justify-center gap-2">
-            Continue <ArrowRight />
-          </button>
-          {/* Honeypot — invisible to real users; bots fill every field they see.
-              Backend silently no-ops any submission where this has a value. */}
-          <input
-            type="text"
-            name="website"
-            value={form.website}
-            onChange={e => set('website', e.target.value)}
-            tabIndex={-1}
-            autoComplete="off"
-            aria-hidden="true"
-            style={{ display: 'none' }}
-          />
-        </div>
-      )}
-
-      {/* Step 2 */}
-      {step === 2 && (
-        <div className="space-y-4">
-          <div className="grid sm:grid-cols-2 gap-4">
-            <div>
-              <Label>Number of stores / branches *</Label>
-              <input type="number" min="1" className={inputCls(errors.num_branches)}
-                placeholder="1"
-                value={form.num_branches} onChange={e => set('num_branches', e.target.value)} />
-              <FieldErr msg={errors.num_branches} />
-            </div>
-            <div>
-              <Label>Current monthly order volume *</Label>
-              <select className={inputCls(errors.monthly_order_volume)}
-                value={form.monthly_order_volume}
-                onChange={e => set('monthly_order_volume', e.target.value)}>
-                <option value="">Select…</option>
-                {volumeOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
-              <FieldErr msg={errors.monthly_order_volume} />
-            </div>
-          </div>
-          <div>
-            <Label>Do you currently take orders on WhatsApp manually? *</Label>
-            <div className="flex gap-3">
-              {['yes', 'no'].map(v => (
-                <button key={v} onClick={() => set('uses_whatsapp_manual', v)}
-                  className={[
-                    'flex-1 py-3 rounded-xl border font-semibold text-sm transition-all capitalize',
-                    form.uses_whatsapp_manual === v
-                      ? 'border-gray-900 bg-gray-900 text-white'
-                      : 'border-gray-200 text-gray-600 hover:border-gray-400',
-                  ].join(' ')}>
-                  {v === 'yes' ? 'Yes, we do' : 'No, not yet'}
-                </button>
-              ))}
-            </div>
-            <FieldErr msg={errors.uses_whatsapp_manual} />
-          </div>
-          <div>
-            <Label>Do you use a delivery / logistics service? *</Label>
-            <div className="flex gap-3">
-              {['yes', 'no'].map(v => (
-                <button key={v} onClick={() => set('uses_delivery_service', v)}
-                  className={[
-                    'flex-1 py-3 rounded-xl border font-semibold text-sm transition-all capitalize',
-                    form.uses_delivery_service === v
-                      ? 'border-gray-900 bg-gray-900 text-white'
-                      : 'border-gray-200 text-gray-600 hover:border-gray-400',
-                  ].join(' ')}>
-                  {v === 'yes' ? 'Yes' : 'No'}
-                </button>
-              ))}
-            </div>
-            <FieldErr msg={errors.uses_delivery_service} />
-          </div>
-          <div>
-            <Label>How did you hear about ShopprHQ? *</Label>
-            <select className={inputCls(errors.heard_about_us)}
-              value={form.heard_about_us} onChange={e => set('heard_about_us', e.target.value)}>
-              <option value="">Select…</option>
-              {heardOptions.map(o => <option key={o} value={o}>{o}</option>)}
-            </select>
-            <FieldErr msg={errors.heard_about_us} />
-          </div>
-          <div>
-            <Label>Anything else you'd like us to know? <span className="normal-case text-gray-400">(optional)</span></Label>
-            <textarea className={inputCls()} rows={3}
-              placeholder="Tell us about your business, any specific needs, questions…"
-              value={form.comments} onChange={e => set('comments', e.target.value)} />
-          </div>
-
-          {serverError && (
-            <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-              <p className="text-sm text-red-600">{serverError}</p>
-            </div>
-          )}
-
-          <div className="flex gap-3 mt-2">
-            <button onClick={() => setStep(1)}
-              className="px-6 py-3.5 rounded-xl border border-gray-200 text-gray-600
-                font-semibold text-sm hover:border-gray-400 transition-colors">
-              Back
-            </button>
-            <button onClick={handleSubmit} disabled={submitting}
-              className="flex-1 bg-green-600 text-white font-semibold py-3.5 rounded-xl
-                hover:bg-green-700 transition-colors disabled:opacity-60
-                flex items-center justify-center gap-2">
-              {submitting ? 'Submitting…' : 'Submit application'}
-              {!submitting && <ArrowRight />}
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
+    <p className="text-white/40 text-sm sm:text-base font-mono min-h-[1.5em]">
+      {displayed}
+      <span className="cursor-blink text-[#25D366]">|</span>
+    </p>
   )
 }
 
-// ── Dashboard mockup (simplified SVG placeholder) ─────────────────────────
-function DashboardMockup() {
-  return (
-    <div className="relative rounded-2xl overflow-hidden shadow-2xl border border-gray-200 bg-white">
-      <div className="bg-gray-900 px-4 py-3 flex items-center gap-2">
-        <div className="w-3 h-3 rounded-full bg-red-400" />
-        <div className="w-3 h-3 rounded-full bg-yellow-400" />
-        <div className="w-3 h-3 rounded-full bg-green-400" />
-        <span className="ml-3 text-xs text-gray-400 font-mono">ShopprHQ Dashboard</span>
-      </div>
-      <div className="p-5 space-y-3 bg-gray-50">
-        {/* Stat cards */}
-        <div className="grid grid-cols-3 gap-2">
-          {[['₦142,500', 'Today\'s revenue'], ['23', 'Orders today'], ['8', 'Pending']].map(([v, l]) => (
-            <div key={l} className="bg-white rounded-xl p-3 border border-gray-100 shadow-sm">
-              <p className="font-bold text-gray-900 text-sm">{v}</p>
-              <p className="text-[10px] text-gray-400 mt-0.5">{l}</p>
-            </div>
-          ))}
-        </div>
-        {/* Order rows */}
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="px-4 py-2 border-b border-gray-50 flex justify-between items-center">
-            <span className="text-xs font-semibold text-gray-700">Recent Orders</span>
-            <span className="text-[10px] text-green-600 font-semibold">Live</span>
-          </div>
-          {[
-            ['ORD-8812', 'Jollof rice x2, Chicken', '₦8,500', 'Confirmed'],
-            ['ORD-8811', 'Ankara blouse (Size M)', '₦12,000', 'Paid'],
-            ['ORD-8810', 'iPhone charger x3',       '₦7,200',  'Dispatched'],
-          ].map(([id, item, price, status]) => (
-            <div key={id} className="px-4 py-2.5 border-b border-gray-50 flex items-center justify-between gap-2">
-              <div>
-                <p className="text-xs font-medium text-gray-800">{id}</p>
-                <p className="text-[10px] text-gray-400 mt-0.5 truncate max-w-[140px]">{item}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-xs font-bold text-gray-900">{price}</p>
-                <span className={[
-                  'text-[9px] font-semibold px-1.5 py-0.5 rounded-full',
-                  status === 'Confirmed' ? 'bg-blue-50 text-blue-600'
-                  : status === 'Paid' ? 'bg-green-50 text-green-600'
-                  : 'bg-orange-50 text-orange-600',
-                ].join(' ')}>{status}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
+/* ── Live WhatsApp conversation ── */
+const CHAT_SCRIPT = [
+  { from: 'customer', text: 'Hi, do you have jollof rice?' },
+  { from: 'bot',      text: 'Yes! 👋 We have:\n• Jollof Rice — ₦2,500\n• Fried Rice — ₦2,800\n• Party Rice — ₦3,200\n\nHow many portions?' },
+  { from: 'customer', text: '2 jollof and add 1 chicken' },
+  { from: 'bot',      text: '✅ Got it!\n\n2× Jollof Rice — ₦5,000\n1× Chicken — ₦1,800\n\nTotal: ₦6,800\n\nCard or cash on delivery?' },
+  { from: 'customer', text: 'Card' },
+  { from: 'bot',      text: '💳 Pay here:\nhttps://pay.shopprhq.com/k8x2\n\nOrder confirmed once payment lands 🎉' },
+]
 
-function WhatsAppMockup() {
-  const messages = [
-    { from: 'customer', text: 'Hi, I want to order jollof rice please' },
-    { from: 'bot',      text: 'Hey! 👋 Welcome to Mama Tee Foods.\n\nWe have:\n• Jollof Rice — ₦2,500\n• Fried Rice — ₦2,800\n• Chicken — ₦1,800\n\nHow many portions of Jollof Rice?' },
-    { from: 'customer', text: '2 portions please. And 1 chicken' },
-    { from: 'bot',      text: '✅ Got it!\n\n2× Jollof Rice — ₦5,000\n1× Chicken — ₦1,800\n\nTotal: ₦6,800\n\nPay with card or cash on delivery?' },
-    { from: 'customer', text: 'Card please' },
-    { from: 'bot',      text: '💳 Here\'s your payment link:\nhttps://pay.shopprhq.com/abc123\n\nYour order is confirmed once payment is received. 🎉' },
-  ]
+function LiveChat() {
+  const [visible, setVisible] = useState<number[]>([])
+  const ref = useRef<HTMLDivElement>(null)
+  const started = useRef(false)
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const io = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting && !started.current) {
+        started.current = true
+        CHAT_SCRIPT.forEach((_, i) => {
+          setTimeout(() => setVisible((v) => [...v, i]), i * 1100)
+        })
+      }
+    }, { threshold: 0.3 })
+    io.observe(el)
+    return () => io.disconnect()
+  }, [])
 
   return (
-    <div className="rounded-2xl overflow-hidden shadow-2xl border border-gray-200 bg-white">
-      {/* WhatsApp header */}
+    <div ref={ref} className="rounded-2xl overflow-hidden border border-white/10 shadow-2xl bg-[#111]">
+      {/* Header */}
       <div className="bg-[#075E54] px-4 py-3 flex items-center gap-3">
-        <div className="w-8 h-8 rounded-full bg-green-300 flex items-center justify-center text-sm font-bold text-green-900">MT</div>
+        <div className="w-8 h-8 rounded-full bg-[#25D366]/30 flex items-center justify-center text-xs font-bold text-[#25D366]">MT</div>
         <div>
           <p className="text-white text-sm font-semibold">Mama Tee Foods</p>
-          <p className="text-green-200 text-[10px]">Online</p>
+          <p className="text-green-300 text-[10px] flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />
+            Online now
+          </p>
         </div>
       </div>
-      {/* Chat */}
-      <div className="bg-[#ECE5DD] p-3 space-y-2 min-h-[280px]">
-        {messages.map((m, i) => (
-          <div key={i} className={['flex', m.from === 'customer' ? 'justify-end' : 'justify-start'].join(' ')}>
-            <div className={[
-              'max-w-[85%] px-3 py-2 rounded-xl text-xs leading-relaxed shadow-sm whitespace-pre-line',
-              m.from === 'customer'
-                ? 'bg-[#DCF8C6] text-gray-900 rounded-br-sm'
-                : 'bg-white text-gray-900 rounded-bl-sm',
-            ].join(' ')}>
-              {m.text}
+      {/* Messages */}
+      <div className="bg-[#0d1b0f] p-4 space-y-2 min-h-[300px]">
+        {CHAT_SCRIPT.map((msg, i) =>
+          visible.includes(i) ? (
+            <div
+              key={i}
+              className={`flex ${msg.from === 'customer' ? 'justify-end' : 'justify-start'}`}
+              style={{ animation: 'msgIn .35s ease both' }}
+            >
+              <div className={[
+                'max-w-[82%] px-3 py-2 rounded-xl text-xs leading-relaxed whitespace-pre-line shadow-sm',
+                msg.from === 'customer'
+                  ? 'bg-[#1a3a22] text-white/90 rounded-br-sm'
+                  : 'bg-[#1c2b1e] text-white/80 rounded-bl-sm border border-white/5',
+              ].join(' ')}>
+                {msg.text}
+              </div>
             </div>
-          </div>
+          ) : null
+        )}
+      </div>
+    </div>
+  )
+}
+
+/* ── Ticker ── */
+const TICKER_ITEMS = [
+  'Missed a 2am order',
+  'Sent account number manually',
+  'Staff couldn\'t keep up with DMs',
+  'Customer never replied after payment link',
+  'Answered "how much?" for the 50th time',
+  '4 hours on WhatsApp. Zero fulfilled orders.',
+  'Lost a sale while at a meeting',
+  'Customer went elsewhere',
+]
+
+function Ticker() {
+  const items = [...TICKER_ITEMS, ...TICKER_ITEMS]
+  return (
+    <div className="overflow-hidden border-y border-white/8 py-3 bg-[#0d1a11]">
+      <div className="animate-marquee">
+        {items.map((item, i) => (
+          <span key={i} className="flex items-center gap-6 px-6 text-xs font-mono text-white/30 whitespace-nowrap">
+            <span className="text-[#25D366] text-[8px]">✦</span>
+            {item}
+          </span>
         ))}
       </div>
     </div>
   )
 }
 
-// ── Page ───────────────────────────────────────────────────────────────────
-export default function LandingPage() {
+/* ── Why section cards ── */
+const WHY_CARDS = [
+  {
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+      </svg>
+    ),
+    title: 'Always on',
+    body: 'Handles orders at 2am, during weekends, public holidays. It doesn\'t clock out.',
+  },
+  {
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 0 1 .865-.501 48.172 48.172 0 0 0 3.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z" />
+      </svg>
+    ),
+    title: 'Handles the repetition',
+    body: '"Do you have this?" "How much?" "Is delivery available?" Answered instantly, every time.',
+  },
+  {
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 21Z" />
+      </svg>
+    ),
+    title: 'Collects payment too',
+    body: 'No more sending account numbers. Customers pay by card in the chat, confirmed automatically.',
+  },
+  {
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" />
+      </svg>
+    ),
+    title: 'One dashboard',
+    body: 'Every order, every branch, every naira — visible in real time from one place.',
+  },
+]
+
+/* ── Stats ── */
+const STATS = [
+  { value: '₦0',   label: 'Setup fee' },
+  { value: '60s',  label: 'To go live' },
+  { value: '24/7', label: 'On duty' },
+  { value: '<1%',  label: 'Per transaction' },
+]
+
+/* ── Page ── */
+export default function HomePage() {
   useReveal()
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-[#FAFAF8]">
+    <div className="min-h-screen overflow-x-hidden">
+      <Navbar />
 
-      {/* ════ NAV ════ */}
-      <nav className="sticky top-0 z-50 bg-[#FAFAF8]/90 backdrop-blur-xl border-b border-gray-200">
-        <div className="max-w-6xl mx-auto px-5 h-16 flex items-center justify-between gap-4">
-          <Logo />
-          <div className="hidden sm:flex items-center gap-6 text-sm font-medium text-gray-500">
-            <a href="#screenshots" className="hover:text-gray-900 transition-colors">See it in action</a>
-            <a href="#how-it-works" className="hover:text-gray-900 transition-colors">How it works</a>
-            <a href="#apply" className="hover:text-gray-900 transition-colors">Apply</a>
-          </div>
-          {/* No login or signup button — intentional */}
-        </div>
-      </nav>
+      {/* ── HERO ── */}
+      <section className="relative pt-36 pb-24 px-5 overflow-hidden">
+        {/* Ambient glow */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[400px] rounded-full bg-[#25D366]/10 blur-[120px] glow-pulse pointer-events-none" />
 
-      {/* ════ HERO ════ */}
-      <section className="pt-20 pb-28 px-5 text-center">
-        <div className="max-w-3xl mx-auto">
-          <div className="inline-flex items-center gap-2 bg-green-50 border border-green-200
-            text-green-700 text-xs font-semibold px-4 py-1.5 rounded-full mb-8">
-            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-            Now accepting applications for Nigerian SMEs
+        <div className="max-w-4xl mx-auto text-center relative">
+          <div
+            className="inline-flex items-center gap-2 border border-[#25D366]/25 text-[#25D366] text-xs font-mono px-4 py-1.5 rounded-full mb-10 fade-in-up"
+            style={{ animationDelay: '0ms' }}
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-[#25D366] animate-pulse" />
+            Now accepting Nigerian merchants
           </div>
 
-          <h1 className="font-extrabold text-[clamp(2.6rem,7vw,4.8rem)]
-            tracking-tight leading-[1.04] text-gray-900 mb-6">
-            Your customers are already<br />
-            <span className="text-[#25D366]">on WhatsApp.</span><br />
-            Meet them there.
+          <h1
+            className="font-display font-extrabold text-[clamp(3rem,9vw,6.5rem)] tracking-tight leading-[0.95] text-white mb-6 fade-in-up"
+            style={{ animationDelay: '80ms' }}
+          >
+            The employee<br />
+            <span className="text-[#25D366]">that pays you.</span>
           </h1>
 
-          <p className="text-lg sm:text-xl text-gray-500 leading-relaxed max-w-xl mx-auto mb-10">
-            ShopprHQ turns your WhatsApp number into a fully automated storefront.
-            AI handles orders and payments. You focus on the business.
+          <p
+            className="text-white/50 text-lg sm:text-xl max-w-lg mx-auto mb-4 leading-relaxed fade-in-up"
+            style={{ animationDelay: '160ms' }}
+          >
+            From hello to completed sale. Every conversation, any hour, any volume.
           </p>
 
-          <a href="#apply"
-            className="inline-flex items-center gap-2 bg-gray-900 text-white
-              font-semibold text-base px-8 py-4 rounded-2xl shadow-lg
-              hover:bg-gray-800 hover:-translate-y-0.5 transition-all duration-200">
-            Apply to use ShopprHQ
-            <ArrowRight />
-          </a>
+          <div className="mb-10 fade-in-up" style={{ animationDelay: '220ms' }}>
+            <TypingLine />
+          </div>
 
-          <p className="text-sm text-gray-400 mt-4">
-            We review every application — approved merchants get set up within 48 hours.
-          </p>
-
-          {/* Stats */}
-          <div className="mt-16 grid grid-cols-2 sm:grid-cols-4 gap-px bg-gray-200
-            rounded-2xl overflow-hidden border border-gray-200 shadow-sm max-w-xl mx-auto">
-            {stats.map((s) => (
-              <div key={s.value} className="bg-white px-4 py-5 text-center">
-                <p className="font-extrabold text-[1.7rem] tracking-tight text-gray-900">{s.value}</p>
-                <p className="text-[11px] text-gray-400 mt-0.5 font-medium leading-snug">{s.label}</p>
-              </div>
-            ))}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 fade-in-up" style={{ animationDelay: '300ms' }}>
+            <Link
+              href="/book-demo"
+              className="inline-flex items-center gap-2 bg-[#25D366] text-[#0A1F10] font-bold text-base px-8 py-4 rounded-full hover:bg-[#1fba57] transition-all hover:-translate-y-0.5 shadow-[0_0_30px_rgba(37,211,102,0.25)]"
+            >
+              Book a demo
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 16 16">
+                <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </Link>
+            <Link
+              href="/how-it-works"
+              className="text-sm text-white/40 hover:text-white/70 transition-colors underline underline-offset-4"
+            >
+              See how it works
+            </Link>
           </div>
         </div>
       </section>
 
-      {/* ════ SCREENSHOTS ════ */}
-      <section id="screenshots" className="py-24 px-5 bg-gray-900">
-        <div className="max-w-6xl mx-auto">
+      {/* ── TICKER ── */}
+      <Ticker />
+
+      {/* ── LIVE DEMO ── */}
+      <section className="py-24 px-5">
+        <div className="max-w-5xl mx-auto">
           <div className="text-center mb-16 reveal">
-            <p className="text-xs font-bold uppercase tracking-[.14em] text-green-400 mb-4">
-              See it in action
-            </p>
-            <h2 className="font-extrabold text-[clamp(2rem,5vw,3rem)]
-              tracking-tight text-white leading-tight">
-              The dashboard you manage.<br />
-              The chat your customers love.
+            <p className="text-xs font-mono text-[#25D366]/60 tracking-[.16em] uppercase mb-4">Live conversation</p>
+            <h2 className="font-display font-extrabold text-[clamp(2rem,5vw,3.2rem)] tracking-tight text-white leading-tight">
+              Watch it sell<br />
+              <span className="text-white/30">while you do nothing.</span>
             </h2>
           </div>
 
-          <div className="grid lg:grid-cols-2 gap-12 items-start">
-            {/* Laptop mockup wrapping dashboard */}
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div className="reveal">
-              <p className="text-sm font-semibold text-gray-400 mb-4 text-center">
-                🖥 Merchant Dashboard — your command centre
-              </p>
-              <DashboardMockup />
-              <ul className="mt-6 space-y-2">
-                {['Live order feed across all your branches', 'Revenue tracking and daily summaries', 'Manage products, stock, and store settings'].map(b => (
-                  <li key={b} className="flex items-center gap-2 text-sm text-gray-400">
-                    <CheckIcon /> {b}
-                  </li>
-                ))}
-              </ul>
+              <LiveChat />
             </div>
-
-            {/* Phone mockup wrapping WhatsApp chat */}
-            <div className="reveal" style={{ transitionDelay: '120ms' }}>
-              <p className="text-sm font-semibold text-gray-400 mb-4 text-center">
-                📱 Customer experience — just WhatsApp
+            <div className="reveal space-y-6" style={{ transitionDelay: '120ms' }}>
+              <p className="text-white/60 text-base leading-relaxed">
+                Your customer sends a message. ShopprHQ reads it, responds naturally, handles the cart, sends a payment link, and confirms the order — all before you've even looked at your phone.
               </p>
-              <WhatsAppMockup />
-              <ul className="mt-6 space-y-2">
-                {['No app download, no link to click', 'AI reads and confirms orders automatically', 'Secure payment link sent in-chat'].map(b => (
-                  <li key={b} className="flex items-center gap-2 text-sm text-gray-400">
-                    <CheckIcon /> {b}
-                  </li>
-                ))}
-              </ul>
+              <p className="text-white/60 text-base leading-relaxed">
+                No menus. No buttons. Just a real conversation that ends in a completed sale.
+              </p>
+              <div className="pt-4 border-t border-white/8">
+                <p className="text-xs font-mono text-white/25 uppercase tracking-widest mb-4">Works for</p>
+                <div className="flex flex-wrap gap-2">
+                  {['Food & restaurants', 'Fashion', 'Grocery', 'Pharmacy', 'Electronics', 'Beauty'].map(t => (
+                    <span key={t} className="text-xs text-white/40 border border-white/10 px-3 py-1 rounded-full">
+                      {t}
+                    </span>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ════ HOW IT WORKS ════ */}
-      <section id="how-it-works" className="py-24 px-5">
+      {/* ── STATS ── */}
+      <section className="py-16 px-5 border-y border-white/8 bg-[#0d1a11]">
+        <div className="max-w-3xl mx-auto grid grid-cols-2 sm:grid-cols-4 gap-px bg-white/8 rounded-2xl overflow-hidden">
+          {STATS.map((s) => (
+            <div key={s.value} className="bg-[#0d1a11] px-6 py-8 text-center reveal">
+              <p className="font-display font-extrabold text-[2.5rem] leading-none text-[#25D366] tracking-tight">{s.value}</p>
+              <p className="text-xs text-white/30 font-mono mt-2 uppercase tracking-widest">{s.label}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── WHY ── */}
+      <section id="why" className="py-24 px-5">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-16 reveal">
-            <p className="text-xs font-bold uppercase tracking-[.14em] text-green-600 mb-4">
-              How it works
-            </p>
-            <h2 className="font-extrabold text-[clamp(2rem,5vw,3rem)]
-              tracking-tight text-gray-900 leading-tight">
-              You're live in three steps.
+            <p className="text-xs font-mono text-[#25D366]/60 tracking-[.16em] uppercase mb-4">Why ShopprHQ</p>
+            <h2 className="font-display font-extrabold text-[clamp(2rem,5vw,3.2rem)] tracking-tight text-white leading-tight">
+              Not software.<br />
+              <span className="text-white/30">A salesperson.</span>
             </h2>
           </div>
 
-          <div className="grid sm:grid-cols-3 gap-6">
-            {steps.map((step, i) => (
-              <div key={step.n}
-                className="reveal bg-white border border-gray-200 rounded-3xl p-8
-                  hover:shadow-lg hover:-translate-y-1 transition-all duration-300"
-                style={{ transitionDelay: `${i * 90}ms` }}>
-                <p className="font-extrabold text-[3rem] leading-none text-gray-100
-                  mb-6 tracking-tight select-none">
-                  {step.n}
-                </p>
-                <h3 className="font-bold text-[1.05rem] text-gray-900 mb-3 tracking-tight">
-                  {step.title}
-                </h3>
-                <p className="text-sm text-gray-500 leading-relaxed">{step.body}</p>
+          <div className="grid sm:grid-cols-2 gap-4">
+            {WHY_CARDS.map((card, i) => (
+              <div
+                key={card.title}
+                className="reveal group border border-white/8 rounded-2xl p-8 hover:border-[#25D366]/30 hover:bg-[#0d1a11] transition-all duration-300"
+                style={{ transitionDelay: `${i * 60}ms` }}
+              >
+                <div className="w-10 h-10 rounded-xl border border-white/10 flex items-center justify-center text-[#25D366] mb-5 group-hover:border-[#25D366]/30 transition-colors">
+                  {card.icon}
+                </div>
+                <h3 className="font-display font-bold text-lg text-white mb-2">{card.title}</h3>
+                <p className="text-sm text-white/40 leading-relaxed">{card.body}</p>
               </div>
             ))}
           </div>
-
-          {/* Benefits */}
-          <div className="mt-16 bg-white border border-gray-200 rounded-3xl p-8 reveal">
-            <h3 className="font-bold text-lg text-gray-900 mb-6 text-center">
-              Everything included, no extras
-            </h3>
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {benefits.map((b) => (
-                <div key={b} className="flex items-center gap-2.5">
-                  <CheckIcon />
-                  <span className="text-sm text-gray-700">{b}</span>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
       </section>
 
-      {/* ════ APPLICATION FORM ════ */}
-      <section id="apply" className="py-24 px-5 bg-gray-900">
-        <div className="max-w-2xl mx-auto">
-          <div className="text-center mb-12 reveal">
-            <p className="text-xs font-bold uppercase tracking-[.14em] text-green-400 mb-4">
-              Apply to use ShopprHQ
-            </p>
-            <h2 className="font-extrabold text-[clamp(2rem,5vw,3rem)]
-              tracking-tight text-white leading-tight mb-4">
-              Let's get your store ready.
-            </h2>
-            <p className="text-gray-400 text-base leading-relaxed">
-              Fill in the form below. We review every application personally and
-              respond within 1–2 business days. No payment or card needed yet.
-            </p>
-          </div>
-
-          <div className="bg-white rounded-3xl p-8 sm:p-10 shadow-2xl">
-            <ApplicationForm />
-          </div>
+      {/* ── CTA BAND ── */}
+      <section className="py-24 px-5 border-t border-white/8">
+        <div className="max-w-2xl mx-auto text-center reveal">
+          <h2 className="font-display font-extrabold text-[clamp(2.2rem,6vw,4rem)] tracking-tight text-white leading-[0.95] mb-6">
+            Ready to stop<br />
+            <span className="text-[#25D366]">missing sales?</span>
+          </h2>
+          <p className="text-white/40 text-base mb-10 max-w-sm mx-auto leading-relaxed">
+            Book a 20-minute demo. We'll show you exactly how it works for your type of business.
+          </p>
+          <Link
+            href="/book-demo"
+            className="inline-flex items-center gap-2 bg-[#25D366] text-[#0A1F10] font-bold text-base px-10 py-4 rounded-full hover:bg-[#1fba57] transition-all hover:-translate-y-0.5 shadow-[0_0_40px_rgba(37,211,102,0.2)]"
+          >
+            Book a demo
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 16 16">
+              <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </Link>
+          <p className="text-xs text-white/20 mt-5 font-mono">No payment required. We review every application.</p>
         </div>
       </section>
 
-      {/* ════ FOOTER ════ */}
-      <footer className="bg-gray-950 py-12 px-5">
-        <div className="max-w-5xl mx-auto">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center
-            justify-between gap-6 pb-8 border-b border-white/10">
-            <div>
-              <Logo dark />
-              <p className="text-sm text-white/30 mt-2 max-w-xs leading-relaxed">
-                WhatsApp commerce for Nigerian businesses.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-x-6 gap-y-3 text-sm text-white/40">
-              <a href="#screenshots"  className="hover:text-white/70 transition-colors">See it in action</a>
-              <a href="#how-it-works" className="hover:text-white/70 transition-colors">How it works</a>
-              <a href="#apply"        className="hover:text-white/70 transition-colors">Apply</a>
-              <a href="mailto:hello@shopprhq.com" className="hover:text-white/70 transition-colors">Contact</a>
-            </div>
+      {/* ── FOOTER ── */}
+      <footer className="border-t border-white/8 py-12 px-5">
+        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+          <div>
+            <p className="font-display font-extrabold text-white text-lg tracking-tight">
+              Shoppr<span className="text-[#25D366]">HQ</span>
+            </p>
+            <p className="text-xs text-white/20 mt-1 font-mono">WhatsApp commerce · Nigeria</p>
           </div>
-          <p className="text-xs text-white/20 mt-6">© 2025 ShopprHQ · WhatsApp Commerce · Nigeria</p>
+          <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs text-white/25 font-mono">
+            <Link href="/how-it-works" className="hover:text-white/50 transition-colors">How it works</Link>
+            <Link href="/book-demo"    className="hover:text-white/50 transition-colors">Book a demo</Link>
+            <a href="mailto:hello@shopprhq.com" className="hover:text-white/50 transition-colors">hello@shopprhq.com</a>
+          </div>
+        </div>
+        <div className="max-w-5xl mx-auto mt-8 pt-6 border-t border-white/5">
+          <p className="text-[11px] text-white/15 font-mono">© 2025 ShopprHQ</p>
         </div>
       </footer>
-
     </div>
   )
 }
