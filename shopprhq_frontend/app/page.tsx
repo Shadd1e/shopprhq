@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import Navbar from '@/components/Navbar'
+import DoodleBackground from '@/components/DoodleBackground'
 
 /* ── Scroll reveal ── */
 function useReveal() {
@@ -56,9 +57,9 @@ function TypingLine() {
   }, [displayed, phase, lineIdx])
 
   return (
-    <p className="text-white/40 text-sm sm:text-base font-mono min-h-[1.5em]">
+    <p className="text-ink-3 text-sm sm:text-base font-mono min-h-[1.5em]">
       {displayed}
-      <span className="cursor-blink text-[#25D366]">|</span>
+      <span className="cursor-blink text-wa">|</span>
     </p>
   )
 }
@@ -94,7 +95,7 @@ function LiveChat() {
   }, [])
 
   return (
-    <div ref={ref} className="rounded-2xl overflow-hidden border border-white/10 shadow-2xl bg-[#111]">
+    <div ref={ref} className="rounded-2xl overflow-hidden border border-ink/10 shadow-xl bg-[#111]">
       {/* Header */}
       <div className="bg-[#075E54] px-4 py-3 flex items-center gap-3">
         <div className="w-8 h-8 rounded-full bg-[#25D366]/30 flex items-center justify-center text-xs font-bold text-[#25D366]">MT</div>
@@ -146,11 +147,11 @@ const TICKER_ITEMS = [
 function Ticker() {
   const items = [...TICKER_ITEMS, ...TICKER_ITEMS]
   return (
-    <div className="overflow-hidden border-y border-white/8 py-3 bg-[#0d1a11]">
+    <div className="overflow-hidden border-y border-border py-3 bg-bg">
       <div className="animate-marquee">
         {items.map((item, i) => (
-          <span key={i} className="flex items-center gap-6 px-6 text-xs font-mono text-white/30 whitespace-nowrap">
-            <span className="text-[#25D366] text-[8px]">✦</span>
+          <span key={i} className="flex items-center gap-6 px-6 text-xs font-mono text-ink-3 whitespace-nowrap">
+            <span className="text-wa text-[8px]">✦</span>
             {item}
           </span>
         ))}
@@ -212,33 +213,24 @@ export default function HomePage() {
   useReveal()
 
   return (
-    <div className="min-h-screen overflow-x-hidden">
+    <div className="min-h-screen overflow-x-hidden bg-white">
+      <DoodleBackground />
       <Navbar />
 
       {/* ── HERO ── */}
       <section className="relative pt-36 pb-24 px-5 overflow-hidden">
-        {/* Ambient glow */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[400px] rounded-full bg-[#25D366]/10 blur-[120px] glow-pulse pointer-events-none" />
-
         <div className="max-w-4xl mx-auto text-center relative">
-          <div
-            className="inline-flex items-center gap-2 border border-[#25D366]/25 text-[#25D366] text-xs font-mono px-4 py-1.5 rounded-full mb-10 fade-in-up"
-            style={{ animationDelay: '0ms' }}
-          >
-            <span className="w-1.5 h-1.5 rounded-full bg-[#25D366] animate-pulse" />
-            Now accepting Nigerian merchants
-          </div>
 
           <h1
-            className="font-display font-extrabold text-[clamp(3rem,9vw,6.5rem)] tracking-tight leading-[0.95] text-white mb-6 fade-in-up"
+            className="font-display font-extrabold text-[clamp(3rem,9vw,6.5rem)] tracking-tight leading-[0.95] text-ink mb-6 fade-in-up"
             style={{ animationDelay: '80ms' }}
           >
             The employee<br />
-            <span className="text-[#25D366]">that pays you.</span>
+            <span className="text-wa">that pays you.</span>
           </h1>
 
           <p
-            className="text-white/50 text-lg sm:text-xl max-w-lg mx-auto mb-4 leading-relaxed fade-in-up"
+            className="text-ink-3 text-lg sm:text-xl max-w-lg mx-auto mb-4 leading-relaxed fade-in-up"
             style={{ animationDelay: '160ms' }}
           >
             From hello to completed sale. Every conversation, any hour, any volume.
@@ -251,7 +243,7 @@ export default function HomePage() {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 fade-in-up" style={{ animationDelay: '300ms' }}>
             <Link
               href="/book-demo"
-              className="inline-flex items-center gap-2 bg-[#25D366] text-[#0A1F10] font-bold text-base px-8 py-4 rounded-full hover:bg-[#1fba57] transition-all hover:-translate-y-0.5 shadow-[0_0_30px_rgba(37,211,102,0.25)]"
+              className="inline-flex items-center gap-2 bg-wa text-white font-bold text-base px-8 py-4 rounded-full hover:bg-wa-dark transition-all hover:-translate-y-0.5 shadow-wa"
             >
               Book a demo
               <svg className="w-4 h-4" fill="none" viewBox="0 0 16 16">
@@ -260,7 +252,7 @@ export default function HomePage() {
             </Link>
             <Link
               href="/how-it-works"
-              className="text-sm text-white/40 hover:text-white/70 transition-colors underline underline-offset-4"
+              className="text-sm text-ink-3 hover:text-ink transition-colors underline underline-offset-4"
             >
               See how it works
             </Link>
@@ -275,10 +267,10 @@ export default function HomePage() {
       <section className="py-24 px-5">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-16 reveal">
-            <p className="text-xs font-mono text-[#25D366]/60 tracking-[.16em] uppercase mb-4">Live conversation</p>
-            <h2 className="font-display font-extrabold text-[clamp(2rem,5vw,3.2rem)] tracking-tight text-white leading-tight">
+            <p className="text-xs font-mono text-wa tracking-[.16em] uppercase mb-4">Live conversation</p>
+            <h2 className="font-display font-extrabold text-[clamp(2rem,5vw,3.2rem)] tracking-tight text-ink leading-tight">
               Watch it sell<br />
-              <span className="text-white/30">while you do nothing.</span>
+              <span className="text-ink-3">while you do nothing.</span>
             </h2>
           </div>
 
@@ -287,17 +279,17 @@ export default function HomePage() {
               <LiveChat />
             </div>
             <div className="reveal space-y-6" style={{ transitionDelay: '120ms' }}>
-              <p className="text-white/60 text-base leading-relaxed">
+              <p className="text-ink-3 text-base leading-relaxed">
                 Your customer sends a message. ShopprHQ reads it, responds naturally, handles the cart, sends a payment link, and confirms the order — all before you've even looked at your phone.
               </p>
-              <p className="text-white/60 text-base leading-relaxed">
+              <p className="text-ink-3 text-base leading-relaxed">
                 No menus. No buttons. Just a real conversation that ends in a completed sale.
               </p>
-              <div className="pt-4 border-t border-white/8">
-                <p className="text-xs font-mono text-white/25 uppercase tracking-widest mb-4">Works for</p>
+              <div className="pt-4 border-t border-border">
+                <p className="text-xs font-mono text-ink-4 uppercase tracking-widest mb-4">Works for</p>
                 <div className="flex flex-wrap gap-2">
                   {['Food & restaurants', 'Fashion', 'Grocery', 'Pharmacy', 'Electronics', 'Beauty'].map(t => (
-                    <span key={t} className="text-xs text-white/40 border border-white/10 px-3 py-1 rounded-full">
+                    <span key={t} className="text-xs text-ink-3 border border-border px-3 py-1 rounded-full bg-white">
                       {t}
                     </span>
                   ))}
@@ -309,14 +301,19 @@ export default function HomePage() {
       </section>
 
       {/* ── STATS ── */}
-      <section className="py-16 px-5 border-y border-white/8 bg-[#0d1a11]">
-        <div className="max-w-3xl mx-auto grid grid-cols-2 sm:grid-cols-4 gap-px bg-white/8 rounded-2xl overflow-hidden">
-          {STATS.map((s) => (
-            <div key={s.value} className="bg-[#0d1a11] px-6 py-8 text-center reveal">
-              <p className="font-display font-extrabold text-[2.5rem] leading-none text-[#25D366] tracking-tight">{s.value}</p>
-              <p className="text-xs text-white/30 font-mono mt-2 uppercase tracking-widest">{s.label}</p>
-            </div>
-          ))}
+      <section className="py-16 px-5 border-y border-border bg-bg">
+        <div className="max-w-3xl mx-auto">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-border rounded-2xl overflow-hidden">
+            {STATS.map((s) => (
+              <div key={s.value} className="bg-bg px-6 py-8 text-center reveal">
+                <p className="font-display font-extrabold text-[2.5rem] leading-none text-ink tracking-tight">{s.value}</p>
+                <p className="text-xs text-ink-3 font-mono mt-2 uppercase tracking-widest">{s.label}</p>
+              </div>
+            ))}
+          </div>
+          <p className="text-center text-sm text-ink-3 mt-6 font-medium">
+            We only get paid when you do.
+          </p>
         </div>
       </section>
 
@@ -324,10 +321,10 @@ export default function HomePage() {
       <section id="why" className="py-24 px-5">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-16 reveal">
-            <p className="text-xs font-mono text-[#25D366]/60 tracking-[.16em] uppercase mb-4">Why ShopprHQ</p>
-            <h2 className="font-display font-extrabold text-[clamp(2rem,5vw,3.2rem)] tracking-tight text-white leading-tight">
+            <p className="text-xs font-mono text-wa tracking-[.16em] uppercase mb-4">Why ShopprHQ</p>
+            <h2 className="font-display font-extrabold text-[clamp(2rem,5vw,3.2rem)] tracking-tight text-ink leading-tight">
               Not software.<br />
-              <span className="text-white/30">A salesperson.</span>
+              <span className="text-ink-3">A salesperson.</span>
             </h2>
           </div>
 
@@ -335,14 +332,14 @@ export default function HomePage() {
             {WHY_CARDS.map((card, i) => (
               <div
                 key={card.title}
-                className="reveal group border border-white/8 rounded-2xl p-8 hover:border-[#25D366]/30 hover:bg-[#0d1a11] transition-all duration-300"
+                className="reveal group border border-border rounded-2xl p-8 hover:border-wa/40 hover:bg-bg transition-all duration-300 bg-white"
                 style={{ transitionDelay: `${i * 60}ms` }}
               >
-                <div className="w-10 h-10 rounded-xl border border-white/10 flex items-center justify-center text-[#25D366] mb-5 group-hover:border-[#25D366]/30 transition-colors">
+                <div className="w-10 h-10 rounded-xl border border-border flex items-center justify-center text-wa mb-5 group-hover:border-wa/40 transition-colors bg-white">
                   {card.icon}
                 </div>
-                <h3 className="font-display font-bold text-lg text-white mb-2">{card.title}</h3>
-                <p className="text-sm text-white/40 leading-relaxed">{card.body}</p>
+                <h3 className="font-display font-bold text-lg text-ink mb-2">{card.title}</h3>
+                <p className="text-sm text-ink-3 leading-relaxed">{card.body}</p>
               </div>
             ))}
           </div>
@@ -350,45 +347,45 @@ export default function HomePage() {
       </section>
 
       {/* ── CTA BAND ── */}
-      <section className="py-24 px-5 border-t border-white/8">
+      <section className="py-24 px-5 border-t border-border bg-bg">
         <div className="max-w-2xl mx-auto text-center reveal">
-          <h2 className="font-display font-extrabold text-[clamp(2.2rem,6vw,4rem)] tracking-tight text-white leading-[0.95] mb-6">
+          <h2 className="font-display font-extrabold text-[clamp(2.2rem,6vw,4rem)] tracking-tight text-ink leading-[0.95] mb-6">
             Ready to stop<br />
-            <span className="text-[#25D366]">missing sales?</span>
+            <span className="text-wa">missing sales?</span>
           </h2>
-          <p className="text-white/40 text-base mb-10 max-w-sm mx-auto leading-relaxed">
+          <p className="text-ink-3 text-base mb-10 max-w-sm mx-auto leading-relaxed">
             Book a 20-minute demo. We'll show you exactly how it works for your type of business.
           </p>
           <Link
             href="/book-demo"
-            className="inline-flex items-center gap-2 bg-[#25D366] text-[#0A1F10] font-bold text-base px-10 py-4 rounded-full hover:bg-[#1fba57] transition-all hover:-translate-y-0.5 shadow-[0_0_40px_rgba(37,211,102,0.2)]"
+            className="inline-flex items-center gap-2 bg-ink text-white font-bold text-base px-10 py-4 rounded-full hover:bg-ink-2 transition-all hover:-translate-y-0.5"
           >
             Book a demo
             <svg className="w-4 h-4" fill="none" viewBox="0 0 16 16">
               <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </Link>
-          <p className="text-xs text-white/20 mt-5 font-mono">No payment required. We review every application.</p>
+          <p className="text-xs text-ink-4 mt-5 font-mono">Zero setup fee. Less than 1% per transaction. We only get paid when you do.</p>
         </div>
       </section>
 
       {/* ── FOOTER ── */}
-      <footer className="border-t border-white/8 py-12 px-5">
+      <footer className="border-t border-border py-12 px-5 bg-white">
         <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
           <div>
-            <p className="font-display font-extrabold text-white text-lg tracking-tight">
-              Shoppr<span className="text-[#25D366]">HQ</span>
+            <p className="font-display font-extrabold text-ink text-lg tracking-tight">
+              Shoppr<span className="text-wa">HQ</span>
             </p>
-            <p className="text-xs text-white/20 mt-1 font-mono">WhatsApp commerce · Nigeria</p>
+            <p className="text-xs text-ink-4 mt-1 font-mono">WhatsApp commerce · Nigeria</p>
           </div>
-          <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs text-white/25 font-mono">
-            <Link href="/how-it-works" className="hover:text-white/50 transition-colors">How it works</Link>
-            <Link href="/book-demo"    className="hover:text-white/50 transition-colors">Book a demo</Link>
-            <a href="mailto:hello@shopprhq.com" className="hover:text-white/50 transition-colors">hello@shopprhq.com</a>
+          <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs text-ink-3 font-mono">
+            <Link href="/how-it-works" className="hover:text-ink transition-colors">How it works</Link>
+            <Link href="/book-demo"    className="hover:text-ink transition-colors">Book a demo</Link>
+            <a href="mailto:hello@shopprhq.com" className="hover:text-ink transition-colors">hello@shopprhq.com</a>
           </div>
         </div>
-        <div className="max-w-5xl mx-auto mt-8 pt-6 border-t border-white/5">
-          <p className="text-[11px] text-white/15 font-mono">© 2025 ShopprHQ</p>
+        <div className="max-w-5xl mx-auto mt-8 pt-6 border-t border-border">
+          <p className="text-[11px] text-ink-4 font-mono">© 2025 ShopprHQ</p>
         </div>
       </footer>
     </div>

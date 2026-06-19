@@ -17,7 +17,7 @@
 
   ::selection {
     background: #25D366;
-    color: #0A1F10;
+    color: #fff;
   }
 
   :focus-visible {
@@ -26,21 +26,7 @@
   }
 }
 
-/* ── Grain texture overlay ── */
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  opacity: 0.035;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
-  background-repeat: repeat;
-  background-size: 128px 128px;
-}
-
 @layer utilities {
-  /* Scroll-reveal */
   .reveal {
     opacity: 0;
     transform: translateY(20px);
@@ -51,7 +37,6 @@ body::before {
     transform: none;
   }
 
-  /* Marquee */
   @keyframes marquee {
     from { transform: translateX(0); }
     to   { transform: translateX(-50%); }
@@ -65,7 +50,6 @@ body::before {
     animation-play-state: paused;
   }
 
-  /* Typing cursor blink */
   @keyframes blink {
     0%, 100% { opacity: 1; }
     50%       { opacity: 0; }
@@ -74,16 +58,6 @@ body::before {
     animation: blink 1s step-end infinite;
   }
 
-  /* Count up pulse */
-  @keyframes countUp {
-    from { opacity: 0; transform: translateY(8px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
-  .count-up {
-    animation: countUp .4s ease both;
-  }
-
-  /* Fade in up */
   @keyframes fadeInUp {
     from { opacity: 0; transform: translateY(28px); }
     to   { opacity: 1; transform: translateY(0); }
@@ -92,31 +66,8 @@ body::before {
     animation: fadeInUp .7s ease both;
   }
 
-  /* Subtle ambient glow pulse */
-  @keyframes glowPulse {
-    0%, 100% { opacity: 0.15; }
-    50%       { opacity: 0.25; }
-  }
-  .glow-pulse {
-    animation: glowPulse 4s ease-in-out infinite;
-  }
-
-  /* Chat message appear */
   @keyframes msgIn {
     from { opacity: 0; transform: translateY(6px); }
     to   { opacity: 1; transform: translateY(0); }
-  }
-
-  /* Skeleton shimmer */
-  .skeleton {
-    background: linear-gradient(90deg, #1a3520 25%, #1f3d26 50%, #1a3520 75%);
-    background-size: 200% 100%;
-    animation: shimmer 1.6s linear infinite;
-    border-radius: 8px;
-  }
-
-  @keyframes shimmer {
-    0%   { background-position: -200% 0; }
-    100% { background-position: 200% 0; }
   }
 }

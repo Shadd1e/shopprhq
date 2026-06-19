@@ -19,8 +19,9 @@ const config: Config = {
         bg:       '#F7F6F2',
       },
       fontFamily: {
-        sans:    ['var(--font-dm-sans)', 'sans-serif'],
-        display: ['var(--font-bricolage)', 'sans-serif'],
+        sans:    ['var(--font-jakarta)', 'sans-serif'],
+        display: ['var(--font-jakarta)', 'sans-serif'],
+        mono:    ['ui-monospace', 'SFMono-Regular', 'monospace'],
       },
       boxShadow: {
         sm:    '0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04)',
@@ -39,15 +40,10 @@ const config: Config = {
           '0%, 100%': { opacity: '1' },
           '50%':      { opacity: '.35' },
         },
-        shimmer: {
-          '0%':   { backgroundPosition: '-200% 0' },
-          '100%': { backgroundPosition: '200% 0' },
-        },
       },
       animation: {
         'fade-up':   'fadeUp .5s ease both',
         'pulse-dot': 'pulseDot 2s ease-in-out infinite',
-        'shimmer':   'shimmer 1.6s linear infinite',
       },
     },
   },

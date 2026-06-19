@@ -11,372 +11,349 @@
   --wa: #25D366; --wa-dark: #128C7E;
   --ink: #111110; --ink-2: #3A3A36; --ink-3: #7A7A75;
   --border: #E4E3DD; --bg: #F5F4F0; --white: #FFFFFF;
-  --red: #D94F3D; --r: 12px;
+  --red: #D94F3D; --amber: #D97706; --r: 14px;
+  --shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.04);
 }
-body {
-  font-family: 'DM Sans', sans-serif;
-  background: var(--bg);
-  min-height: 100vh;
-  color: var(--ink);
-  -webkit-font-smoothing: antialiased;
-}
+body { font-family: 'DM Sans', sans-serif; background: var(--bg); min-height: 100vh; color: var(--ink); -webkit-font-smoothing: antialiased; }
 
-/* LOGIN */
-#login-screen {
-  min-height: 100vh;
-  display: flex; align-items: center; justify-content: center;
-  padding: 24px;
+/* ── LOGIN ───────────────────────────────────────────────────────────────── */
+#login-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+.login-wrap { width: 100%; max-width: 400px; }
+.login-logo { text-align: center; margin-bottom: 32px; }
+.login-logo-mark {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 52px; height: 52px; background: var(--ink); border-radius: 14px;
+  margin-bottom: 12px;
 }
-.login-card {
-  background: var(--white); border: 1px solid var(--border);
-  border-radius: 20px; padding: 40px;
-  width: 100%; max-width: 380px;
-  box-shadow: 0 4px 24px rgba(0,0,0,.07);
-}
-.brand {
-  font-family: 'Bricolage Grotesque', sans-serif;
-  font-size: 22px; font-weight: 700; color: var(--ink); margin-bottom: 4px;
-}
-.brand-sub { font-size: 13px; color: var(--ink-3); margin-bottom: 28px; }
+.login-logo-mark svg { width: 26px; height: 26px; fill: #fff; }
+.login-brand { font-family: 'Bricolage Grotesque', sans-serif; font-size: 20px; font-weight: 700; color: var(--ink); }
+.login-badge { display: inline-block; font-size: 11px; font-weight: 600; color: var(--ink-3); background: var(--border); border-radius: 20px; padding: 3px 10px; margin-top: 6px; letter-spacing: .04em; text-transform: uppercase; }
+.login-card { background: var(--white); border: 1px solid var(--border); border-radius: 20px; padding: 36px 32px; box-shadow: var(--shadow); }
+.login-card h2 { font-family: 'Bricolage Grotesque', sans-serif; font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+.login-card p { font-size: 13px; color: var(--ink-3); margin-bottom: 24px; }
+.err-msg { font-size: 13px; color: var(--red); margin-top: 10px; display: none; }
 
-/* MAIN */
+/* ── MAIN ────────────────────────────────────────────────────────────────── */
 #main-screen { display: none; }
 header {
   background: var(--white); border-bottom: 1px solid var(--border);
-  padding: 0 32px; height: 60px;
+  padding: 0 32px; height: 58px;
   display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0; z-index: 10;
 }
-.header-brand {
-  font-family: 'Bricolage Grotesque', sans-serif;
-  font-size: 18px; font-weight: 700;
-}
-.header-sub { font-size: 13px; color: var(--ink-3); }
-.btn-out {
-  font-size: 13px; color: var(--ink-3); background: none;
-  border: 1px solid var(--border); border-radius: 8px;
-  padding: 6px 14px; cursor: pointer; font-family: inherit;
-}
-.btn-out:hover { color: var(--red); border-color: var(--red); }
+.header-left { display: flex; align-items: center; gap: 12px; }
+.header-dot { width: 8px; height: 8px; background: var(--wa); border-radius: 50%; }
+.header-brand { font-family: 'Bricolage Grotesque', sans-serif; font-size: 16px; font-weight: 700; }
+.header-sub { font-size: 12px; color: var(--ink-3); margin-top: 1px; }
+.btn-out { font-size: 12px; color: var(--ink-3); background: none; border: 1px solid var(--border); border-radius: 8px; padding: 6px 14px; cursor: pointer; font-family: inherit; transition: all .15s; }
+.btn-out:hover { color: var(--red); border-color: currentColor; }
+.page { max-width: 680px; margin: 0 auto; padding: 32px 24px 80px; }
 
-.page { max-width: 660px; margin: 40px auto; padding: 0 24px 80px; }
+/* ── SECTION LABEL ───────────────────────────────────────────────────────── */
+.section-label { font-size: 11px; font-weight: 600; color: var(--ink-3); text-transform: uppercase; letter-spacing: .07em; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+.section-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
 
-/* STEP TABS */
-.tabs {
-  display: flex; gap: 2px; background: var(--border);
-  border-radius: 12px; overflow: hidden; margin-bottom: 28px;
-}
+/* ── APPLICATIONS PANEL ──────────────────────────────────────────────────── */
+.apps-panel { background: var(--white); border: 1px solid var(--border); border-radius: var(--r); box-shadow: var(--shadow); margin-bottom: 32px; overflow: hidden; }
+.apps-header { padding: 20px 24px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+.apps-title { font-family: 'Bricolage Grotesque', sans-serif; font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+.apps-count { background: var(--red); color: #fff; font-size: 11px; font-weight: 700; border-radius: 20px; padding: 2px 9px; display: none; }
+.apps-hint { font-size: 12px; color: var(--ink-3); }
+.apps-body { padding: 16px 24px 20px; }
+.apps-empty { font-size: 13px; color: var(--ink-3); padding: 12px 0; text-align: center; }
+
+.app-item { border: 1px solid var(--border); border-radius: 12px; margin-bottom: 12px; background: var(--white); overflow: hidden; }
+.app-item-top { padding: 16px 18px 14px; }
+.app-item-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 10px; }
+.app-item-name { font-weight: 700; font-size: 15px; }
+.app-item-meta { font-size: 12px; color: var(--ink-3); margin-top: 3px; line-height: 1.5; }
+.app-time { font-size: 11px; color: var(--ink-3); white-space: nowrap; background: var(--bg); border-radius: 6px; padding: 3px 8px; }
+.app-detail-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 12px; margin-bottom: 2px; }
+.app-detail { background: var(--bg); border-radius: 8px; padding: 8px 10px; font-size: 12px; }
+.app-detail b { display: block; font-size: 10px; font-weight: 600; color: var(--ink-3); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 3px; }
+.app-comments { font-size: 13px; color: var(--ink-2); font-style: italic; margin-top: 10px; padding: 10px 12px; background: var(--bg); border-radius: 8px; line-height: 1.55; }
+.app-badge-attention { background: #FEF3C7; color: #92400E; border-bottom: 1px solid #FDE68A; padding: 8px 18px; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+.app-actions { padding: 12px 18px; border-top: 1px solid var(--border); background: var(--bg); display: flex; gap: 8px; }
+.app-edit { padding: 16px 18px; border-top: 1px solid var(--border); }
+.app-edit-hint { font-size: 12px; color: var(--ink-3); line-height: 1.6; margin-bottom: 14px; padding: 10px 12px; background: #EFF6FF; border-radius: 8px; border: 1px solid #BFDBFE; color: #1E40AF; }
+.app-edit .field { margin-bottom: 12px; }
+
+/* ── STEP PROGRESS ───────────────────────────────────────────────────────── */
+.steps-section { margin-bottom: 24px; }
+.steps-label { font-size: 11px; font-weight: 600; color: var(--ink-3); text-transform: uppercase; letter-spacing: .07em; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+.steps-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+.tabs { display: flex; align-items: center; background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 6px; gap: 3px; box-shadow: var(--shadow); margin-bottom: 24px; }
 .tab {
-  flex: 1; padding: 10px 6px; background: var(--white);
-  text-align: center; font-size: 12px; font-weight: 600;
-  color: var(--ink-3);
+  flex: 1; padding: 9px 6px; border-radius: 9px;
+  text-align: center; font-size: 11px; font-weight: 600;
+  color: var(--ink-3); cursor: default; transition: all .2s;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .tab.active { background: var(--ink); color: #fff; }
-.tab.done   { background: var(--wa); color: #fff; }
+.tab.done { background: var(--wa); color: #fff; }
 
-/* CARD */
-.card {
-  background: var(--white); border: 1px solid var(--border);
-  border-radius: 16px; padding: 28px 32px; margin-bottom: 16px;
-}
-.card-title {
-  font-family: 'Bricolage Grotesque', sans-serif;
-  font-size: 18px; font-weight: 700; margin-bottom: 6px;
-}
-.card-sub { font-size: 13px; color: var(--ink-3); line-height: 1.65; margin-bottom: 24px; }
+/* ── CARDS ───────────────────────────────────────────────────────────────── */
+.card { background: var(--white); border: 1px solid var(--border); border-radius: var(--r); padding: 28px 28px 24px; margin-bottom: 16px; box-shadow: var(--shadow); }
+.card-icon { width: 40px; height: 40px; border-radius: 10px; background: var(--bg); display: flex; align-items: center; justify-content: center; font-size: 20px; margin-bottom: 16px; }
+.card-title { font-family: 'Bricolage Grotesque', sans-serif; font-size: 17px; font-weight: 700; margin-bottom: 6px; }
+.card-sub { font-size: 13px; color: var(--ink-3); line-height: 1.65; margin-bottom: 22px; }
 
-/* FIELDS */
+/* ── FIELDS ──────────────────────────────────────────────────────────────── */
 .field { margin-bottom: 16px; }
-.f-label {
-  display: block; font-size: 11px; font-weight: 600;
-  letter-spacing: .05em; text-transform: uppercase;
-  color: var(--ink-3); margin-bottom: 6px;
-}
-.f-input, .f-select {
-  width: 100%; padding: 10px 14px;
-  border: 1.5px solid var(--border); border-radius: var(--r);
-  font-family: 'DM Sans', sans-serif; font-size: 14px;
-  background: var(--bg); color: var(--ink); outline: none;
-  transition: border-color .15s, background .15s;
-}
+.f-label { display: block; font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 6px; }
+.f-input, .f-select { width: 100%; padding: 10px 14px; border: 1.5px solid var(--border); border-radius: var(--r); font-family: 'DM Sans', sans-serif; font-size: 14px; background: var(--bg); color: var(--ink); outline: none; transition: border-color .15s, background .15s; }
 .f-input:focus, .f-select:focus { border-color: var(--wa); background: var(--white); }
 .f-hint { font-size: 12px; color: var(--ink-3); margin-top: 5px; }
 
-/* BUTTONS */
-.btn {
-  padding: 11px 22px; border: none; border-radius: var(--r);
-  font-family: 'DM Sans', sans-serif; font-size: 14px;
-  font-weight: 600; cursor: pointer; transition: background .15s;
-}
-.btn-dark  { background: var(--ink); color: #fff; }
-.btn-dark:hover  { background: #2a2a2a; }
-.btn-dark:disabled  { opacity: .5; cursor: not-allowed; }
+/* ── BUTTONS ─────────────────────────────────────────────────────────────── */
+.btn { padding: 10px 20px; border: none; border-radius: 10px; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s; }
+.btn-dark { background: var(--ink); color: #fff; }
+.btn-dark:hover { background: #2a2a2a; }
+.btn-dark:disabled { opacity: .45; cursor: not-allowed; }
 .btn-green { background: var(--wa); color: #fff; }
 .btn-green:hover { background: var(--wa-dark); }
-.btn-green:disabled { opacity: .5; cursor: not-allowed; }
-.btn-ghost {
-  background: none; color: var(--ink-2);
-  border: 1.5px solid var(--border);
-}
+.btn-green:disabled { opacity: .45; cursor: not-allowed; }
+.btn-ghost { background: var(--white); color: var(--ink-2); border: 1.5px solid var(--border); }
 .btn-ghost:hover { border-color: var(--ink-3); }
+.btn-sm { padding: 7px 14px; font-size: 12px; }
+.row { display: flex; gap: 8px; margin-top: 20px; align-items: center; }
 
-/* STATUS */
-.status {
-  border-radius: 10px; padding: 12px 16px;
-  font-size: 13px; line-height: 1.6; margin-top: 14px; display: none;
-}
+/* ── STATUS ──────────────────────────────────────────────────────────────── */
+.status { border-radius: 10px; padding: 11px 15px; font-size: 13px; line-height: 1.6; margin-top: 14px; display: none; }
 .s-ok   { background: #DCFCE7; color: #15803D; border: 1px solid #86EFAC; }
 .s-err  { background: #FEE2E2; color: #B91C1C; border: 1px solid #FCA5A5; }
 .s-info { background: #EFF6FF; color: #1D4ED8; border: 1px solid #93C5FD; }
 
-.chip {
-  display: inline-block; background: var(--bg);
-  border: 1px solid var(--border); border-radius: 8px;
-  padding: 5px 12px; font-size: 13px; font-weight: 600;
-  font-family: monospace; color: var(--ink); margin-top: 6px;
-}
-
-/* OTP METHOD PICKER */
+/* ── OTP PICKER ──────────────────────────────────────────────────────────── */
 .otp-row { display: flex; gap: 10px; margin-bottom: 16px; }
-.otp-opt {
-  flex: 1; padding: 12px; border: 1.5px solid var(--border);
-  border-radius: var(--r); text-align: center; cursor: pointer;
-  font-size: 14px; font-weight: 500; color: var(--ink-2);
-  background: var(--bg); transition: all .15s;
-}
+.otp-opt { flex: 1; padding: 14px 12px; border: 1.5px solid var(--border); border-radius: var(--r); text-align: center; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--ink-2); background: var(--bg); transition: all .15s; }
 .otp-opt.on { border-color: var(--wa); background: #E8F5EE; color: var(--wa-dark); }
-.otp-opt .ic { font-size: 22px; display: block; margin-bottom: 4px; }
+.otp-opt .ic { font-size: 24px; display: block; margin-bottom: 5px; }
 
-.row { display: flex; gap: 10px; margin-top: 20px; }
-.err-msg { color: var(--red); font-size: 13px; margin-top: 8px; display: none; }
+/* ── SUMMARY BOXES ───────────────────────────────────────────────────────── */
+.summary-box { background: var(--bg); border-radius: 12px; padding: 16px 20px; margin-bottom: 4px; }
+.summary-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; }
+.summary-row:not(:last-child) { border-bottom: 1px solid var(--border); }
+.summary-label { font-size: 12px; color: var(--ink-3); }
+.summary-val { font-size: 13px; font-weight: 600; font-family: monospace; color: var(--ink); }
+.chip { display: inline-block; background: var(--white); border: 1px solid var(--border); border-radius: 8px; padding: 4px 11px; font-size: 13px; font-weight: 600; font-family: monospace; color: var(--ink); }
 
-/* PENDING APPLICATIONS */
-.apps-count {
-  display: inline-block; background: var(--red); color: #fff;
-  font-size: 11px; font-weight: 700; border-radius: 20px;
-  padding: 1px 9px; margin-left: 6px; vertical-align: middle;
-}
-.apps-empty { font-size: 13px; color: var(--ink-3); padding: 8px 0; }
-.app-item {
-  border: 1px solid var(--border); border-radius: 12px;
-  padding: 18px 20px; margin-bottom: 12px; background: var(--bg);
-}
-.app-item-head {
-  display: flex; justify-content: space-between; align-items: flex-start;
-  gap: 12px; margin-bottom: 12px;
-}
-.app-item-name { font-weight: 700; font-size: 15px; }
-.app-item-meta { font-size: 12px; color: var(--ink-3); margin-top: 2px; }
-.app-detail-grid {
-  display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px 16px;
-  font-size: 13px; margin-bottom: 4px;
-}
-.app-detail b {
-  display: block; font-size: 11px; font-weight: 600; color: var(--ink-3);
-  text-transform: uppercase; letter-spacing: .04em; margin-bottom: 2px;
-}
-.app-comments {
-  font-size: 13px; color: var(--ink-2); font-style: italic;
-  margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border);
-}
-.app-edit {
-  margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);
-}
-.app-edit .field { margin-bottom: 12px; }
-.app-badge-attention {
-  background: #FEF3C7; color: #92400E; border: 1px solid #FDE68A;
-  border-radius: 8px; padding: 6px 12px; font-size: 12px; font-weight: 600;
-  margin-bottom: 12px;
-}
+/* ── DONE ────────────────────────────────────────────────────────────────── */
+.done-card { background: var(--white); border: 1px solid var(--border); border-radius: var(--r); padding: 56px 32px; box-shadow: var(--shadow); text-align: center; }
+.done-icon { width: 72px; height: 72px; background: #DCFCE7; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 36px; margin: 0 auto 20px; }
+.done-title { font-family: 'Bricolage Grotesque', sans-serif; font-size: 22px; font-weight: 700; margin-bottom: 10px; }
+.done-sub { font-size: 14px; color: var(--ink-3); line-height: 1.7; margin-bottom: 32px; }
+
+/* ── MISC ────────────────────────────────────────────────────────────────── */
+.card-sub-sm { font-size: 12px; color: var(--ink-3); }
 </style>
 </head>
 <body>
 
 <!-- LOGIN -->
 <div id="login-screen">
-  <div class="login-card">
-    <div class="brand">ShopprHQ Admin</div>
-    <div class="brand-sub">WhatsApp Onboarding — Internal Use Only</div>
-    <div class="field">
-      <label class="f-label">Admin Secret</label>
-      <input class="f-input" id="pw" type="password" placeholder="Enter admin secret"
-        onkeydown="if(event.key==='Enter') doLogin()">
+  <div class="login-wrap">
+    <div class="login-logo">
+      <div class="login-logo-mark">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.832-1.438A9.956 9.956 0 0 0 12 22c5.523 0 10-4.477 10-10S17.523 2 12 2Zm0 18a7.956 7.956 0 0 1-4.035-1.094l-.29-.172-2.869.853.853-2.87-.172-.29A7.956 7.956 0 0 1 4 12c0-4.418 3.582-8 8-8s8 3.582 8 8-3.582 8-8 8Zm4.406-5.938c-.24-.12-1.43-.703-1.652-.782-.222-.078-.383-.117-.543.118-.16.234-.62.781-.762.94-.14.16-.28.18-.523.06-.24-.12-1.02-.374-1.94-1.195-.718-.638-1.203-1.426-1.344-1.668-.14-.242-.015-.373.106-.493.109-.109.242-.285.363-.426.12-.14.16-.242.242-.403.08-.16.04-.3-.02-.42-.06-.12-.543-1.31-.743-1.793-.196-.473-.396-.41-.543-.417-.14-.007-.3-.009-.46-.009-.16 0-.42.06-.64.3-.22.241-.842.824-.842 2.01 0 1.185.862 2.33.983 2.49.12.16 1.697 2.592 4.113 3.635.575.25 1.024.398 1.373.508.577.184 1.1.158 1.515.096.462-.069 1.43-.584 1.63-1.15.202-.563.202-1.047.141-1.147-.06-.1-.221-.16-.461-.28Z"/></svg>
+      </div>
+      <div class="login-brand">ShopprHQ</div>
+      <div><span class="login-badge">Admin · Internal Only</span></div>
     </div>
-    <button class="btn btn-dark" style="width:100%;margin-top:4px" onclick="doLogin()">Continue</button>
-    <div class="err-msg" id="pw-err">Incorrect secret. Try again.</div>
-    <div class="err-msg" id="idle-msg" style="display:none">Signed out due to inactivity. Please sign in again.</div>
+    <div class="login-card">
+      <h2>Sign in</h2>
+      <p>WhatsApp Onboarding Dashboard</p>
+      <div class="field">
+        <label class="f-label">Admin Secret</label>
+        <input class="f-input" id="pw" type="password" placeholder="Enter your admin secret"
+          onkeydown="if(event.key==='Enter') doLogin()">
+      </div>
+      <button class="btn btn-dark" style="width:100%;padding:12px" onclick="doLogin()">Continue →</button>
+      <div class="err-msg" id="pw-err">Incorrect secret. Try again.</div>
+      <div class="err-msg" id="idle-msg" style="display:none">Signed out due to inactivity. Please sign in again.</div>
+    </div>
   </div>
 </div>
 
 <!-- MAIN -->
 <div id="main-screen">
   <header>
-    <div>
-      <div class="header-brand">WhatsApp Onboarding</div>
-      <div class="header-sub">Connect a store's WhatsApp number to ShopprHQ</div>
+    <div class="header-left">
+      <div class="header-dot"></div>
+      <div>
+        <div class="header-brand">WhatsApp Onboarding</div>
+        <div class="header-sub">ShopprHQ Admin · Internal Use Only</div>
+      </div>
     </div>
-    <button class="btn-out" onclick="doSignOut()">Sign Out</button>
+    <button class="btn-out" onclick="doSignOut()">Sign out</button>
   </header>
 
   <div class="page">
 
-    <!-- PENDING APPLICATIONS -->
-    <div class="card" id="apps-card">
-      <div class="card-title">Pending Applications<span class="apps-count" id="apps-count" style="display:none">0</span></div>
-      <div class="card-sub">
-        New "Apply to Use" submissions. Approve to create the account and email the merchant
-        their login details, or dismiss it.
+    <!-- APPLICATIONS -->
+    <div class="apps-panel" id="apps-card">
+      <div class="apps-header">
+        <div class="apps-title">
+          Pending Applications
+          <span class="apps-count" id="apps-count">0</span>
+        </div>
+        <span class="apps-hint">New "Apply to Use" submissions</span>
       </div>
-      <div id="apps-list"><div class="apps-empty">Loading…</div></div>
-    </div>
-
-    <div class="tabs">
-      <div class="tab active" id="t1">1. Store & Number</div>
-      <div class="tab" id="t2">2. Request OTP</div>
-      <div class="tab" id="t3">3. Verify OTP</div>
-      <div class="tab" id="t4">4. Activate</div>
-      <div class="tab" id="t5">5. Save</div>
-    </div>
-
-    <!-- STEP 1 -->
-    <div id="s1">
-      <div class="card">
-        <div class="card-title">Store & Number Details</div>
-        <div class="card-sub">
-          Select the store, enter the merchant's WhatsApp number and a display name customers will see.
-          The number must not currently be on WhatsApp or WhatsApp Business App.
-        </div>
-        <div class="field">
-          <label class="f-label">Store</label>
-          <select class="f-select" id="s1-client">
-            <option value="">Loading stores…</option>
-          </select>
-        </div>
-        <div class="field">
-          <label class="f-label">Phone Number</label>
-          <input class="f-input" id="s1-phone" type="tel" placeholder="2348012345678"
-            oninput="this.value=this.value.replace(/[^0-9]/g,'')">
-          <div class="f-hint">International format without + e.g. 2348012345678</div>
-        </div>
-        <div class="field">
-          <label class="f-label">Display Name</label>
-          <input class="f-input" id="s1-name" type="text" placeholder="e.g. Mama Tee's Store">
-          <div class="f-hint">What customers see when this number messages them.</div>
-        </div>
-        <div class="status" id="st1"></div>
-        <div class="row">
-          <button class="btn btn-dark" id="b1" onclick="step1()">Continue →</button>
-        </div>
+      <div class="apps-body">
+        <div id="apps-list"><div class="apps-empty">Loading…</div></div>
       </div>
     </div>
 
-    <!-- STEP 2 -->
-    <div id="s2" style="display:none">
-      <div class="card">
-        <div class="card-title">Request Verification Code</div>
-        <div class="card-sub">
-          Choose how Meta sends the OTP to <strong id="s2-num"></strong>.
-          The merchant needs access to that phone right now.
-        </div>
-        <div class="otp-row">
-          <div class="otp-opt on" id="opt-sms" onclick="pickOtp('sms')">
-            <span class="ic">💬</span>SMS
+    <!-- STEP WIZARD -->
+    <div class="steps-section">
+      <div class="steps-label">WhatsApp Number Setup</div>
+      <div class="tabs">
+        <div class="tab active" id="t1">1 · Store</div>
+        <div class="tab" id="t2">2 · Request OTP</div>
+        <div class="tab" id="t3">3 · Verify</div>
+        <div class="tab" id="t4">4 · Activate</div>
+        <div class="tab" id="t5">5 · Save</div>
+      </div>
+
+      <!-- STEP 1 -->
+      <div id="s1">
+        <div class="card">
+          <div class="card-icon">🏪</div>
+          <div class="card-title">Store & Number Details</div>
+          <div class="card-sub">Select the store, enter the merchant's WhatsApp number and a display name customers will see. The number must not currently be on WhatsApp or WhatsApp Business App.</div>
+          <div class="field">
+            <label class="f-label">Store</label>
+            <select class="f-select" id="s1-client">
+              <option value="">Loading stores…</option>
+            </select>
           </div>
-          <div class="otp-opt" id="opt-voice" onclick="pickOtp('voice')">
-            <span class="ic">📞</span>Voice Call
+          <div class="field">
+            <label class="f-label">Phone Number</label>
+            <input class="f-input" id="s1-phone" type="tel" placeholder="2348012345678"
+              oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+            <div class="f-hint">International format without + — e.g. 2348012345678</div>
+          </div>
+          <div class="field">
+            <label class="f-label">Display Name</label>
+            <input class="f-input" id="s1-name" type="text" placeholder="e.g. Mama Tee's Store">
+            <div class="f-hint">What customers see when this number messages them.</div>
+          </div>
+          <div class="status" id="st1"></div>
+          <div class="row">
+            <button class="btn btn-dark" id="b1" onclick="step1()">Continue →</button>
           </div>
         </div>
-        <div class="status" id="st2"></div>
-        <div class="row">
-          <button class="btn btn-ghost" onclick="go(1)">← Back</button>
-          <button class="btn btn-green" id="b2" onclick="step2()">Send Code</button>
-        </div>
       </div>
-    </div>
 
-    <!-- STEP 3 -->
-    <div id="s3" style="display:none">
-      <div class="card">
-        <div class="card-title">Enter Verification Code</div>
-        <div class="card-sub">
-          Ask the merchant for the 6-digit code sent to <strong id="s3-num"></strong>.
-        </div>
-        <div class="field">
-          <label class="f-label">6-Digit Code</label>
-          <input class="f-input" id="s3-code" type="text" inputmode="numeric"
-            maxlength="6" placeholder="000000"
-            style="font-size:26px;font-weight:700;letter-spacing:.2em;text-align:center"
-            oninput="this.value=this.value.replace(/[^0-9]/g,'')">
-        </div>
-        <div class="status" id="st3"></div>
-        <div class="row">
-          <button class="btn btn-ghost" onclick="go(2)">← Resend</button>
-          <button class="btn btn-dark" id="b3" onclick="step3()">Verify →</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- STEP 4 -->
-    <div id="s4" style="display:none">
-      <div class="card">
-        <div class="card-title">Activate on Cloud API</div>
-        <div class="card-sub">
-          Number verified. This registers it on Meta's Cloud API and subscribes your webhook —
-          ShopprHQ will start receiving messages from this number.
-        </div>
-        <div style="background:var(--bg);border-radius:10px;padding:16px 20px;margin-bottom:4px">
-          <div style="font-size:12px;color:var(--ink-3);margin-bottom:4px">Phone Number ID</div>
-          <div class="chip" id="s4-pid">—</div>
-          <div style="font-size:12px;color:var(--ink-3);margin-top:10px;margin-bottom:4px">Number</div>
-          <div class="chip" id="s4-num">—</div>
-        </div>
-        <div class="status" id="st4"></div>
-        <div class="row">
-          <button class="btn btn-green" id="b4" onclick="step4()">Register & Subscribe Webhook →</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- STEP 5 -->
-    <div id="s5" style="display:none">
-      <div class="card">
-        <div class="card-title">Save to ShopprHQ</div>
-        <div class="card-sub">Final step — save the Phone Number ID to the store's record.</div>
-        <div style="background:var(--bg);border-radius:10px;padding:16px 20px;margin-bottom:4px;display:grid;gap:10px">
-          <div>
-            <div style="font-size:12px;color:var(--ink-3)">Store</div>
-            <div style="font-weight:600;font-size:14px" id="s5-store">—</div>
+      <!-- STEP 2 -->
+      <div id="s2" style="display:none">
+        <div class="card">
+          <div class="card-icon">📨</div>
+          <div class="card-title">Request Verification Code</div>
+          <div class="card-sub">Choose how Meta sends the OTP to <strong id="s2-num"></strong>. The merchant needs access to that phone right now.</div>
+          <div class="otp-row">
+            <div class="otp-opt on" id="opt-sms" onclick="pickOtp('sms')">
+              <span class="ic">💬</span>SMS
+            </div>
+            <div class="otp-opt" id="opt-voice" onclick="pickOtp('voice')">
+              <span class="ic">📞</span>Voice Call
+            </div>
           </div>
-          <div>
-            <div style="font-size:12px;color:var(--ink-3)">Phone Number</div>
-            <div class="chip" id="s5-num">—</div>
-          </div>
-          <div>
-            <div style="font-size:12px;color:var(--ink-3)">Phone Number ID</div>
-            <div class="chip" id="s5-pid">—</div>
+          <div class="status" id="st2"></div>
+          <div class="row">
+            <button class="btn btn-ghost" onclick="go(1)">← Back</button>
+            <button class="btn btn-green" id="b2" onclick="step2()">Send Code</button>
           </div>
         </div>
-        <div class="status" id="st5"></div>
-        <div class="row">
-          <button class="btn btn-green" id="b5" onclick="step5()">Save & Go Live ✓</button>
+      </div>
+
+      <!-- STEP 3 -->
+      <div id="s3" style="display:none">
+        <div class="card">
+          <div class="card-icon">🔢</div>
+          <div class="card-title">Enter Verification Code</div>
+          <div class="card-sub">Ask the merchant for the 6-digit code sent to <strong id="s3-num"></strong>.</div>
+          <div class="field">
+            <label class="f-label">6-Digit Code</label>
+            <input class="f-input" id="s3-code" type="text" inputmode="numeric"
+              maxlength="6" placeholder="000000"
+              style="font-size:28px;font-weight:700;letter-spacing:.25em;text-align:center;padding:14px"
+              oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+          </div>
+          <div class="status" id="st3"></div>
+          <div class="row">
+            <button class="btn btn-ghost" onclick="go(2)">← Resend</button>
+            <button class="btn btn-dark" id="b3" onclick="step3()">Verify →</button>
+          </div>
         </div>
       </div>
-    </div>
 
-    <!-- DONE -->
-    <div id="s-done" style="display:none">
-      <div class="card" style="text-align:center;padding:48px 32px">
-        <div style="font-size:56px;margin-bottom:16px">✅</div>
-        <div class="card-title" style="font-size:22px;margin-bottom:8px">Store is Live!</div>
-        <div style="font-size:14px;color:var(--ink-3);line-height:1.7;margin-bottom:28px">
-          <strong id="done-store"></strong> is now connected to WhatsApp.<br>
-          Customers can message <strong id="done-num"></strong> to start ordering.
+      <!-- STEP 4 -->
+      <div id="s4" style="display:none">
+        <div class="card">
+          <div class="card-icon">⚡</div>
+          <div class="card-title">Activate on Cloud API</div>
+          <div class="card-sub">Number verified. This registers it on Meta's Cloud API and subscribes your webhook — ShopprHQ will start receiving messages from this number.</div>
+          <div class="summary-box">
+            <div class="summary-row">
+              <span class="summary-label">Phone Number ID</span>
+              <span class="chip" id="s4-pid">—</span>
+            </div>
+            <div class="summary-row">
+              <span class="summary-label">Number</span>
+              <span class="chip" id="s4-num">—</span>
+            </div>
+          </div>
+          <div class="status" id="st4"></div>
+          <div class="row">
+            <button class="btn btn-green" id="b4" onclick="step4()">Register & Subscribe Webhook →</button>
+          </div>
         </div>
-        <button class="btn btn-dark" onclick="reset()">Connect Another Number</button>
       </div>
-    </div>
 
-  </div>
-</div>
+      <!-- STEP 5 -->
+      <div id="s5" style="display:none">
+        <div class="card">
+          <div class="card-icon">💾</div>
+          <div class="card-title">Save to ShopprHQ</div>
+          <div class="card-sub">Final step — confirm the details below and save the Phone Number ID to the store's record. The merchant will receive a "you're live" email.</div>
+          <div class="summary-box">
+            <div class="summary-row">
+              <span class="summary-label">Store</span>
+              <span style="font-size:13px;font-weight:600" id="s5-store">—</span>
+            </div>
+            <div class="summary-row">
+              <span class="summary-label">Phone Number</span>
+              <span class="chip" id="s5-num">—</span>
+            </div>
+            <div class="summary-row">
+              <span class="summary-label">Phone Number ID</span>
+              <span class="chip" id="s5-pid">—</span>
+            </div>
+          </div>
+          <div class="status" id="st5"></div>
+          <div class="row">
+            <button class="btn btn-green" id="b5" onclick="step5()">Save & Go Live ✓</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- DONE -->
+      <div id="s-done" style="display:none">
+        <div class="done-card">
+          <div class="done-icon">✅</div>
+          <div class="done-title">Store is Live!</div>
+          <div class="done-sub">
+            <strong id="done-store"></strong> is now connected to WhatsApp.<br>
+            Customers can message <strong id="done-num"></strong> to start ordering.
+          </div>
+          <button class="btn btn-dark" onclick="reset()">Connect Another Number</button>
+        </div>
+      </div>
+
+    </div><!-- /steps-section -->
+  </div><!-- /page -->
+</div><!-- /main-screen -->
 
 <script>
 const S = {
@@ -427,8 +404,6 @@ function H() {
 }
 
 // ── IDLE TIMEOUT ─────────────────────────────────────────────────────────────
-// Solo-admin tool, so no per-user audit trail — just a simple safety net:
-// 15 minutes with no mouse/keyboard/touch activity signs the session out.
 const IDLE_LIMIT_MS = 15 * 60 * 1000;
 let lastActivityAt   = Date.now();
 let idleCheckHandle   = null;
@@ -519,7 +494,7 @@ function renderApplications() {
 
   if (!APPS.length) {
     count.style.display = 'none';
-    box.innerHTML = '<div class="apps-empty">No pending applications. New "Apply to Use" submissions show up here.</div>';
+    box.innerHTML = '<div class="apps-empty">No pending applications — new submissions will appear here automatically.</div>';
     return;
   }
 
@@ -527,38 +502,38 @@ function renderApplications() {
   count.textContent   = APPS.length;
 
   box.innerHTML = APPS.map(a => {
-    const waLine = a.whatsapp_number ? `+${esc(a.whatsapp_number)}` : 'no WhatsApp number given';
+    const waLine = a.whatsapp_number ? `+${esc(a.whatsapp_number)}` : 'no WhatsApp number yet';
     const needsAttention = a.status === 'needs_attention';
     return `
     <div class="app-item" id="app-${a.id}">
       ${needsAttention ? `<div class="app-badge-attention">⚠ Needs attention${a.last_error ? ' — ' + esc(a.last_error) : ''}</div>` : ''}
-      <div class="app-item-head">
-        <div>
-          <div class="app-item-name">${esc(a.business_name)}</div>
-          <div class="app-item-meta">${esc(a.full_name)} · ${esc(a.email)} · ${waLine}</div>
+      <div class="app-item-top">
+        <div class="app-item-head">
+          <div>
+            <div class="app-item-name">${esc(a.business_name)}</div>
+            <div class="app-item-meta">${esc(a.full_name)} · ${esc(a.email)}</div>
+            <div class="app-item-meta">${waLine} · ${esc(a.city_state)}</div>
+          </div>
+          <span class="app-time">${timeAgo(a.created_at)}</span>
         </div>
-        <div class="app-item-meta">${timeAgo(a.created_at)}</div>
+        <div class="app-detail-grid">
+          <div class="app-detail"><b>Type</b>${esc(a.business_type)}</div>
+          <div class="app-detail"><b>Branches</b>${esc(a.num_branches)}</div>
+          <div class="app-detail"><b>Volume/mo</b>${esc(a.monthly_order_volume || '—')}</div>
+          <div class="app-detail"><b>WA manual?</b>${a.uses_whatsapp_manual ? 'Yes' : 'No'}</div>
+          <div class="app-detail"><b>Delivery?</b>${a.uses_delivery_service ? 'Yes' : 'No'}</div>
+          <div class="app-detail"><b>Via</b>${esc(a.heard_about_us || '—')}</div>
+        </div>
+        ${a.comments ? `<div class="app-comments">"${esc(a.comments)}"</div>` : ''}
       </div>
-      <div class="app-detail-grid">
-        <div class="app-detail"><b>Type</b>${esc(a.business_type)}</div>
-        <div class="app-detail"><b>City</b>${esc(a.city_state)}</div>
-        <div class="app-detail"><b>Branches</b>${esc(a.num_branches)}</div>
-        <div class="app-detail"><b>Volume/mo</b>${esc(a.monthly_order_volume || '—')}</div>
-        <div class="app-detail"><b>On WhatsApp manually?</b>${a.uses_whatsapp_manual ? 'Yes' : 'No'}</div>
-        <div class="app-detail"><b>Uses delivery service?</b>${a.uses_delivery_service ? 'Yes' : 'No'}</div>
-      </div>
-      ${a.comments ? `<div class="app-comments">"${esc(a.comments)}"</div>` : ''}
-      <div class="row" style="margin-top:14px">
-        <button class="btn btn-green" onclick="openApprove('${a.id}')">Approve & Continue Setup</button>
-        <button class="btn btn-ghost" onclick="rejectApp('${a.id}')">Dismiss</button>
+      <div class="app-actions">
+        <button class="btn btn-green btn-sm" onclick="openApprove('${a.id}')">Approve & Continue Setup</button>
+        <button class="btn btn-ghost btn-sm" onclick="rejectApp('${a.id}')">Dismiss</button>
       </div>
       <div class="app-edit" id="edit-${a.id}" style="display:none">
-        <div class="card-sub" style="margin-bottom:14px">
-          Review before creating the account — a login email goes to the address below.
-          Once created, Step 1 below will be pre-filled with this store's details.
-        </div>
+        <div class="app-edit-hint">ℹ Review before creating the account — login credentials will be emailed to the address below. Step 1 will be pre-filled once approved.</div>
         <div class="field">
-          <label class="f-label">Account / Business Name</label>
+          <label class="f-label">Business Name</label>
           <input class="f-input" id="edit-name-${a.id}" value="${esc(a.business_name)}">
         </div>
         <div class="field">
@@ -571,8 +546,8 @@ function renderApplications() {
         </div>
         <div class="status" id="app-st-${a.id}"></div>
         <div class="row">
-          <button class="btn btn-ghost" onclick="closeApprove('${a.id}')">Cancel</button>
-          <button class="btn btn-dark" id="app-confirm-${a.id}" onclick="confirmApprove('${a.id}')">Confirm & Continue Setup</button>
+          <button class="btn btn-ghost btn-sm" onclick="closeApprove('${a.id}')">Cancel</button>
+          <button class="btn btn-dark btn-sm" id="app-confirm-${a.id}" onclick="confirmApprove('${a.id}')">Confirm & Continue Setup</button>
         </div>
       </div>
     </div>
@@ -616,9 +591,6 @@ async function confirmApprove(id) {
     APPS = APPS.filter(a => a.id !== id);
     renderApplications();
 
-    // Carry the new store straight into Step 1 — refresh the dropdown,
-    // select it, and pre-fill the number/name so admin isn't re-typing
-    // what was already on the application.
     await loadClients();
     const sel = document.getElementById('s1-client');
     if (sel && d.client_id) sel.value = d.client_id;
