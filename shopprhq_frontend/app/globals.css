@@ -46,9 +46,14 @@
     display: flex;
     width: max-content;
   }
-  .animate-marquee:hover {
-    animation-play-state: paused;
+  .animate-marquee:hover { animation-play-state: paused; }
+
+  .animate-marquee-slow {
+    animation: marquee 40s linear infinite;
+    display: flex;
+    width: max-content;
   }
+  .animate-marquee-slow:hover { animation-play-state: paused; }
 
   @keyframes blink {
     0%, 100% { opacity: 1; }

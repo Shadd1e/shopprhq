@@ -304,6 +304,15 @@ function PhoneMockup({ screen }: { screen: Screen }) {
   )
 }
 
+/* ── Industries ── */
+const INDUSTRIES = [
+  'Food & Restaurants', 'Fashion Boutiques', 'Pharmacies', 'Electronics Stores',
+  'Hair Salons', 'Bakeries', 'Supermarkets', 'Grocery Stores', 'Caterers',
+  'Pet Shops', 'Laundry Services', 'Tailors', 'Stationery Shops', 'Furniture Stores',
+  'Cosmetics & Beauty', 'Sportswear', 'Auto Parts', 'Printing Services', 'Bookstores',
+  'Meat & Fish Sellers', 'Confectionery', 'Mobile Accessories', 'Skincare Brands',
+]
+
 /* ── Why cards ── */
 const WHY_CARDS = [
   {
@@ -444,26 +453,16 @@ export default function HomePage() {
           </div>
 
           <div className="mt-14 reveal">
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 pt-10 border-t border-border">
-              <div className="flex gap-3">
-                <span className="text-xl mt-0.5">🍔</span>
-                <div>
-                  <p className="font-semibold text-sm text-ink mb-1">Food &amp; restaurants</p>
-                  <p className="text-xs text-ink-3 leading-relaxed">Menu questions, order variations, delivery zones — all automatic.</p>
-                </div>
-              </div>
-              <div className="flex gap-3">
-                <span className="text-xl mt-0.5">👗</span>
-                <div>
-                  <p className="font-semibold text-sm text-ink mb-1">Fashion &amp; retail</p>
-                  <p className="text-xs text-ink-3 leading-relaxed">Size availability, colour options, restock alerts — handled.</p>
-                </div>
-              </div>
-              <div className="flex gap-3">
-                <span className="text-xl mt-0.5">💊</span>
-                <div>
-                  <p className="font-semibold text-sm text-ink mb-1">Pharmacy &amp; grocery</p>
-                  <p className="text-xs text-ink-3 leading-relaxed">High-volume daily orders with no staff bottleneck.</p>
+            <div className="pt-10 border-t border-border overflow-hidden -mx-5 px-5">
+              <p className="text-xs font-mono text-ink-4 uppercase tracking-widest mb-5">Works for</p>
+              <div className="relative overflow-hidden">
+                <div className="animate-marquee-slow">
+                  {[...INDUSTRIES, ...INDUSTRIES].map((name, i) => (
+                    <span key={i} className="inline-flex items-center gap-3 mx-4 text-sm font-medium text-ink-3 whitespace-nowrap">
+                      <span className="w-1 h-1 rounded-full bg-wa inline-block" />
+                      {name}
+                    </span>
+                  ))}
                 </div>
               </div>
             </div>
