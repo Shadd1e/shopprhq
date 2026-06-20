@@ -20,10 +20,10 @@ export default function Navbar() {
           </Link>
         </div>
         <Link
-          href="/book-demo"
+          href="/get-started"
           className="text-sm font-semibold px-5 py-2 rounded-full bg-ink text-white hover:bg-ink-2 transition-colors"
         >
-          Book a demo
+          Get started
         </Link>
       </div>
     </nav>

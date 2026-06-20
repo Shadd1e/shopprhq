@@ -66,9 +66,9 @@ function RotatingWord() {
 /* ── Hand-drawn circle CTA ── */
 function ScribbleCTA() {
   return (
-    <Link href="/book-demo" className="group inline-block relative">
+    <Link href="/get-started" className="group inline-block relative">
       <span className="relative z-10 font-bold text-base text-ink group-hover:text-wa transition-colors px-6 py-3 inline-block">
-        Book a demo →
+        Get started →
       </span>
       <svg
         className="absolute inset-0 w-full h-full pointer-events-none"
@@ -543,7 +543,7 @@ export default function HomePage() {
           </div>
           <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs text-ink-3 font-mono">
             <Link href="/how-it-works" className="hover:text-ink transition-colors">How it works</Link>
-            <Link href="/book-demo"    className="hover:text-ink transition-colors">Book a demo</Link>
+            <Link href="/get-started"    className="hover:text-ink transition-colors">Get started</Link>
             <a href="mailto:hello@shopprhq.com" className="hover:text-ink transition-colors">hello@shopprhq.com</a>
           </div>
         </div>
