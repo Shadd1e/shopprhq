@@ -15,6 +15,7 @@ from app.models.payment import PaymentStatus
 from app.models.cart import Cart, CartItem
 from app.models.order import Order, OrderStatus, DeliveryType, generate_order_code
 from app.models.product import Product
+from app.models.client_model import Client as ClientModel
 from app.schemas.checkout import CheckoutRequestSchema, CheckoutResponseSchema
 from app.schemas.payment import PaymentCreate
 from app.services.payment_service import PaymentService
@@ -236,11 +237,19 @@ class CheckoutService:
             )
 
             try:
+                # Look up the store's WhatsApp number so the payment-success
+                # page can deep-link the customer back to the right conversation.
+                client_wa_result = await self.db.execute(
+                    select(ClientModel.whatsapp_number).where(ClientModel.id == cart.client_id)
+                )
+                store_whatsapp = client_wa_result.scalar_one_or_none()
+
                 payment_link = await self.create_paystack_payment_link(
                     reference=reference,
                     amount_naira=total_float,
                     phone=data.user_id,
                     subaccount_code=subaccount_code,
+                    store_whatsapp=store_whatsapp,
                 )
             except Exception as pay_err:
                 logger.error(
@@ -410,6 +419,7 @@ class CheckoutService:
         amount_naira: float,
         phone: str,
         subaccount_code: Optional[str] = None,
+        store_whatsapp: Optional[str] = None,
     ) -> str:
         secret = os.getenv("PAYSTACK_SECRET_KEY")
         if not secret:
@@ -419,6 +429,10 @@ class CheckoutService:
         if redirect_url and reference:
             sep = "&" if "?" in redirect_url else "?"
             redirect_url = f"{redirect_url}{sep}ref={reference}"
+            # Pass the store's WhatsApp number so the payment-success page can
+            # deep-link the customer back to the right conversation.
+            if store_whatsapp:
+                redirect_url = f"{redirect_url}&wa={store_whatsapp}"
 
         amount_kobo = int(amount_naira * 100)
         email = f"{phone.replace('+', '')}@shopprhq.app"
