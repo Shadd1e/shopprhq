@@ -18,13 +18,24 @@ export default function Navbar() {
           <Link href="/#why" className="hover:text-ink transition-colors">
             Why ShopprHQ
           </Link>
+          <Link href="/store-login" className="hover:text-ink transition-colors">
+            Merchant login
+          </Link>
         </div>
-        <Link
-          href="/get-started"
-          className="text-sm font-semibold px-5 py-2 rounded-full bg-ink text-white hover:bg-ink-2 transition-colors"
-        >
-          Get started
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/store-login"
+            className="sm:hidden text-sm font-semibold px-4 py-2 rounded-full border border-border text-ink hover:border-ink-3 transition-colors"
+          >
+            Login
+          </Link>
+          <Link
+            href="/get-started"
+            className="text-sm font-semibold px-5 py-2 rounded-full bg-ink text-white hover:bg-ink-2 transition-colors"
+          >
+            Get started
+          </Link>
+        </div>
       </div>
     </nav>
   )

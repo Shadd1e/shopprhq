@@ -127,7 +127,10 @@ export default function GetStartedPage() {
         city_state:            form.city_state.trim(),
         email:                 form.email.trim().toLowerCase(),
         phone_number:          form.phone_number.trim().replace(/\D/g, ''),
-        whatsapp_number:       '',   // not collected — set during onboarding
+        // The "Your personal WhatsApp number" field above IS this number —
+        // send it as both so the confirmation email correctly recognizes
+        // that a WhatsApp number was provided.
+        whatsapp_number:       form.phone_number.trim().replace(/\D/g, ''),
         num_branches:          Number(form.num_branches) || 1,
         monthly_order_volume:  form.monthly_order_volume,
         uses_whatsapp_manual:  form.uses_whatsapp_manual === 'yes',
