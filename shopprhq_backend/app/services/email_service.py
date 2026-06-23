@@ -952,7 +952,79 @@ If you have any questions, just reply to this email.
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TEAM APPLICATION ALERT — sent to the ShopprHQ team when a new application arrives
+# ONBOARDING WIZARD — idle draft reminder
+# Sent by the reminder job (app/api/v1/workers/reminder_job.py) on a 1hr /
+# 48hr / 7-day cadence to anyone who started the "Apply to Use" wizard but
+# hasn't finished. Stops after reminder_number 3 — the job itself enforces
+# that ceiling, this function just renders whichever copy matches the count.
+# ─────────────────────────────────────────────────────────────────────────────
+async def send_application_reminder_email(
+    to_email: str,
+    full_name: str,
+    resume_url: str,
+    reminder_number: int,
+) -> bool:
+    cfg        = _cfg()
+    first_name = full_name.split()[0]
+
+    copy = {
+        1: {
+            "subject": f"Pick up where you left off, {first_name}",
+            "lead": "You started applying to use ShopprHQ but didn't quite finish.",
+        },
+        2: {
+            "subject": "Still want to set up your store on ShopprHQ?",
+            "lead": "Your application is still saved — it only takes a couple more minutes to finish.",
+        },
+        3: {
+            "subject": "Last reminder: your ShopprHQ application is waiting",
+            "lead": "This is our final reminder — after this we'll stop following up, but your progress stays saved if you come back on your own.",
+        },
+    }.get(reminder_number, {
+        "subject": "Continue your ShopprHQ application",
+        "lead": "Your application is still saved.",
+    })
+
+    html = f"""<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#F5F4F0;font-family:'DM Sans',Arial,sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F5F4F0;padding:40px 20px">
+    <tr><td align="center">
+      <table width="520" cellpadding="0" cellspacing="0"
+        style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)">
+        <tr><td style="background:#111110;padding:32px 40px 28px;text-align:center">
+          <div style="font-size:26px;font-weight:700;color:#fff;letter-spacing:-.02em">ShopprHQ</div>
+        </td></tr>
+        <tr><td style="padding:40px 40px 32px">
+          <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#111">
+            Hi {first_name} 👋
+          </h1>
+          <p style="margin:0 0 24px;font-size:15px;color:#555;line-height:1.6">
+            {copy['lead']}
+          </p>
+          <a href="{resume_url}"
+            style="display:inline-block;background:#111;color:#fff;text-align:center;
+              padding:12px 22px;border-radius:8px;font-weight:600;font-size:14px;
+              text-decoration:none">
+            Continue my application →
+          </a>
+        </td></tr>
+        <tr><td style="padding:16px 40px;border-top:1px solid #eee;text-align:center">
+          <p style="margin:0;font-size:12px;color:#bbb">ShopprHQ · WhatsApp Commerce · Nigeria</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>"""
+
+    text = f"Hi {first_name},\n\n{copy['lead']}\n\nContinue here: {resume_url}\n\n— The ShopprHQ Team\n"
+
+    return await send_email(to_email, copy["subject"], html, text)
+
+
+# ───────────────────────────────────────────────────────────────────────────── — sent to the ShopprHQ team when a new application arrives
 # NOTE: no longer called by apply_to_use(). The Slack alert + the admin
 # dashboard's "Pending Applications" panel cover this now, so a separate
 # team email would just be a third duplicate notification. Left defined

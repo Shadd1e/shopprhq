@@ -14,8 +14,9 @@ it (which creates the real Merchant + Client row and emails the merchant
 their login details) or rejects it.
 """
 
-from sqlalchemy import Column, String, Integer, Boolean, Text, DateTime, func
+from sqlalchemy import Column, String, Integer, Boolean, Text, DateTime, Numeric, func
 from app.db.base import Base
+from app.core.crypto import EncryptedString
 
 
 class MerchantApplication(Base):
@@ -24,9 +25,51 @@ class MerchantApplication(Base):
     id = Column(String(20), primary_key=True, index=True)
 
     # ── Business info ──────────────────────────────────────────────────────
-    business_name = Column(String(255), nullable=False)
-    business_type = Column(String(100), nullable=False)
-    city_state    = Column(String(150), nullable=False)
+    # Nullable: a draft row exists after step 1 (name + contact only), before
+    # business details are filled in at step 2.
+    business_name = Column(String(255), nullable=True)
+    business_type = Column(String(100), nullable=True)
+    city_state    = Column(String(150), nullable=True)
+
+    # ── Onboarding wizard: registration status + verification (step 2/3) ───
+    registration_status = Column(
+        String(20), nullable=True,
+        comment="registered | unregistered — chosen in step 2.",
+    )
+    cac_number = Column(EncryptedString(500), nullable=True,
+        comment="CAC RC/BN number, encrypted at rest. Only set for registered businesses.")
+    bvn = Column(EncryptedString(500), nullable=True, comment="Encrypted at rest.")
+    nin = Column(EncryptedString(500), nullable=True, comment="Encrypted at rest.")
+    verification_method = Column(String(20), nullable=True, comment="cac | bvn | nin")
+    verification_status = Column(
+        String(30), nullable=True,
+        comment="not_started | pending_manual_review | verified | failed",
+    )
+    verification_name_on_file = Column(
+        String(255), nullable=True,
+        comment="Name returned by the verification provider, checked against full_name.",
+    )
+    transaction_limit = Column(Numeric(12, 2), nullable=True)
+
+    # ── Terms / indemnity acceptance (step 4) ───────────────────────────────
+    # Audit trail, not just a boolean: if terms change later, this records
+    # exactly which version they agreed to, when, and from what IP.
+    terms_version     = Column(String(20), nullable=True)
+    terms_accepted    = Column(Boolean, nullable=False, default=False)
+    terms_accepted_at = Column(DateTime(timezone=True), nullable=True)
+    terms_accepted_ip = Column(String(64), nullable=True)
+
+    # ── Resumable wizard state ──────────────────────────────────────────────
+    resume_token = Column(
+        String(48), nullable=True, unique=True, index=True,
+        comment="Bearer token for the 'continue your application' link. "
+                "Separate from link_token (the older add-WhatsApp-later flow).",
+    )
+    resume_token_expires_at = Column(DateTime(timezone=True), nullable=True)
+    current_step          = Column(Integer, nullable=False, default=1)
+    last_activity_at       = Column(DateTime(timezone=True), nullable=True)
+    reminder_count          = Column(Integer, nullable=False, default=0)
+    last_reminder_sent_at  = Column(DateTime(timezone=True), nullable=True)
 
     # ── Applicant info ─────────────────────────────────────────────────────
     full_name       = Column(String(255), nullable=False)
@@ -56,7 +99,7 @@ class MerchantApplication(Base):
     # ── Review state ───────────────────────────────────────────────────────
     status = Column(
         String(20), nullable=False, default="pending", index=True,
-        comment="pending | approved | rejected | needs_attention",
+        comment="draft | pending | approved | rejected | needs_attention | abandoned",
     )
     merchant_id = Column(
         String(20), nullable=True,

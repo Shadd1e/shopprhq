@@ -173,6 +173,7 @@ from app.api.v1.subaccount import router as subaccount_router
 from app.api.v1.admin_whatsapp import router as admin_whatsapp_router
 from app.api.v1.admin_whatsapp import merchant_router as onboarding_router
 from app.api.v1.paystack import router as paystack_router
+from app.api.v1.internal_cron import router as internal_cron_router
 
 API_V1_PREFIX = "/api/v1"
 
@@ -191,6 +192,7 @@ app.include_router(subaccount_router, prefix=API_V1_PREFIX, tags=["Subaccounts"]
 
 app.include_router(admin_whatsapp_router)
 app.include_router(onboarding_router)
+app.include_router(internal_cron_router)
 
 # --------------------------------------------------
 # Health & Root

@@ -547,28 +547,94 @@ export async function submitOtp(token: string, code: string) {
   })
 }
 
-// ── Merchant Application (public) ─────────────────────────────────────────
+// ── Merchant Application Wizard (public, resumable) ───────────────────────
+// Replaces the old single-shot submitMerchantApplication — the apply form
+// is now a 4-step resumable wizard backed by a draft row + resume_token.
 
-export interface MerchantApplicationPayload {
-  business_name:         string
-  business_type:         string
-  city_state:            string
-  full_name:             string
-  email:                 string
-  phone_number:          string
-  whatsapp_number:       string
-  num_branches:          number
-  monthly_order_volume:  string
-  uses_whatsapp_manual:  boolean
-  uses_delivery_service: boolean
-  heard_about_us:        string
-  comments?:             string
-  website?:              string  // honeypot — never filled by real users; backend silently drops submissions where this has a value
+export interface StepOnePayload {
+  full_name: string
+  email: string
+  phone_number: string
+  whatsapp_number?: string
+  website?: string // honeypot — never filled by real users
 }
 
-export async function submitMerchantApplication(payload: MerchantApplicationPayload) {
-  return req<{ message: string }>('/api/v1/merchants/apply', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  })
+export interface StepTwoPayload {
+  business_name: string
+  business_type: string
+  city_state: string
+  registration_status: 'registered' | 'unregistered'
+  num_branches: number
+  monthly_order_volume: string
+  uses_whatsapp_manual: boolean
+  uses_delivery_service: boolean
+  heard_about_us: string
+  comments?: string
+}
+
+export interface StepThreePayload {
+  cac_number?: string
+  verification_method?: 'bvn' | 'nin'
+  bvn?: string
+  nin?: string
+}
+
+export interface StepFourPayload {
+  terms_version: string
+  accept: boolean
+}
+
+export interface ResumeState {
+  current_step: number
+  full_name: string
+  email: string
+  phone_number: string
+  whatsapp_number?: string
+  business_name?: string
+  business_type?: string
+  city_state?: string
+  registration_status?: 'registered' | 'unregistered'
+  num_branches?: number
+  monthly_order_volume?: string
+  uses_whatsapp_manual?: boolean
+  uses_delivery_service?: boolean
+  heard_about_us?: string
+  comments?: string
+  verification_method?: 'bvn' | 'nin'
+  verification_status?: string
+  has_cac_number: boolean
+  has_bvn: boolean
+  has_nin: boolean
+}
+
+export async function applyStepOne(payload: StepOnePayload) {
+  return req<{ resume_token: string | null; current_step: number | null; message?: string }>(
+    '/api/v1/merchants/apply/start',
+    { method: 'POST', body: JSON.stringify(payload) },
+  )
+}
+
+export async function applyResume(resumeToken: string) {
+  return req<ResumeState>(`/api/v1/merchants/apply/resume/${resumeToken}`)
+}
+
+export async function applyStepTwo(resumeToken: string, payload: StepTwoPayload) {
+  return req<{ current_step: number; registration_status: string }>(
+    `/api/v1/merchants/apply/resume/${resumeToken}/business`,
+    { method: 'PATCH', body: JSON.stringify(payload) },
+  )
+}
+
+export async function applyStepThree(resumeToken: string, payload: StepThreePayload) {
+  return req<{ current_step: number; verification_status: string; transaction_limit: number | null }>(
+    `/api/v1/merchants/apply/resume/${resumeToken}/verification`,
+    { method: 'PATCH', body: JSON.stringify(payload) },
+  )
+}
+
+export async function applyStepFour(resumeToken: string, payload: StepFourPayload) {
+  return req<{ message: string; application_id: string }>(
+    `/api/v1/merchants/apply/resume/${resumeToken}/submit`,
+    { method: 'POST', body: JSON.stringify(payload) },
+  )
 }
