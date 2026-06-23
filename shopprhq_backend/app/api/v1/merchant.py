@@ -6,7 +6,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import select
 
-from app.schemas.merchant import MerchantCreate, MerchantRead, MerchantUpdate, MerchantLogin, MerchantApply
+from app.schemas.merchant import (
+    MerchantCreate, MerchantRead, MerchantUpdate, MerchantLogin, MerchantApply,
+    ApplyStepOne, ApplyStepTwo, ApplyStepThree, ApplyStepFour,
+)
 from app.services.merchant_service import MerchantService
 from app.db.deps import get_db
 
@@ -273,6 +276,329 @@ async def submit_whatsapp_number_for_application(
         pass
 
     return {"ok": True, "message": "Thanks! We'll reach out to you on WhatsApp to continue."}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ONBOARDING WIZARD  (public, resumable, 4 steps)
+#   1. POST   /apply/start                      -> create draft, get resume_token
+#   2. GET    /apply/resume/{token}              -> fetch current draft state
+#   3. PATCH  /apply/resume/{token}/business     -> step 2: business details
+#   4. PATCH  /apply/resume/{token}/verification -> step 3: CAC or BVN/NIN
+#   5. POST   /apply/resume/{token}/submit       -> step 4: terms + indemnity,
+#                                                   finalizes status="pending"
+#
+# resume_token is a separate concept from link_token above — link_token only
+# ever backs the older "add WhatsApp number to an already-submitted
+# application" page. resume_token is the bearer credential for an
+# in-progress, not-yet-submitted draft.
+# ─────────────────────────────────────────────────────────────────────────────
+
+_RESUME_TOKEN_TTL_DAYS = 14
+
+
+def _generate_resume_token() -> str:
+    import secrets
+    return secrets.token_urlsafe(24)
+
+
+async def _get_draft_or_404(token: str, db: AsyncSession):
+    from datetime import datetime, timezone
+    from app.models.merchant_application import MerchantApplication
+
+    res = await db.execute(
+        select(MerchantApplication).where(MerchantApplication.resume_token == token)
+    )
+    application = res.scalar_one_or_none()
+    if not application:
+        raise HTTPException(status_code=404, detail="This link isn't valid.")
+    if application.status != "draft":
+        raise HTTPException(status_code=410, detail="This application has already been submitted.")
+    if application.resume_token_expires_at and application.resume_token_expires_at < datetime.now(timezone.utc):
+        raise HTTPException(
+            status_code=410,
+            detail="This link has expired. Please start a new application — your progress couldn't be carried over.",
+        )
+    return application
+
+
+@router.post("/apply/start", status_code=200)
+async def apply_start(
+    payload: ApplyStepOne,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Step 1 of the onboarding wizard. Creates a draft application and returns
+    a resume_token the frontend keeps (in the URL or local storage) to PATCH
+    through the remaining steps, and to let the applicant come back later.
+
+    Duplicate handling: if this email or phone already has an open draft (or
+    a submitted application still pending review), don't create a second row
+    — return the existing resume_token (for an open draft) or a plain message
+    (for one already submitted/under review) instead.
+    """
+    if payload.website:
+        logger.warning(
+            "Honeypot triggered on /merchants/apply/start from %s",
+            request.client.host if request.client else "unknown",
+        )
+        return {"resume_token": _generate_resume_token(), "current_step": 1}  # inert — never persisted
+
+    from app.core.redis_client import check_apply_rate_limit
+    client_ip = request.client.host if request.client else "unknown"
+    if not await check_apply_rate_limit(client_ip):
+        raise HTTPException(
+            status_code=429,
+            detail="Too many submissions from this connection. Please try again in an hour.",
+        )
+
+    from datetime import datetime, timezone, timedelta
+    from app.models.merchant_application import MerchantApplication
+    from sqlalchemy import or_
+
+    dedupe_conditions = [MerchantApplication.email == payload.email]
+    if payload.whatsapp_number:
+        dedupe_conditions.append(MerchantApplication.whatsapp_number == payload.whatsapp_number)
+    dedupe_conditions.append(MerchantApplication.phone_number == payload.phone_number)
+
+    existing_res = await db.execute(
+        select(MerchantApplication).where(
+            MerchantApplication.status.in_(("draft", "pending", "needs_attention")),
+            or_(*dedupe_conditions),
+        )
+    )
+    existing = existing_res.scalars().first()
+    if existing:
+        if existing.status == "draft":
+            # Refresh an expired token rather than starting over.
+            now = datetime.now(timezone.utc)
+            if not existing.resume_token_expires_at or existing.resume_token_expires_at < now:
+                existing.resume_token = _generate_resume_token()
+                existing.resume_token_expires_at = now + timedelta(days=_RESUME_TOKEN_TTL_DAYS)
+                await db.commit()
+            return {
+                "resume_token": existing.resume_token,
+                "current_step": existing.current_step,
+                "message": "You already have an application in progress — picking up where you left off.",
+            }
+        return {
+            "resume_token": None,
+            "current_step": None,
+            "message": "We already have an application from you under review. We'll be in touch within 1–2 business days.",
+        }
+
+    now = datetime.now(timezone.utc)
+    application_id = await _generate_application_id(db)
+    resume_token    = _generate_resume_token()
+    application = MerchantApplication(
+        id=application_id,
+        full_name=payload.full_name,
+        email=payload.email,
+        phone_number=payload.phone_number,
+        whatsapp_number=payload.whatsapp_number,
+        status="draft",
+        current_step=1,
+        resume_token=resume_token,
+        resume_token_expires_at=now + timedelta(days=_RESUME_TOKEN_TTL_DAYS),
+        last_activity_at=now,
+    )
+    db.add(application)
+    await db.commit()
+
+    return {"resume_token": resume_token, "current_step": 1}
+
+
+@router.get("/apply/resume/{token}")
+async def apply_resume(token: str, db: AsyncSession = Depends(get_db)):
+    """Fetch current draft state so the frontend can prefill the wizard on return."""
+    application = await _get_draft_or_404(token, db)
+    return {
+        "current_step":        application.current_step,
+        "full_name":           application.full_name,
+        "email":               application.email,
+        "phone_number":        application.phone_number,
+        "whatsapp_number":     application.whatsapp_number,
+        "business_name":       application.business_name,
+        "business_type":       application.business_type,
+        "city_state":          application.city_state,
+        "registration_status": application.registration_status,
+        "num_branches":        application.num_branches,
+        "monthly_order_volume": application.monthly_order_volume,
+        "uses_whatsapp_manual": application.uses_whatsapp_manual,
+        "uses_delivery_service": application.uses_delivery_service,
+        "heard_about_us":      application.heard_about_us,
+        "comments":            application.comments,
+        "verification_method": application.verification_method,
+        "verification_status": application.verification_status,
+        # Never return raw cac_number/bvn/nin — just whether one's on file.
+        "has_cac_number":      bool(application.cac_number),
+        "has_bvn":             bool(application.bvn),
+        "has_nin":             bool(application.nin),
+    }
+
+
+@router.patch("/apply/resume/{token}/business")
+async def apply_step_business(
+    token: str,
+    payload: ApplyStepTwo,
+    db: AsyncSession = Depends(get_db),
+):
+    """Step 2: business details, including the registered/unregistered choice."""
+    from datetime import datetime, timezone
+
+    application = await _get_draft_or_404(token, db)
+
+    application.business_name         = payload.business_name
+    application.business_type         = payload.business_type
+    application.city_state            = payload.city_state
+    application.registration_status   = payload.registration_status
+    application.num_branches          = payload.num_branches
+    application.monthly_order_volume  = payload.monthly_order_volume
+    application.uses_whatsapp_manual  = payload.uses_whatsapp_manual
+    application.uses_delivery_service = payload.uses_delivery_service
+    application.heard_about_us        = payload.heard_about_us
+    application.comments              = payload.comments
+    application.current_step          = max(application.current_step, 2)
+    application.last_activity_at      = datetime.now(timezone.utc)
+
+    await db.commit()
+    return {"current_step": application.current_step, "registration_status": application.registration_status}
+
+
+@router.patch("/apply/resume/{token}/verification")
+async def apply_step_verification(
+    token: str,
+    payload: ApplyStepThree,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Step 3: verification. Branches on registration_status set in step 2 —
+    registered businesses verify with their CAC number; unregistered
+    applicants choose BVN or NIN.
+    """
+    from datetime import datetime, timezone
+    from app.services.verification_service import verify_cac, verify_bvn, verify_nin, get_transaction_limit
+
+    application = await _get_draft_or_404(token, db)
+    if not application.registration_status:
+        raise HTTPException(status_code=400, detail="Complete the business details step first.")
+
+    if application.registration_status == "registered":
+        if not payload.cac_number:
+            raise HTTPException(status_code=422, detail="CAC number is required for a registered business.")
+        result = await verify_cac(payload.cac_number, application.business_name)
+        application.cac_number          = payload.cac_number
+        application.verification_method = "cac"
+    else:
+        if not payload.verification_method:
+            raise HTTPException(status_code=422, detail="Choose BVN or NIN verification.")
+        if payload.verification_method == "bvn":
+            if not payload.bvn:
+                raise HTTPException(status_code=422, detail="BVN is required.")
+            result = await verify_bvn(payload.bvn, application.full_name)
+            application.bvn = payload.bvn
+        else:
+            if not payload.nin:
+                raise HTTPException(status_code=422, detail="NIN is required.")
+            result = await verify_nin(payload.nin, application.full_name)
+            application.nin = payload.nin
+        application.verification_method = payload.verification_method
+
+    application.verification_status     = result.status
+    application.verification_name_on_file = result.name_on_file
+    application.transaction_limit       = get_transaction_limit(application.registration_status, result.status)
+    application.current_step            = max(application.current_step, 3)
+    application.last_activity_at        = datetime.now(timezone.utc)
+
+    await db.commit()
+
+    if result.status == "failed":
+        try:
+            from app.infrastructure.alerting.slack import alert
+            from app.api.v1.workers.background_tasks import fire_and_forget
+            fire_and_forget(alert(
+                title="Merchant Verification Failed",
+                detail=f"*{application.business_name or application.full_name}* failed {application.verification_method} verification.",
+                level="warning",
+                fields={"Application ID": application.id, "Reason": result.reason or "—"},
+            ), name="slack_verification_failed")
+        except Exception:
+            pass
+
+    return {
+        "current_step": application.current_step,
+        "verification_status": application.verification_status,
+        "transaction_limit": float(application.transaction_limit) if application.transaction_limit else None,
+    }
+
+
+@router.post("/apply/resume/{token}/submit")
+async def apply_step_submit(
+    token: str,
+    payload: ApplyStepFour,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Step 4: terms + indemnity acceptance. Finalizes the application as 'pending' review."""
+    from datetime import datetime, timezone
+
+    application = await _get_draft_or_404(token, db)
+    if not application.business_name or not application.registration_status:
+        raise HTTPException(status_code=400, detail="Complete the business details step first.")
+    if not application.verification_status:
+        raise HTTPException(status_code=400, detail="Complete the verification step first.")
+
+    application.terms_version     = payload.terms_version
+    application.terms_accepted    = True
+    application.terms_accepted_at = datetime.now(timezone.utc)
+    application.terms_accepted_ip = request.client.host if request.client else None
+    application.current_step      = 4
+    application.status            = "pending"
+    application.last_activity_at  = datetime.now(timezone.utc)
+
+    # send_application_received_email needs a link_token to build the
+    # "add your WhatsApp number" link when one wasn't given — the wizard
+    # never generates one earlier, so do it here if it's still missing.
+    if not application.whatsapp_number and not application.link_token:
+        application.link_token = _generate_link_token()
+
+    await db.commit()
+
+    from app.services.email_service import send_application_received_email
+    from app.api.v1.workers.background_tasks import fire_and_forget
+
+    fire_and_forget(
+        send_application_received_email(
+            to_email=application.email,
+            applicant_name=application.full_name,
+            business_name=application.business_name,
+            whatsapp_number=application.whatsapp_number,
+            link_token=application.link_token,
+        ),
+        name="send_application_received_email",
+    )
+
+    try:
+        from app.infrastructure.alerting.slack import alert
+        fire_and_forget(alert(
+            title="New Merchant Application",
+            detail=f"*{application.business_name}* ({application.full_name}) just submitted a complete application.",
+            level="info",
+            fields={
+                "Application ID":  application.id,
+                "Email":           application.email,
+                "Phone":           application.phone_number,
+                "WhatsApp":        application.whatsapp_number or "— not provided —",
+                "City":            application.city_state,
+                "Registration":    application.registration_status,
+                "Verification":    f"{application.verification_method} → {application.verification_status}",
+                "Txn limit":       f"₦{application.transaction_limit:,.0f}" if application.transaction_limit else "—",
+            },
+        ), name="slack_new_application")
+    except Exception:
+        pass
+
+    return {"message": "Application received. We'll be in touch within 1–2 business days.", "application_id": application.id}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
