@@ -1,11 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import DoodleBackground from '@/components/DoodleBackground'
-import { storeLogin } from '@/lib/api'
+import { storeLogin, merchantLogin } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
+// ── Shared input style (matches store-login/page.tsx exactly) ──────────────
 const INPUT = cn(
   'w-full px-4 py-3 rounded-xl',
   'bg-[#F7F6F2] border-[1.5px] border-[#E8E7E2]',
@@ -14,28 +15,51 @@ const INPUT = cn(
   'focus:border-[#25D366] focus:bg-white focus:ring-2 focus:ring-[#25D366]/10',
 )
 
-export default function StoreLoginPage() {
-  const router = useRouter()
-  const [clientId, setClientId] = useState('')
-  const [password, setPassword] = useState('')
-  const [loading,  setLoading]  = useState(false)
-  const [error,    setError]    = useState('')
+type Tab = 'store' | 'merchant'
 
+export default function SignInPage() {
+  const router       = useRouter()
+  const searchParams = useSearchParams()
+
+  // honour ?as=merchant deep-link (e.g. from a "merchant login" anchor elsewhere)
+  const [tab, setTab] = useState<Tab>(
+    searchParams.get('as') === 'merchant' ? 'merchant' : 'store'
+  )
+
+  // ── Store form state ──────────────────────────────────────────────────────
+  const [storeId,   setStoreId]   = useState('')
+  const [storePass, setStorePass] = useState('')
+
+  // ── Merchant form state ───────────────────────────────────────────────────
+  const [email,    setEmail]    = useState('')
+  const [password, setPassword] = useState('')
+
+  // ── Shared state ──────────────────────────────────────────────────────────
+  const [loading, setLoading] = useState(false)
+  const [error,   setError]   = useState('')
+
+  // Clear error whenever the user switches tabs or types
+  useEffect(() => { setError('') }, [tab])
+
+  // ── Already-logged-in redirects ───────────────────────────────────────────
   useEffect(() => {
-    if (sessionStorage.getItem('tok') && sessionStorage.getItem('cid')) {
+    if (sessionStorage.getItem('tok') && sessionStorage.getItem('mid')) {
+      router.replace('/dashboard')
+    } else if (sessionStorage.getItem('tok') && sessionStorage.getItem('cid')) {
       router.replace('/store-dashboard')
     }
   }, [router])
 
-  async function handleSubmit(e: React.FormEvent) {
+  // ── Submit handlers ───────────────────────────────────────────────────────
+  async function handleStoreSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
-    if (!clientId.trim()) return setError('Enter your Store ID.')
-    if (!password)        return setError('Enter your password.')
+    if (!storeId.trim()) return setError('Enter your Store ID.')
+    if (!storePass)       return setError('Enter your password.')
 
     setLoading(true)
     try {
-      const data = await storeLogin(clientId.trim().toUpperCase(), password)
+      const data = await storeLogin(storeId.trim().toUpperCase(), storePass)
       sessionStorage.setItem('tok',   data.access_token)
       sessionStorage.setItem('cid',   data.client_id)
       sessionStorage.setItem('cname', data.store_name)
@@ -48,6 +72,28 @@ export default function StoreLoginPage() {
     }
   }
 
+  async function handleMerchantSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setError('')
+    if (!email.trim()) return setError('Enter your email address.')
+    if (!password)     return setError('Enter your password.')
+
+    setLoading(true)
+    try {
+      const data = await merchantLogin(email.trim().toLowerCase(), password)
+      sessionStorage.setItem('tok',   data.access_token)
+      sessionStorage.setItem('mid',   data.merchant_id)
+      sessionStorage.setItem('mname', data.name)
+      sessionStorage.setItem('memail', data.email)
+      router.replace('/dashboard')
+    } catch (err: any) {
+      setError(err.detail ?? 'Incorrect email or password. Try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // ── UI ────────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-white flex items-center justify-center p-5">
       <DoodleBackground />
@@ -62,83 +108,202 @@ export default function StoreLoginPage() {
             </svg>
           </div>
           <p className="font-display font-extrabold text-[#0D0D0C] text-xl tracking-tight">ShopprHQ</p>
-          <p className="text-xs text-[#9E9E99] mt-1 font-mono">Store portal</p>
+          <p className="text-xs text-[#9E9E99] mt-1 font-mono">Sign in to your account</p>
         </div>
 
         {/* Card */}
         <div className="bg-white rounded-3xl border border-[#E8E7E2] shadow-md p-8">
-          <h1 className="font-display font-extrabold text-[1.4rem] tracking-tight text-[#0D0D0C] mb-1.5">
-            Sign in to your store
-          </h1>
-          <p className="text-sm text-[#9E9E99] mb-7 leading-relaxed">
-            Your Store ID was provided by your merchant when your account was set up.
-          </p>
 
-          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-            <div>
-              <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#6B6B66] mb-1.5">
-                Store ID
-              </label>
-              <input
-                type="text"
-                placeholder="e.g. ST1001"
-                value={clientId}
-                onChange={(e) => { setClientId(e.target.value); setError('') }}
-                autoComplete="username"
-                autoCapitalize="characters"
-                spellCheck={false}
-                className={INPUT}
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#6B6B66] mb-1.5">
-                Password
-              </label>
-              <input
-                type="password"
-                placeholder="Your store password"
-                value={password}
-                onChange={(e) => { setPassword(e.target.value); setError('') }}
-                autoComplete="current-password"
-                onKeyDown={(e) => e.key === 'Enter' && handleSubmit(e as any)}
-                className={INPUT}
-              />
-            </div>
-
-            {error && (
-              <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700 leading-snug">
-                {error}
-              </div>
-            )}
-
+          {/* Tab switcher */}
+          <div className="flex bg-[#F7F6F2] rounded-2xl p-1 mb-7 gap-1">
             <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-[#0D0D0C] text-white font-semibold text-sm py-3.5 rounded-2xl
-                hover:bg-[#2C2C29] transition-all hover:-translate-y-0.5
-                disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none mt-2"
+              type="button"
+              onClick={() => setTab('store')}
+              className={cn(
+                'flex-1 py-2 rounded-xl text-sm font-semibold transition-all',
+                tab === 'store'
+                  ? 'bg-white text-[#0D0D0C] shadow-sm'
+                  : 'text-[#9E9E99] hover:text-[#6B6B66]',
+              )}
             >
-              {loading ? 'Signing in…' : 'Sign in'}
+              Store login
             </button>
-          </form>
+            <button
+              type="button"
+              onClick={() => setTab('merchant')}
+              className={cn(
+                'flex-1 py-2 rounded-xl text-sm font-semibold transition-all',
+                tab === 'merchant'
+                  ? 'bg-white text-[#0D0D0C] shadow-sm'
+                  : 'text-[#9E9E99] hover:text-[#6B6B66]',
+              )}
+            >
+              Merchant login
+            </button>
+          </div>
+
+          {/* ── Store form ─────────────────────────────────────────────── */}
+          {tab === 'store' && (
+            <>
+              <h1 className="font-display font-extrabold text-[1.4rem] tracking-tight text-[#0D0D0C] mb-1.5">
+                Sign in to your store
+              </h1>
+              <p className="text-sm text-[#9E9E99] mb-7 leading-relaxed">
+                Your Store ID was provided by your merchant when your account was set up.
+              </p>
+
+              <form onSubmit={handleStoreSubmit} className="space-y-4" noValidate>
+                <div>
+                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#6B6B66] mb-1.5">
+                    Store ID
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. ST1001"
+                    value={storeId}
+                    onChange={(e) => { setStoreId(e.target.value); setError('') }}
+                    autoComplete="username"
+                    autoCapitalize="characters"
+                    spellCheck={false}
+                    className={INPUT}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#6B6B66] mb-1.5">
+                    Password
+                  </label>
+                  <input
+                    type="password"
+                    placeholder="Your store password"
+                    value={storePass}
+                    onChange={(e) => { setStorePass(e.target.value); setError('') }}
+                    autoComplete="current-password"
+                    className={INPUT}
+                  />
+                </div>
+
+                {error && <ErrorBanner message={error} />}
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full bg-[#0D0D0C] text-white font-semibold text-sm py-3.5 rounded-2xl
+                    hover:bg-[#2C2C29] transition-all hover:-translate-y-0.5
+                    disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none mt-2"
+                >
+                  {loading ? 'Signing in…' : 'Sign in'}
+                </button>
+              </form>
+            </>
+          )}
+
+          {/* ── Merchant form ──────────────────────────────────────────── */}
+          {tab === 'merchant' && (
+            <>
+              <h1 className="font-display font-extrabold text-[1.4rem] tracking-tight text-[#0D0D0C] mb-1.5">
+                Merchant sign in
+              </h1>
+              <p className="text-sm text-[#9E9E99] mb-7 leading-relaxed">
+                Sign in to your ShopprHQ merchant account to manage your stores and orders.
+              </p>
+
+              <form onSubmit={handleMerchantSubmit} className="space-y-4" noValidate>
+                <div>
+                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#6B6B66] mb-1.5">
+                    Email address
+                  </label>
+                  <input
+                    type="email"
+                    placeholder="you@example.com"
+                    value={email}
+                    onChange={(e) => { setEmail(e.target.value); setError('') }}
+                    autoComplete="email"
+                    spellCheck={false}
+                    className={INPUT}
+                  />
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#6B6B66]">
+                      Password
+                    </label>
+                    <a
+                      href="/dashboard?forgot=1"
+                      className="text-[11px] font-semibold text-[#25D366] hover:underline"
+                    >
+                      Forgot password?
+                    </a>
+                  </div>
+                  <input
+                    type="password"
+                    placeholder="Your password"
+                    value={password}
+                    onChange={(e) => { setPassword(e.target.value); setError('') }}
+                    autoComplete="current-password"
+                    className={INPUT}
+                  />
+                </div>
+
+                {error && <ErrorBanner message={error} />}
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full bg-[#0D0D0C] text-white font-semibold text-sm py-3.5 rounded-2xl
+                    hover:bg-[#2C2C29] transition-all hover:-translate-y-0.5
+                    disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none mt-2"
+                >
+                  {loading ? 'Signing in…' : 'Sign in'}
+                </button>
+
+                <p className="text-center text-xs text-[#9E9E99] pt-1">
+                  Don't have an account?{' '}
+                  <a href="/get-started" className="text-[#25D366] font-semibold hover:underline">
+                    Apply to join
+                  </a>
+                </p>
+              </form>
+            </>
+          )}
         </div>
 
-        {/* Help */}
+        {/* Help footer */}
         <div className="mt-6 bg-[#F7F6F2] border border-[#E8E7E2] rounded-2xl px-5 py-4">
-          <p className="text-xs font-semibold text-[#0D0D0C] mb-1">Can't sign in?</p>
-          <p className="text-xs text-[#6B6B66] leading-relaxed">
-            Contact the merchant who set up your account. They can reset your password or retrieve your Store ID from their dashboard.
-          </p>
-          <p className="text-xs text-[#9E9E99] mt-2">
-            ShopprHQ support:{' '}
-            <a href="mailto:hello@shopprhq.com" className="text-[#25D366] font-semibold hover:underline">
-              hello@shopprhq.com
-            </a>
-          </p>
+          {tab === 'store' ? (
+            <>
+              <p className="text-xs font-semibold text-[#0D0D0C] mb-1">Can't sign in?</p>
+              <p className="text-xs text-[#6B6B66] leading-relaxed">
+                Contact the merchant who set up your account. They can reset your password or retrieve your Store ID from their dashboard.
+              </p>
+              <p className="text-xs text-[#9E9E99] mt-2">
+                ShopprHQ support:{' '}
+                <a href="mailto:hello@shopprhq.com" className="text-[#25D366] font-semibold hover:underline">
+                  hello@shopprhq.com
+                </a>
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-xs font-semibold text-[#0D0D0C] mb-1">Are you a store operator?</p>
+              <p className="text-xs text-[#6B6B66] leading-relaxed">
+                Use the <button onClick={() => setTab('store')} className="text-[#25D366] font-semibold hover:underline">Store login</button> tab instead — your Store ID starts with <span className="font-mono font-semibold">ST</span>.
+              </p>
+            </>
+          )}
         </div>
 
       </div>
+    </div>
+  )
+}
+
+// ── Small helper ────────────────────────────────────────────────────────────
+function ErrorBanner({ message }: { message: string }) {
+  return (
+    <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700 leading-snug">
+      {message}
     </div>
   )
 }
