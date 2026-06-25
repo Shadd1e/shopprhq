@@ -6,7 +6,6 @@ import DoodleBackground from '@/components/DoodleBackground'
 import { storeLogin, merchantLogin } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
-// ── Shared input style (matches store-login/page.tsx exactly) ──────────────
 const INPUT = cn(
   'w-full px-4 py-3 rounded-xl',
   'bg-[#F7F6F2] border-[1.5px] border-[#E8E7E2]',
@@ -17,49 +16,45 @@ const INPUT = cn(
 
 type Tab = 'store' | 'merchant'
 
-export default function SignInPage() {
+export default function StoreLoginPage() {
   const router       = useRouter()
   const searchParams = useSearchParams()
 
-  // honour ?as=merchant deep-link (e.g. from a "merchant login" anchor elsewhere)
   const [tab, setTab] = useState<Tab>(
     searchParams.get('as') === 'merchant' ? 'merchant' : 'store'
   )
 
-  // ── Store form state ──────────────────────────────────────────────────────
-  const [storeId,   setStoreId]   = useState('')
-  const [storePass, setStorePass] = useState('')
+  // Store form
+  const [clientId,   setClientId]   = useState('')
+  const [storePass,  setStorePass]  = useState('')
 
-  // ── Merchant form state ───────────────────────────────────────────────────
+  // Merchant form
   const [email,    setEmail]    = useState('')
   const [password, setPassword] = useState('')
 
-  // ── Shared state ──────────────────────────────────────────────────────────
+  // Shared
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState('')
 
-  // Clear error whenever the user switches tabs or types
   useEffect(() => { setError('') }, [tab])
 
-  // ── Already-logged-in redirects ───────────────────────────────────────────
   useEffect(() => {
-    if (sessionStorage.getItem('tok') && sessionStorage.getItem('mid')) {
+    if (sessionStorage.getItem('tok') && sessionStorage.getItem('mid') && !sessionStorage.getItem('cid')) {
       router.replace('/dashboard')
     } else if (sessionStorage.getItem('tok') && sessionStorage.getItem('cid')) {
       router.replace('/store-dashboard')
     }
   }, [router])
 
-  // ── Submit handlers ───────────────────────────────────────────────────────
   async function handleStoreSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
-    if (!storeId.trim()) return setError('Enter your Store ID.')
+    if (!clientId.trim()) return setError('Enter your Store ID.')
     if (!storePass)       return setError('Enter your password.')
 
     setLoading(true)
     try {
-      const data = await storeLogin(storeId.trim().toUpperCase(), storePass)
+      const data = await storeLogin(clientId.trim().toUpperCase(), storePass)
       sessionStorage.setItem('tok',   data.access_token)
       sessionStorage.setItem('cid',   data.client_id)
       sessionStorage.setItem('cname', data.store_name)
@@ -81,9 +76,9 @@ export default function SignInPage() {
     setLoading(true)
     try {
       const data = await merchantLogin(email.trim().toLowerCase(), password)
-      sessionStorage.setItem('tok',   data.access_token)
-      sessionStorage.setItem('mid',   data.merchant_id)
-      sessionStorage.setItem('mname', data.name)
+      sessionStorage.setItem('tok',    data.access_token)
+      sessionStorage.setItem('mid',    data.merchant_id)
+      sessionStorage.setItem('mname',  data.name)
       sessionStorage.setItem('memail', data.email)
       router.replace('/dashboard')
     } catch (err: any) {
@@ -93,7 +88,6 @@ export default function SignInPage() {
     }
   }
 
-  // ── UI ────────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-white flex items-center justify-center p-5">
       <DoodleBackground />
@@ -142,7 +136,7 @@ export default function SignInPage() {
             </button>
           </div>
 
-          {/* ── Store form ─────────────────────────────────────────────── */}
+          {/* ── Store form ── */}
           {tab === 'store' && (
             <>
               <h1 className="font-display font-extrabold text-[1.4rem] tracking-tight text-[#0D0D0C] mb-1.5">
@@ -160,8 +154,8 @@ export default function SignInPage() {
                   <input
                     type="text"
                     placeholder="e.g. ST1001"
-                    value={storeId}
-                    onChange={(e) => { setStoreId(e.target.value); setError('') }}
+                    value={clientId}
+                    onChange={(e) => { setClientId(e.target.value); setError('') }}
                     autoComplete="username"
                     autoCapitalize="characters"
                     spellCheck={false}
@@ -179,6 +173,7 @@ export default function SignInPage() {
                     value={storePass}
                     onChange={(e) => { setStorePass(e.target.value); setError('') }}
                     autoComplete="current-password"
+                    onKeyDown={(e) => e.key === 'Enter' && handleStoreSubmit(e as any)}
                     className={INPUT}
                   />
                 </div>
@@ -198,14 +193,14 @@ export default function SignInPage() {
             </>
           )}
 
-          {/* ── Merchant form ──────────────────────────────────────────── */}
+          {/* ── Merchant form ── */}
           {tab === 'merchant' && (
             <>
               <h1 className="font-display font-extrabold text-[1.4rem] tracking-tight text-[#0D0D0C] mb-1.5">
                 Merchant sign in
               </h1>
               <p className="text-sm text-[#9E9E99] mb-7 leading-relaxed">
-                Sign in to your ShopprHQ merchant account to manage your stores and orders.
+                Sign in to manage your stores, inventory and orders.
               </p>
 
               <form onSubmit={handleMerchantSubmit} className="space-y-4" noValidate>
@@ -288,7 +283,11 @@ export default function SignInPage() {
             <>
               <p className="text-xs font-semibold text-[#0D0D0C] mb-1">Are you a store operator?</p>
               <p className="text-xs text-[#6B6B66] leading-relaxed">
-                Use the <button onClick={() => setTab('store')} className="text-[#25D366] font-semibold hover:underline">Store login</button> tab instead — your Store ID starts with <span className="font-mono font-semibold">ST</span>.
+                Use the{' '}
+                <button onClick={() => setTab('store')} className="text-[#25D366] font-semibold hover:underline">
+                  Store login
+                </button>{' '}
+                tab instead — your Store ID starts with <span className="font-mono font-semibold">ST</span>.
               </p>
             </>
           )}
@@ -299,7 +298,6 @@ export default function SignInPage() {
   )
 }
 
-// ── Small helper ────────────────────────────────────────────────────────────
 function ErrorBanner({ message }: { message: string }) {
   return (
     <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700 leading-snug">
