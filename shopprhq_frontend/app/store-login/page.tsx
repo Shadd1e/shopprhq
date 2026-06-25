@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { Suspense, useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import DoodleBackground from '@/components/DoodleBackground'
 import { storeLogin, merchantLogin } from '@/lib/api'
@@ -16,7 +16,8 @@ const INPUT = cn(
 
 type Tab = 'store' | 'merchant'
 
-export default function StoreLoginPage() {
+// Isolated into its own component so useSearchParams() is inside Suspense
+function LoginForm() {
   const router       = useRouter()
   const searchParams = useSearchParams()
 
@@ -24,17 +25,12 @@ export default function StoreLoginPage() {
     searchParams.get('as') === 'merchant' ? 'merchant' : 'store'
   )
 
-  // Store form
-  const [clientId,   setClientId]   = useState('')
-  const [storePass,  setStorePass]  = useState('')
-
-  // Merchant form
-  const [email,    setEmail]    = useState('')
-  const [password, setPassword] = useState('')
-
-  // Shared
-  const [loading, setLoading] = useState(false)
-  const [error,   setError]   = useState('')
+  const [clientId,  setClientId]  = useState('')
+  const [storePass, setStorePass] = useState('')
+  const [email,     setEmail]     = useState('')
+  const [password,  setPassword]  = useState('')
+  const [loading,   setLoading]   = useState(false)
+  const [error,     setError]     = useState('')
 
   useEffect(() => { setError('') }, [tab])
 
@@ -51,7 +47,6 @@ export default function StoreLoginPage() {
     setError('')
     if (!clientId.trim()) return setError('Enter your Store ID.')
     if (!storePass)       return setError('Enter your password.')
-
     setLoading(true)
     try {
       const data = await storeLogin(clientId.trim().toUpperCase(), storePass)
@@ -72,7 +67,6 @@ export default function StoreLoginPage() {
     setError('')
     if (!email.trim()) return setError('Enter your email address.')
     if (!password)     return setError('Enter your password.')
-
     setLoading(true)
     try {
       const data = await merchantLogin(email.trim().toLowerCase(), password)
@@ -136,7 +130,7 @@ export default function StoreLoginPage() {
             </button>
           </div>
 
-          {/* ── Store form ── */}
+          {/* Store form */}
           {tab === 'store' && (
             <>
               <h1 className="font-display font-extrabold text-[1.4rem] tracking-tight text-[#0D0D0C] mb-1.5">
@@ -193,7 +187,7 @@ export default function StoreLoginPage() {
             </>
           )}
 
-          {/* ── Merchant form ── */}
+          {/* Merchant form */}
           {tab === 'merchant' && (
             <>
               <h1 className="font-display font-extrabold text-[1.4rem] tracking-tight text-[#0D0D0C] mb-1.5">
@@ -303,5 +297,15 @@ function ErrorBanner({ message }: { message: string }) {
     <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700 leading-snug">
       {message}
     </div>
+  )
+}
+
+// Default export wraps LoginForm in Suspense to satisfy Next.js 14's
+// requirement that useSearchParams() always has a Suspense boundary
+export default function StoreLoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   )
 }
