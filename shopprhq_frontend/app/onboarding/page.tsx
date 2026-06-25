@@ -172,13 +172,13 @@ export default function OnboardingPage() {
   const [attemptsLeft, setAttemptsLeft] = useState(3)
 
   useEffect(() => {
-    const tok = sessionStorage.getItem('m_tok')
+    const tok = sessionStorage.getItem('tok')
     setToken(tok); setChecked(true)
   }, [])
 
   useEffect(() => {
     if (!checked) return
-    if (!token) { router.push('/register'); return }
+    if (!token) { router.push('/store-login?as=merchant'); return }
     // Check if already submitted
     getOnboardingStatus(token).then(s => {
       if (s.onboarding_status !== 'pending') setSubmitted(true)
