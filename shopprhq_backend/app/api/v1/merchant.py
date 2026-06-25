@@ -6,7 +6,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import select
 
-from app.schemas.merchant import MerchantCreate, MerchantRead, MerchantUpdate, MerchantLogin, MerchantApply
+from app.schemas.merchant import (
+    MerchantCreate, MerchantRead, MerchantUpdate, MerchantLogin, MerchantApply,
+    ApplyStepOne, ApplyStepTwo, ApplyStepThree, ApplyStepFour,
+)
 from app.services.merchant_service import MerchantService
 from app.db.deps import get_db
 
@@ -354,6 +357,47 @@ async def get_me(request: Request, db: AsyncSession = Depends(get_db)):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# RESUME WIZARD  (public — declared before /{merchant_id} catch-all)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/apply/resume/{resume_token}", status_code=200)
+async def apply_wizard_resume(resume_token: str, db: AsyncSession = Depends(get_db)):
+    """
+    Used by the frontend to handle the "continue your application" link from
+    the reminder email. Returns {application_id, current_step} so the UI
+    can navigate to the right step.
+
+    Public — no additional auth beyond the resume_token itself (256-bit secret).
+    """
+    from app.models.merchant_application import MerchantApplication
+
+    res = await db.execute(
+        select(MerchantApplication).where(MerchantApplication.resume_token == resume_token)
+    )
+    app = res.scalar_one_or_none()
+
+    if not app:
+        raise HTTPException(status_code=404, detail="This link isn't valid.")
+
+    if app.status != _DRAFT_STATUS:
+        raise HTTPException(
+            status_code=410,
+            detail="This application has already been submitted.",
+        )
+
+    if app.resume_token_expires_at and app.resume_token_expires_at < datetime.now(timezone.utc):
+        raise HTTPException(
+            status_code=410,
+            detail="This link has expired. Please start a new application.",
+        )
+
+    return {
+        "application_id": app.id,
+        "current_step":   app.current_step,
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # GET BY ID  (auth required — own merchant only)
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -647,3 +691,490 @@ async def change_email(request: Request, db: AsyncSession = Depends(get_db)):
         logger.warning("Change email send failed: %s", e)
 
     return {"detail": "Email updated and verification sent", "email": new_email}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ONBOARDING WIZARD  (public — 4-step resumable "Apply to Use" flow)
+#
+# Step 1  POST /merchants/apply/start
+#   Accepts name + contact details, creates a "draft" MerchantApplication,
+#   returns {application_id, resume_token} so the frontend can continue.
+#
+# Step 2  POST /merchants/apply/step/2/{application_id}
+#   Business details. Requires the resume_token in the Authorization header
+#   (Bearer <resume_token>) to prove continuity.
+#
+# Step 3  POST /merchants/apply/step/3/{application_id}
+#   Identity / business verification (CAC, BVN, or NIN).
+#   Calls verification_service — currently stubs to "pending_manual_review"
+#   if no IDENTITY_PROVIDER_API_KEY is set.
+#
+# Step 4  POST /merchants/apply/step/4/{application_id}
+#   Terms & indemnity acceptance. Finalises the application (status →
+#   "pending"), sends the applicant their confirmation email, and posts a
+#   Slack alert — identical side-effects to the legacy /apply endpoint.
+#
+# Resume GET /merchants/apply/resume/{resume_token}
+#   Returns {application_id, current_step} so the frontend can drop the
+#   user back at the right wizard screen after following the reminder link.
+#
+# Auth scheme for steps 2-4:
+#   The resume_token is a 32-byte URL-safe secret generated at step 1 and
+#   stored against the application row.  It is NOT a JWT and is NOT the
+#   same as link_token (which backs the older add-WhatsApp-number page).
+#   It expires 7 days after creation.  The frontend must send it as:
+#       Authorization: Bearer <resume_token>
+#
+# This is deliberately separate from the merchant JWT auth used elsewhere
+# so that unauthenticated applicants (who have no account yet) can still
+# resume their draft.
+# ─────────────────────────────────────────────────────────────────────────────
+
+import secrets as _secrets
+from datetime import datetime, timezone, timedelta
+
+_RESUME_TOKEN_TTL_DAYS = 7
+_DRAFT_STATUS = "draft"
+
+
+def _generate_resume_token() -> str:
+    """32 random bytes = 256 bits of entropy; URL-safe base64 encoding."""
+    return _secrets.token_urlsafe(32)
+
+
+def _resume_token_expiry() -> datetime:
+    return datetime.now(timezone.utc) + timedelta(days=_RESUME_TOKEN_TTL_DAYS)
+
+
+async def _load_draft(
+    application_id: str,
+    resume_token: str,
+    db: AsyncSession,
+):
+    """
+    Fetch a draft MerchantApplication and validate its resume_token.
+
+    Returns the application row, or raises HTTPException with an appropriate
+    status code.  Used by steps 2, 3, and 4.
+    """
+    from app.models.merchant_application import MerchantApplication
+
+    res = await db.execute(
+        select(MerchantApplication).where(MerchantApplication.id == application_id)
+    )
+    app = res.scalar_one_or_none()
+
+    if not app:
+        raise HTTPException(status_code=404, detail="Application not found.")
+
+    # Only draft applications can be continued through the wizard.
+    # A "pending" application has already been submitted via step 4.
+    if app.status != _DRAFT_STATUS:
+        raise HTTPException(
+            status_code=410,
+            detail="This application has already been submitted and can no longer be edited.",
+        )
+
+    if not app.resume_token or app.resume_token != resume_token:
+        raise HTTPException(status_code=403, detail="Invalid or missing resume token.")
+
+    if app.resume_token_expires_at and app.resume_token_expires_at < datetime.now(timezone.utc):
+        raise HTTPException(
+            status_code=410,
+            detail="Your session has expired. Please start a new application.",
+        )
+
+    return app
+
+
+def _extract_resume_token(request: Request) -> str:
+    """
+    Pull the Bearer token from the Authorization header.
+    Raises 401 if the header is absent or malformed.
+    """
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        raise HTTPException(
+            status_code=401,
+            detail="Authorization header with Bearer token required.",
+        )
+    token = auth[len("Bearer "):].strip()
+    if not token:
+        raise HTTPException(status_code=401, detail="Resume token is empty.")
+    return token
+
+
+# ── Step 1: contact details ───────────────────────────────────────────────────
+
+@router.post("/apply/start", status_code=200)
+async def apply_wizard_step_one(
+    payload: ApplyStepOne,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Step 1 of the onboarding wizard.
+
+    Creates a draft MerchantApplication with name + contact details and
+    returns the application_id + resume_token the frontend needs to
+    continue through steps 2-4.
+
+    Guards: honeypot field, IP rate limit (shared with /apply), and a
+    dedupe check on email so clicking "Back" and resubmitting step 1
+    doesn't create a second draft.
+    """
+    # Honeypot — same guard as the legacy /apply endpoint.
+    if payload.website:
+        logger.warning(
+            "Honeypot triggered on /merchants/apply/start from %s",
+            request.client.host if request.client else "unknown",
+        )
+        # Return a plausible-looking success so the bot doesn't learn it was caught.
+        return {
+            "application_id": "AP000000",
+            "resume_token": _generate_resume_token(),
+            "current_step": 2,
+        }
+
+    from app.core.redis_client import check_apply_rate_limit
+    client_ip = request.client.host if request.client else "unknown"
+    if not await check_apply_rate_limit(client_ip):
+        raise HTTPException(
+            status_code=429,
+            detail="Too many submissions from this connection. Please try again in an hour.",
+        )
+
+    from app.models.merchant_application import MerchantApplication
+    from sqlalchemy import or_
+
+    try:
+        # Dedupe: if this email already has an open draft, return its token
+        # so the applicant can resume rather than creating a second row.
+        existing_res = await db.execute(
+            select(MerchantApplication).where(
+                MerchantApplication.email == payload.email,
+                MerchantApplication.status == _DRAFT_STATUS,
+            )
+        )
+        existing = existing_res.scalar_one_or_none()
+
+        if existing:
+            # Refresh the resume token so the returned one is always valid.
+            existing.resume_token            = _generate_resume_token()
+            existing.resume_token_expires_at = _resume_token_expiry()
+            existing.last_activity_at        = datetime.now(timezone.utc)
+            # Update contact details in case they corrected a typo.
+            existing.full_name      = payload.full_name
+            existing.phone_number   = payload.phone_number
+            existing.whatsapp_number = payload.whatsapp_number
+            await db.commit()
+            return {
+                "application_id": existing.id,
+                "resume_token":   existing.resume_token,
+                "current_step":   existing.current_step,
+            }
+
+        # Also block if there's already a non-draft (pending/approved/etc.)
+        # application for this email, to avoid confusing duplicates.
+        pending_res = await db.execute(
+            select(MerchantApplication).where(
+                MerchantApplication.email == payload.email,
+                MerchantApplication.status.in_(("pending", "approved", "needs_attention")),
+            )
+        )
+        if pending_res.scalar_one_or_none():
+            return {
+                "message": (
+                    "We already have an application on file for this email address. "
+                    "Our team will be in touch within 1–2 business days."
+                )
+            }
+
+        application_id = await _generate_application_id(db)
+        resume_token   = _generate_resume_token()
+        link_token     = _generate_link_token()
+
+        application = MerchantApplication(
+            id=application_id,
+            full_name=payload.full_name,
+            email=payload.email,
+            phone_number=payload.phone_number,
+            whatsapp_number=payload.whatsapp_number,
+            link_token=link_token,
+            resume_token=resume_token,
+            resume_token_expires_at=_resume_token_expiry(),
+            status=_DRAFT_STATUS,
+            current_step=2,
+            last_activity_at=datetime.now(timezone.utc),
+        )
+        db.add(application)
+        await db.commit()
+
+        return {
+            "application_id": application_id,
+            "resume_token":   resume_token,
+            "current_step":   2,
+        }
+
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Wizard step 1 failed")
+        raise HTTPException(status_code=500, detail="Submission failed. Please try again.")
+
+
+# ── Step 2: business details ──────────────────────────────────────────────────
+
+@router.post("/apply/step/2/{application_id}", status_code=200)
+async def apply_wizard_step_two(
+    application_id: str,
+    payload: ApplyStepTwo,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Step 2: business details (name, type, city, registration status, etc.).
+
+    Requires Authorization: Bearer <resume_token>.
+    """
+    resume_token = _extract_resume_token(request)
+    app = await _load_draft(application_id, resume_token, db)
+
+    try:
+        app.business_name       = payload.business_name
+        app.business_type       = payload.business_type
+        app.city_state          = payload.city_state
+        app.registration_status = payload.registration_status
+        app.num_branches        = payload.num_branches
+        app.monthly_order_volume = payload.monthly_order_volume
+        app.uses_whatsapp_manual  = payload.uses_whatsapp_manual
+        app.uses_delivery_service = payload.uses_delivery_service
+        app.heard_about_us      = payload.heard_about_us
+        app.comments            = payload.comments
+        app.current_step        = 3
+        app.last_activity_at    = datetime.now(timezone.utc)
+        await db.commit()
+
+        return {
+            "application_id": application_id,
+            "current_step":   3,
+        }
+
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Wizard step 2 failed for application %s", application_id)
+        raise HTTPException(status_code=500, detail="Could not save business details. Please try again.")
+
+
+# ── Step 3: identity / business verification ──────────────────────────────────
+
+@router.post("/apply/step/3/{application_id}", status_code=200)
+async def apply_wizard_step_three(
+    application_id: str,
+    payload: ApplyStepThree,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Step 3: identity / business verification.
+
+    For registered businesses: CAC RC/BN number.
+    For unregistered businesses: BVN or NIN (one required, decided by
+    verification_method).
+
+    Calls verification_service — currently stubs every check to
+    "pending_manual_review" because no provider API key is configured.
+    The application still advances so onboarding isn't blocked.
+
+    Requires Authorization: Bearer <resume_token>.
+    """
+    resume_token = _extract_resume_token(request)
+    app = await _load_draft(application_id, resume_token, db)
+
+    # registration_status must have been set in step 2.
+    if not app.registration_status:
+        raise HTTPException(
+            status_code=422,
+            detail="Business details (step 2) must be completed before verification.",
+        )
+
+    from app.services.verification_service import (
+        verify_cac, verify_bvn, verify_nin, get_transaction_limit,
+    )
+
+    try:
+        reg = app.registration_status  # "registered" | "unregistered"
+
+        if reg == "registered":
+            if not payload.cac_number:
+                raise HTTPException(
+                    status_code=422,
+                    detail="CAC RC/BN number is required for registered businesses.",
+                )
+            result = await verify_cac(payload.cac_number, app.business_name or "")
+            app.cac_number          = payload.cac_number
+            app.verification_method = "cac"
+
+        else:  # unregistered
+            method = payload.verification_method
+            if method == "bvn":
+                if not payload.bvn:
+                    raise HTTPException(status_code=422, detail="BVN is required.")
+                result = await verify_bvn(payload.bvn, app.full_name)
+                app.bvn                 = payload.bvn
+                app.verification_method = "bvn"
+            elif method == "nin":
+                if not payload.nin:
+                    raise HTTPException(status_code=422, detail="NIN is required.")
+                result = await verify_nin(payload.nin, app.full_name)
+                app.nin                 = payload.nin
+                app.verification_method = "nin"
+            else:
+                raise HTTPException(
+                    status_code=422,
+                    detail="verification_method must be 'bvn' or 'nin' for unregistered businesses.",
+                )
+
+        app.verification_status        = result.status
+        app.verification_name_on_file  = result.name_on_file
+        app.transaction_limit          = get_transaction_limit(reg, result.status)
+        app.current_step               = 4
+        app.last_activity_at           = datetime.now(timezone.utc)
+        await db.commit()
+
+        return {
+            "application_id":      application_id,
+            "current_step":        4,
+            "verification_status": result.status,
+            # Surface this so the frontend can show "your details are under review"
+            # messaging when the provider isn't configured yet.
+            "pending_manual_review": result.status == "pending_manual_review",
+        }
+
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Wizard step 3 failed for application %s", application_id)
+        raise HTTPException(status_code=500, detail="Verification step failed. Please try again.")
+
+
+# ── Step 4: terms acceptance — finalises the application ─────────────────────
+
+@router.post("/apply/step/4/{application_id}", status_code=200)
+async def apply_wizard_step_four(
+    application_id: str,
+    payload: ApplyStepFour,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Step 4: terms & indemnity acceptance.  Finalises the application.
+
+    - Records terms_version, acceptance timestamp, and client IP for audit.
+    - Flips status from "draft" → "pending" so it appears in the admin queue.
+    - Sends the applicant a confirmation email (same as legacy /apply).
+    - Posts a Slack alert to the team.
+
+    Requires Authorization: Bearer <resume_token>.
+    """
+    resume_token = _extract_resume_token(request)
+    app = await _load_draft(application_id, resume_token, db)
+
+    # Guard: steps 2 and 3 must have been completed.
+    if not app.business_name or not app.registration_status:
+        raise HTTPException(
+            status_code=422,
+            detail="Business details (step 2) must be completed before submitting.",
+        )
+    if not app.verification_method:
+        raise HTTPException(
+            status_code=422,
+            detail="Identity verification (step 3) must be completed before submitting.",
+        )
+
+    client_ip = request.client.host if request.client else "unknown"
+
+    try:
+        app.terms_version     = payload.terms_version
+        app.terms_accepted    = True
+        app.terms_accepted_at = datetime.now(timezone.utc)
+        app.terms_accepted_ip = client_ip
+        app.status            = "pending"
+        app.current_step      = 4  # stays at 4 — wizard is complete
+        app.last_activity_at  = datetime.now(timezone.utc)
+        await db.commit()
+
+        # ── Confirmation email to applicant ───────────────────────────────
+        from app.services.email_service import (
+            send_application_received_email,
+            send_team_application_alert,
+        )
+        from app.api.v1.workers.background_tasks import fire_and_forget
+
+        fire_and_forget(
+            send_application_received_email(
+                to_email=app.email,
+                applicant_name=app.full_name,
+                business_name=app.business_name or "",
+                whatsapp_number=app.whatsapp_number,
+                link_token=app.link_token,
+            ),
+            name="wizard_send_application_received_email",
+        )
+
+        # ── Team alert (email) ────────────────────────────────────────────
+        fire_and_forget(
+            send_team_application_alert({
+                "full_name":            app.full_name,
+                "business_name":        app.business_name or "",
+                "email":                app.email,
+                "phone_number":         app.phone_number,
+                "whatsapp_number":      app.whatsapp_number,
+                "city_state":           app.city_state or "",
+                "business_type":        app.business_type or "",
+                "monthly_order_volume": app.monthly_order_volume,
+                "heard_about_us":       app.heard_about_us,
+                "comments":             app.comments,
+                "application_id":       application_id,
+            }),
+            name="wizard_send_team_application_alert",
+        )
+
+        # ── Slack alert ───────────────────────────────────────────────────
+        try:
+            from app.infrastructure.alerting.slack import alert
+            fire_and_forget(alert(
+                title="New Merchant Application (Wizard)",
+                detail=(
+                    f"*{app.business_name}* ({app.full_name}) completed the onboarding wizard. "
+                    f"Review it on the admin WhatsApp-setup page."
+                ),
+                level="info",
+                fields={
+                    "Application ID":  application_id,
+                    "Email":           app.email,
+                    "Phone":           app.phone_number,
+                    "WhatsApp":        app.whatsapp_number or "— not provided —",
+                    "City":            app.city_state or "",
+                    "Type":            app.business_type or "",
+                    "Registration":    app.registration_status or "",
+                    "Verification":    app.verification_status or "pending_manual_review",
+                    "Volume":          app.monthly_order_volume or "",
+                },
+            ), name="wizard_slack_new_application")
+        except Exception:
+            pass  # Slack alert failure must never block the response.
+
+        return {
+            "application_id": application_id,
+            "status":         "pending",
+            "message":        "Application received. We'll be in touch within 1–2 business days.",
+        }
+
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Wizard step 4 failed for application %s", application_id)
+        raise HTTPException(status_code=500, detail="Could not submit application. Please try again.")
+
