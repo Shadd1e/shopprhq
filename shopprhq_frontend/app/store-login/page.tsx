@@ -3,7 +3,7 @@
 import { Suspense, useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import DoodleBackground from '@/components/DoodleBackground'
-import { storeLogin, merchantLogin } from '@/lib/api'
+import { storeLogin, merchantLogin, forgotPassword, resetPassword } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
 const INPUT = cn(
@@ -15,8 +15,8 @@ const INPUT = cn(
 )
 
 type Tab = 'store' | 'merchant'
+type MerchantScreen = 'login' | 'forgot' | 'reset'
 
-// Isolated into its own component so useSearchParams() is inside Suspense
 function LoginForm() {
   const router       = useRouter()
   const searchParams = useSearchParams()
@@ -25,23 +25,40 @@ function LoginForm() {
     searchParams.get('as') === 'merchant' ? 'merchant' : 'store'
   )
 
+  // ── Store form ────────────────────────────────────────────────────────────
   const [clientId,  setClientId]  = useState('')
   const [storePass, setStorePass] = useState('')
-  const [email,     setEmail]     = useState('')
-  const [password,  setPassword]  = useState('')
-  const [loading,   setLoading]   = useState(false)
-  const [error,     setError]     = useState('')
 
-  useEffect(() => { setError('') }, [tab])
+  // ── Merchant form ─────────────────────────────────────────────────────────
+  const [merchantScreen, setMerchantScreen] = useState<MerchantScreen>(
+    searchParams.get('forgot') === '1' ? 'forgot' : 'login'
+  )
+  const [email,    setEmail]    = useState('')
+  const [password, setPassword] = useState('')
+  // Forgot
+  const [fEmail,   setFEmail]   = useState('')
+  // Reset
+  const [fCode,    setFCode]    = useState('')
+  const [fPw,      setFPw]      = useState('')
+  const [fPwConf,  setFPwConf]  = useState('')
 
+  // ── Shared ────────────────────────────────────────────────────────────────
+  const [loading, setLoading] = useState(false)
+  const [error,   setError]   = useState('')
+  const [success, setSuccess] = useState('')
+
+  useEffect(() => { setError(''); setSuccess('') }, [tab, merchantScreen])
+
+  // Redirect already-authenticated users
   useEffect(() => {
-    if (sessionStorage.getItem('tok') && sessionStorage.getItem('mid') && !sessionStorage.getItem('cid')) {
-      router.replace('/dashboard')
-    } else if (sessionStorage.getItem('tok') && sessionStorage.getItem('cid')) {
-      router.replace('/store-dashboard')
-    }
+    const tok = sessionStorage.getItem('tok')
+    const mid = sessionStorage.getItem('mid')
+    const cid = sessionStorage.getItem('cid')
+    if (tok && mid && !cid) router.replace('/dashboard')
+    else if (tok && cid)    router.replace('/store-dashboard')
   }, [router])
 
+  // ── Store submit ──────────────────────────────────────────────────────────
   async function handleStoreSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
@@ -57,12 +74,11 @@ function LoginForm() {
       router.replace('/store-dashboard')
     } catch (err: any) {
       setError(err.detail ?? 'Incorrect Store ID or password. Try again.')
-    } finally {
-      setLoading(false)
-    }
+    } finally { setLoading(false) }
   }
 
-  async function handleMerchantSubmit(e: React.FormEvent) {
+  // ── Merchant login ────────────────────────────────────────────────────────
+  async function handleMerchantLogin(e: React.FormEvent) {
     e.preventDefault()
     setError('')
     if (!email.trim()) return setError('Enter your email address.')
@@ -70,6 +86,16 @@ function LoginForm() {
     setLoading(true)
     try {
       const data = await merchantLogin(email.trim().toLowerCase(), password)
+
+      // Admin-created account — force password change before entering dashboard
+      if (data.must_change_password) {
+        setFEmail(email.trim().toLowerCase())
+        try { await forgotPassword(email.trim().toLowerCase()) } catch {}
+        setSuccess('For your security, please set a personal password before continuing.')
+        setMerchantScreen('reset')
+        return
+      }
+
       sessionStorage.setItem('tok',    data.access_token)
       sessionStorage.setItem('mid',    data.merchant_id)
       sessionStorage.setItem('mname',  data.name)
@@ -77,11 +103,48 @@ function LoginForm() {
       router.replace('/dashboard')
     } catch (err: any) {
       setError(err.detail ?? 'Incorrect email or password. Try again.')
-    } finally {
-      setLoading(false)
-    }
+    } finally { setLoading(false) }
   }
 
+  // ── Forgot password ───────────────────────────────────────────────────────
+  async function handleForgotSend(e: React.FormEvent) {
+    e.preventDefault()
+    setError('')
+    if (!fEmail.trim() || !fEmail.includes('@')) return setError('Enter a valid email address.')
+    setLoading(true)
+    try {
+      await forgotPassword(fEmail.trim().toLowerCase())
+      setSuccess('Check your email — a 6-digit reset code has been sent.')
+      setMerchantScreen('reset')
+    } catch (err: any) {
+      setError(err.detail ?? 'Could not send reset code. Try again.')
+    } finally { setLoading(false) }
+  }
+
+  // ── Reset password ────────────────────────────────────────────────────────
+  async function handleReset(e: React.FormEvent) {
+    e.preventDefault()
+    setError('')
+    if (!fCode.trim() || fCode.length !== 6) return setError('Enter the 6-digit code from your email.')
+    if (fPw.length < 6) return setError('New password must be at least 6 characters.')
+    if (fPw !== fPwConf) return setError('Passwords do not match.')
+    setLoading(true)
+    try {
+      await resetPassword(fEmail.trim().toLowerCase(), fCode.trim(), fPw)
+      setFCode(''); setFPw(''); setFPwConf('')
+      setMerchantScreen('login')
+      setSuccess('Password updated — sign in with your new password.')
+    } catch (err: any) {
+      setError(err.detail ?? 'Could not reset password. Check the code and try again.')
+    } finally { setLoading(false) }
+  }
+
+  async function handleResendCode() {
+    try { await forgotPassword(fEmail.trim().toLowerCase()) } catch {}
+    setSuccess('Code resent — check your email.')
+  }
+
+  // ── UI ────────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-white flex items-center justify-center p-5">
       <DoodleBackground />
@@ -102,35 +165,37 @@ function LoginForm() {
         {/* Card */}
         <div className="bg-white rounded-3xl border border-[#E8E7E2] shadow-md p-8">
 
-          {/* Tab switcher */}
-          <div className="flex bg-[#F7F6F2] rounded-2xl p-1 mb-7 gap-1">
-            <button
-              type="button"
-              onClick={() => setTab('store')}
-              className={cn(
-                'flex-1 py-2 rounded-xl text-sm font-semibold transition-all',
-                tab === 'store'
-                  ? 'bg-white text-[#0D0D0C] shadow-sm'
-                  : 'text-[#9E9E99] hover:text-[#6B6B66]',
-              )}
-            >
-              Store login
-            </button>
-            <button
-              type="button"
-              onClick={() => setTab('merchant')}
-              className={cn(
-                'flex-1 py-2 rounded-xl text-sm font-semibold transition-all',
-                tab === 'merchant'
-                  ? 'bg-white text-[#0D0D0C] shadow-sm'
-                  : 'text-[#9E9E99] hover:text-[#6B6B66]',
-              )}
-            >
-              Merchant login
-            </button>
-          </div>
+          {/* Tab switcher — only show on login screen */}
+          {merchantScreen === 'login' && (
+            <div className="flex bg-[#F7F6F2] rounded-2xl p-1 mb-7 gap-1">
+              <button
+                type="button"
+                onClick={() => setTab('store')}
+                className={cn(
+                  'flex-1 py-2 rounded-xl text-sm font-semibold transition-all',
+                  tab === 'store'
+                    ? 'bg-white text-[#0D0D0C] shadow-sm'
+                    : 'text-[#9E9E99] hover:text-[#6B6B66]',
+                )}
+              >
+                Store login
+              </button>
+              <button
+                type="button"
+                onClick={() => setTab('merchant')}
+                className={cn(
+                  'flex-1 py-2 rounded-xl text-sm font-semibold transition-all',
+                  tab === 'merchant'
+                    ? 'bg-white text-[#0D0D0C] shadow-sm'
+                    : 'text-[#9E9E99] hover:text-[#6B6B66]',
+                )}
+              >
+                Merchant login
+              </button>
+            </div>
+          )}
 
-          {/* Store form */}
+          {/* ── Store tab ── */}
           {tab === 'store' && (
             <>
               <h1 className="font-display font-extrabold text-[1.4rem] tracking-tight text-[#0D0D0C] mb-1.5">
@@ -167,7 +232,6 @@ function LoginForm() {
                     value={storePass}
                     onChange={(e) => { setStorePass(e.target.value); setError('') }}
                     autoComplete="current-password"
-                    onKeyDown={(e) => e.key === 'Enter' && handleStoreSubmit(e as any)}
                     className={INPUT}
                   />
                 </div>
@@ -187,73 +251,221 @@ function LoginForm() {
             </>
           )}
 
-          {/* Merchant form */}
+          {/* ── Merchant tab ── */}
           {tab === 'merchant' && (
             <>
-              <h1 className="font-display font-extrabold text-[1.4rem] tracking-tight text-[#0D0D0C] mb-1.5">
-                Merchant sign in
-              </h1>
-              <p className="text-sm text-[#9E9E99] mb-7 leading-relaxed">
-                Sign in to manage your stores, inventory and orders.
-              </p>
+              {/* ── Login screen ── */}
+              {merchantScreen === 'login' && (
+                <>
+                  <h1 className="font-display font-extrabold text-[1.4rem] tracking-tight text-[#0D0D0C] mb-1.5">
+                    Merchant sign in
+                  </h1>
+                  <p className="text-sm text-[#9E9E99] mb-7 leading-relaxed">
+                    Sign in to manage your stores, inventory and orders.
+                  </p>
 
-              <form onSubmit={handleMerchantSubmit} className="space-y-4" noValidate>
-                <div>
-                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#6B6B66] mb-1.5">
-                    Email address
-                  </label>
-                  <input
-                    type="email"
-                    placeholder="you@example.com"
-                    value={email}
-                    onChange={(e) => { setEmail(e.target.value); setError('') }}
-                    autoComplete="email"
-                    spellCheck={false}
-                    className={INPUT}
-                  />
-                </div>
+                  {success && <SuccessBanner message={success} />}
 
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#6B6B66]">
-                      Password
-                    </label>
-                    <a
-                      href="/dashboard?forgot=1"
-                      className="text-[11px] font-semibold text-[#25D366] hover:underline"
+                  <form onSubmit={handleMerchantLogin} className="space-y-4" noValidate>
+                    <div>
+                      <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#6B6B66] mb-1.5">
+                        Email address
+                      </label>
+                      <input
+                        type="email"
+                        placeholder="you@example.com"
+                        value={email}
+                        onChange={(e) => { setEmail(e.target.value); setError('') }}
+                        autoComplete="email"
+                        spellCheck={false}
+                        className={INPUT}
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#6B6B66]">
+                          Password
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => { setFEmail(email); setMerchantScreen('forgot'); setError('') }}
+                          className="text-[11px] font-semibold text-[#25D366] hover:underline"
+                        >
+                          Forgot password?
+                        </button>
+                      </div>
+                      <input
+                        type="password"
+                        placeholder="Your password"
+                        value={password}
+                        onChange={(e) => { setPassword(e.target.value); setError('') }}
+                        autoComplete="current-password"
+                        className={INPUT}
+                      />
+                    </div>
+
+                    {error && <ErrorBanner message={error} />}
+
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="w-full bg-[#0D0D0C] text-white font-semibold text-sm py-3.5 rounded-2xl
+                        hover:bg-[#2C2C29] transition-all hover:-translate-y-0.5
+                        disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none mt-2"
                     >
-                      Forgot password?
-                    </a>
-                  </div>
-                  <input
-                    type="password"
-                    placeholder="Your password"
-                    value={password}
-                    onChange={(e) => { setPassword(e.target.value); setError('') }}
-                    autoComplete="current-password"
-                    className={INPUT}
-                  />
-                </div>
+                      {loading ? 'Signing in…' : 'Sign in'}
+                    </button>
 
-                {error && <ErrorBanner message={error} />}
+                    <p className="text-center text-xs text-[#9E9E99] pt-1">
+                      Don't have an account?{' '}
+                      <a href="/get-started" className="text-[#25D366] font-semibold hover:underline">
+                        Apply to join
+                      </a>
+                    </p>
+                  </form>
+                </>
+              )}
 
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full bg-[#0D0D0C] text-white font-semibold text-sm py-3.5 rounded-2xl
-                    hover:bg-[#2C2C29] transition-all hover:-translate-y-0.5
-                    disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none mt-2"
-                >
-                  {loading ? 'Signing in…' : 'Sign in'}
-                </button>
+              {/* ── Forgot screen ── */}
+              {merchantScreen === 'forgot' && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setMerchantScreen('login')}
+                    className="text-xs font-semibold text-[#6B6B66] hover:text-[#0D0D0C] mb-6 flex items-center gap-1"
+                  >
+                    ← Back to sign in
+                  </button>
 
-                <p className="text-center text-xs text-[#9E9E99] pt-1">
-                  Don't have an account?{' '}
-                  <a href="/get-started" className="text-[#25D366] font-semibold hover:underline">
-                    Apply to join
-                  </a>
-                </p>
-              </form>
+                  <h1 className="font-display font-extrabold text-[1.3rem] tracking-tight text-[#0D0D0C] mb-1.5">
+                    Reset your password
+                  </h1>
+                  <p className="text-sm text-[#9E9E99] mb-7 leading-relaxed">
+                    Enter the email on your merchant account and we'll send a 6-digit code.
+                  </p>
+
+                  <form onSubmit={handleForgotSend} className="space-y-4" noValidate>
+                    <div>
+                      <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#6B6B66] mb-1.5">
+                        Email address
+                      </label>
+                      <input
+                        type="email"
+                        placeholder="you@example.com"
+                        value={fEmail}
+                        onChange={(e) => { setFEmail(e.target.value); setError('') }}
+                        autoComplete="email"
+                        autoFocus
+                        className={INPUT}
+                      />
+                    </div>
+
+                    {error && <ErrorBanner message={error} />}
+
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="w-full bg-[#0D0D0C] text-white font-semibold text-sm py-3.5 rounded-2xl
+                        hover:bg-[#2C2C29] transition-all
+                        disabled:opacity-50 disabled:cursor-not-allowed mt-2"
+                    >
+                      {loading ? 'Sending…' : 'Send reset code'}
+                    </button>
+                  </form>
+                </>
+              )}
+
+              {/* ── Reset screen ── */}
+              {merchantScreen === 'reset' && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setMerchantScreen('forgot')}
+                    className="text-xs font-semibold text-[#6B6B66] hover:text-[#0D0D0C] mb-6 flex items-center gap-1"
+                  >
+                    ← Back
+                  </button>
+
+                  <h1 className="font-display font-extrabold text-[1.3rem] tracking-tight text-[#0D0D0C] mb-1.5">
+                    Enter your code
+                  </h1>
+
+                  {success && <SuccessBanner message={success} />}
+
+                  <p className="text-sm text-[#9E9E99] mb-7 leading-relaxed">
+                    Check <strong className="text-[#0D0D0C]">{fEmail}</strong> for the 6-digit code,
+                    then set your new password below.
+                  </p>
+
+                  <form onSubmit={handleReset} className="space-y-4" noValidate>
+                    <div>
+                      <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#6B6B66] mb-1.5">
+                        6-digit code
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={6}
+                        placeholder="123456"
+                        value={fCode}
+                        onChange={(e) => { setFCode(e.target.value.replace(/\D/g, '')); setError('') }}
+                        autoComplete="one-time-code"
+                        autoFocus
+                        className={cn(INPUT, 'font-mono tracking-widest text-center text-lg')}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#6B6B66] mb-1.5">
+                        New password
+                      </label>
+                      <input
+                        type="password"
+                        placeholder="Minimum 6 characters"
+                        value={fPw}
+                        onChange={(e) => { setFPw(e.target.value); setError('') }}
+                        autoComplete="new-password"
+                        className={INPUT}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#6B6B66] mb-1.5">
+                        Confirm new password
+                      </label>
+                      <input
+                        type="password"
+                        placeholder="Repeat password"
+                        value={fPwConf}
+                        onChange={(e) => { setFPwConf(e.target.value); setError('') }}
+                        autoComplete="new-password"
+                        className={INPUT}
+                      />
+                    </div>
+
+                    {error && <ErrorBanner message={error} />}
+
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="w-full bg-[#0D0D0C] text-white font-semibold text-sm py-3.5 rounded-2xl
+                        hover:bg-[#2C2C29] transition-all
+                        disabled:opacity-50 disabled:cursor-not-allowed mt-2"
+                    >
+                      {loading ? 'Updating…' : 'Set new password'}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleResendCode}
+                      className="w-full text-xs text-[#9E9E99] hover:text-[#0D0D0C] text-center py-1 transition-colors"
+                    >
+                      Didn't receive it? Resend code
+                    </button>
+                  </form>
+                </>
+              )}
             </>
           )}
         </div>
@@ -264,7 +476,8 @@ function LoginForm() {
             <>
               <p className="text-xs font-semibold text-[#0D0D0C] mb-1">Can't sign in?</p>
               <p className="text-xs text-[#6B6B66] leading-relaxed">
-                Contact the merchant who set up your account. They can reset your password or retrieve your Store ID from their dashboard.
+                Contact the merchant who set up your account. They can reset your password or retrieve
+                your Store ID from their dashboard.
               </p>
               <p className="text-xs text-[#9E9E99] mt-2">
                 ShopprHQ support:{' '}
@@ -278,10 +491,14 @@ function LoginForm() {
               <p className="text-xs font-semibold text-[#0D0D0C] mb-1">Are you a store operator?</p>
               <p className="text-xs text-[#6B6B66] leading-relaxed">
                 Use the{' '}
-                <button onClick={() => setTab('store')} className="text-[#25D366] font-semibold hover:underline">
+                <button
+                  onClick={() => { setTab('store'); setMerchantScreen('login') }}
+                  className="text-[#25D366] font-semibold hover:underline"
+                >
                   Store login
                 </button>{' '}
-                tab instead — your Store ID starts with <span className="font-mono font-semibold">ST</span>.
+                tab instead — your Store ID starts with{' '}
+                <span className="font-mono font-semibold">ST</span>.
               </p>
             </>
           )}
@@ -300,8 +517,14 @@ function ErrorBanner({ message }: { message: string }) {
   )
 }
 
-// Default export wraps LoginForm in Suspense to satisfy Next.js 14's
-// requirement that useSearchParams() always has a Suspense boundary
+function SuccessBanner({ message }: { message: string }) {
+  return (
+    <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 text-sm text-emerald-800 leading-snug mb-5">
+      {message}
+    </div>
+  )
+}
+
 export default function StoreLoginPage() {
   return (
     <Suspense>

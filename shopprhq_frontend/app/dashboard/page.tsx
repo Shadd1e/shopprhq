@@ -1316,236 +1316,6 @@ function WhatsAppOnboardingSection({ token, onRefresh }: { token: string; onRefr
 }
 
 // ══════════════════════════════════════════════════════════════════════════
-// LOGIN VIEW
-// ══════════════════════════════════════════════════════════════════════════
-
-type LoginView_Screen = 'login' | 'forgot' | 'reset'
-
-function LoginView({ onSuccess }: { onSuccess: (token: string) => void }) {
-  const [screen,  setScreen]  = useState<LoginView_Screen>('login')
-  // Login
-  const [email,   setEmail]   = useState('')
-  const [pin,     setPin]     = useState('')
-  // Forgot
-  const [fEmail,  setFEmail]  = useState('')
-  const [fCode,   setFCode]   = useState('')
-  const [fPw,     setFPw]     = useState('')
-  const [fPwConf, setFPwConf] = useState('')
-  // Shared
-  const [loading, setLoading] = useState(false)
-  const [error,   setError]   = useState('')
-  const [success, setSuccess] = useState('')
-
-  function resetForgot() { setFEmail(''); setFCode(''); setFPw(''); setFPwConf(''); setError(''); setSuccess('') }
-
-  async function handleLogin(e: React.FormEvent) {
-    e.preventDefault()
-    setError('')
-    if (!email.trim()) return setError('Enter your email address.')
-    if (!pin)          return setError('Enter your PIN.')
-    setLoading(true)
-    try {
-      const data = await merchantLogin(email.trim(), pin)
-
-      if (data.must_change_password) {
-        // Admin-created account — the initial password must be changed before
-        // the merchant can access the dashboard. Route them straight into the
-        // existing forgot → reset flow. Pre-fill their email and fire the code
-        // automatically so they don't have to do the extra step themselves.
-        setFEmail(email.trim().toLowerCase())
-        try {
-          await forgotPassword(email.trim().toLowerCase())
-        } catch {
-          // Non-fatal — they can always use "Resend code" on the reset screen
-        }
-        setSuccess('For your security, please set a personal password before continuing.')
-        setScreen('reset')
-        return
-      }
-
-      sessionStorage.setItem('m_tok',  data.access_token)
-      sessionStorage.setItem('m_id',   data.merchant_id)
-      sessionStorage.setItem('m_name', data.name)
-      onSuccess(data.access_token)
-    } catch (err: any) {
-      setError(err.detail ?? 'Invalid email or PIN.')
-    } finally { setLoading(false) }
-  }
-
-  async function handleForgotSend(e: React.FormEvent) {
-    e.preventDefault()
-    setError('')
-    if (!fEmail.trim() || !fEmail.includes('@')) return setError('Enter a valid email address.')
-    setLoading(true)
-    try {
-      await forgotPassword(fEmail.trim().toLowerCase())
-      setSuccess('Check your email — a 6-digit code has been sent.')
-      setScreen('reset')
-    } catch (err: any) {
-      setError(err.detail ?? 'Could not send reset code. Try again.')
-    } finally { setLoading(false) }
-  }
-
-  async function handleReset(e: React.FormEvent) {
-    e.preventDefault()
-    setError('')
-    if (!fCode.trim() || fCode.length !== 6) return setError('Enter the 6-digit code from your email.')
-    if (fPw.length < 6) return setError('New password must be at least 6 characters.')
-    if (fPw !== fPwConf) return setError('Passwords do not match.')
-    setLoading(true)
-    try {
-      await resetPassword(fEmail.trim().toLowerCase(), fCode.trim(), fPw)
-      resetForgot()
-      setScreen('login')
-      setSuccess('Password updated — sign in with your new password.')
-    } catch (err: any) {
-      setError(err.detail ?? 'Could not reset password. Check the code and try again.')
-    } finally { setLoading(false) }
-  }
-
-  return (
-    <div className="min-h-screen flex items-center justify-center p-5">
-      <div className="w-full max-w-sm py-8">
-        <div className="flex justify-center mb-8"><Logo /></div>
-        <div className="bg-white rounded-3xl border border-border shadow-lg p-9">
-
-          {screen === 'login' && (
-            <>
-              <h1 className="font-display font-extrabold text-[1.45rem] tracking-tight text-ink mb-1.5">
-                Merchant sign in
-              </h1>
-              <p className="text-sm text-ink-4 mb-7 leading-relaxed">
-                Sign in with your email address and PIN.
-              </p>
-              {success && (
-                <div className="mb-5 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 text-sm text-emerald-800">
-                  {success}
-                </div>
-              )}
-              <form onSubmit={handleLogin} className="space-y-4">
-                <FormField label="Email Address">
-                  <input type="email" placeholder="you@example.com" value={email}
-                    onChange={e => { setEmail(e.target.value); setError(''); setSuccess('') }}
-                    autoComplete="email" spellCheck={false}
-                    className={INPUT} />
-                </FormField>
-                <div>
-                  <FormField label="Password">
-                    <input type="password" placeholder="Your password" value={pin}
-                      onChange={e => { setPin(e.target.value); setError(''); setSuccess('') }}
-                      autoComplete="current-password" className={INPUT} />
-                  </FormField>
-                  <div className="text-right mt-1.5">
-                    <button type="button"
-                      onClick={() => { setScreen('forgot'); setError(''); setSuccess('') }}
-                      className="text-xs font-semibold text-wa-dark hover:underline">
-                      Forgot password?
-                    </button>
-                  </div>
-                </div>
-                {error && <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-4 py-3">{error}</p>}
-                <button type="submit" disabled={loading}
-                  className="w-full bg-ink text-white font-semibold text-sm py-3.5 rounded-2xl
-                    hover:bg-ink-2 transition-all hover:-translate-y-0.5
-                    disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none">
-                  {loading ? 'Signing in…' : 'Sign in'}
-                </button>
-              </form>
-            </>
-          )}
-
-          {screen === 'forgot' && (
-            <>
-              <button onClick={() => { setScreen('login'); setError('') }}
-                className="text-xs font-semibold text-ink-3 hover:text-ink mb-5 flex items-center gap-1">
-                ← Back to sign in
-              </button>
-              <h1 className="font-display font-extrabold text-[1.3rem] tracking-tight text-ink mb-1.5">
-                Reset your password
-              </h1>
-              <p className="text-sm text-ink-4 mb-7 leading-relaxed">
-                Enter the email address on your merchant account. We'll send a 6-digit code.
-              </p>
-              <form onSubmit={handleForgotSend} className="space-y-4">
-                <FormField label="Email address">
-                  <input type="email" placeholder="you@example.com" value={fEmail}
-                    onChange={e => { setFEmail(e.target.value); setError('') }}
-                    autoComplete="email" className={INPUT} autoFocus />
-                </FormField>
-                {error && <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-4 py-3">{error}</p>}
-                <button type="submit" disabled={loading}
-                  className="w-full bg-ink text-white font-semibold text-sm py-3.5 rounded-2xl
-                    hover:bg-ink-2 transition-all disabled:opacity-60 disabled:cursor-not-allowed">
-                  {loading ? 'Sending…' : 'Send reset code'}
-                </button>
-              </form>
-            </>
-          )}
-
-          {screen === 'reset' && (
-            <>
-              <button onClick={() => { setScreen('forgot'); setError('') }}
-                className="text-xs font-semibold text-ink-3 hover:text-ink mb-5 flex items-center gap-1">
-                ← Back
-              </button>
-              <h1 className="font-display font-extrabold text-[1.3rem] tracking-tight text-ink mb-1.5">
-                Enter your code
-              </h1>
-              {success && (
-                <div className="mb-5 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 text-sm text-emerald-800">
-                  {success}
-                </div>
-              )}
-              <p className="text-sm text-ink-4 mb-6 leading-relaxed">
-                Check <strong>{fEmail}</strong> for the 6-digit code and enter your new password below.
-              </p>
-              <form onSubmit={handleReset} className="space-y-4">
-                <FormField label="6-digit code">
-                  <input type="text" placeholder="123456" inputMode="numeric" maxLength={6}
-                    value={fCode} onChange={e => { setFCode(e.target.value.replace(/\D/g,'')); setError('') }}
-                    autoComplete="one-time-code" className={INPUT} autoFocus />
-                </FormField>
-                <FormField label="New password" hint="Minimum 6 characters.">
-                  <input type="password" placeholder="New password" value={fPw}
-                    onChange={e => { setFPw(e.target.value); setError('') }}
-                    autoComplete="new-password" className={INPUT} />
-                </FormField>
-                <FormField label="Confirm new password">
-                  <input type="password" placeholder="Repeat password" value={fPwConf}
-                    onChange={e => { setFPwConf(e.target.value); setError('') }}
-                    autoComplete="new-password" className={INPUT} />
-                </FormField>
-                {error && <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-4 py-3">{error}</p>}
-                <button type="submit" disabled={loading}
-                  className="w-full bg-wa text-white font-semibold text-sm py-3.5 rounded-2xl
-                    shadow-wa hover:bg-wa-dark transition-all disabled:opacity-60 disabled:cursor-not-allowed">
-                  {loading ? 'Updating…' : 'Set new password'}
-                </button>
-                <button type="button" onClick={() => handleForgotSend({ preventDefault: () => {} } as any)}
-                  className="w-full text-xs text-ink-4 hover:text-ink text-center py-1 transition-colors">
-                  Didn't receive it? Resend code
-                </button>
-              </form>
-            </>
-          )}
-        </div>
-
-        <div className="mt-5 space-y-3 text-center">
-          <p className="text-sm text-ink-4">
-            New here?{' '}
-            <Link href="/register" className="text-wa-dark font-semibold hover:underline">Create a store →</Link>
-          </p>
-          <p className="text-sm text-ink-4">
-            Store manager?{' '}
-            <Link href="/store-login" className="text-wa-dark font-semibold hover:underline">Store sign in →</Link>
-          </p>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ══════════════════════════════════════════════════════════════════════════
 // STORE ROW (with permission toggle)
 // ══════════════════════════════════════════════════════════════════════════
 
@@ -2848,24 +2618,33 @@ function DashboardView({ token, onLogout }: { token: string; onLogout: () => voi
 // ══════════════════════════════════════════════════════════════════════════
 
 function DashboardPage() {
+  const router    = useRouter()
   const [token,   setToken]   = useState<string | null>(null)
   const [checked, setChecked] = useState(false)
 
   useEffect(() => {
-    setToken(sessionStorage.getItem('m_tok'))
+    const tok = sessionStorage.getItem('tok')
+    // Guard: must be a merchant session (has mid but not cid)
+    const mid = sessionStorage.getItem('mid')
+    const cid = sessionStorage.getItem('cid')
+    if (tok && mid && !cid) {
+      setToken(tok)
+    } else {
+      router.replace('/store-login?as=merchant')
+    }
     setChecked(true)
-  }, [])
+  }, [router])
 
   const handleLogout = useCallback(() => {
-    sessionStorage.removeItem('m_tok')
-    sessionStorage.removeItem('m_id')
-    sessionStorage.removeItem('m_name')
-    setToken(null)
-  }, [])
+    sessionStorage.removeItem('tok')
+    sessionStorage.removeItem('mid')
+    sessionStorage.removeItem('mname')
+    sessionStorage.removeItem('memail')
+    router.replace('/store-login?as=merchant')
+  }, [router])
 
   if (!checked) return null
-
-  if (!token) return <LoginView onSuccess={setToken} />
+  if (!token)   return null   // redirect in progress
 
   return <DashboardView token={token} onLogout={handleLogout} />
 }
