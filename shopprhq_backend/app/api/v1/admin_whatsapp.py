@@ -117,7 +117,23 @@ def _parse_meta_error(data: dict):
 
 
 def _merchant_message_for_meta_error(data: dict) -> str:
-    meta_code, _ = _parse_meta_error(data)
+    meta_code, meta_msg = _parse_meta_error(data)
+
+    # Meta overloads error code 100 for several unrelated parameter
+    # problems (bad phone number, missing required field, etc.) — the
+    # generic "couldn't recognise this number" message is only right for
+    # the phone-number case. If the message text says something else is
+    # missing/wrong, surface that distinctly instead of misdiagnosing it
+    # as a number-format issue. (This is also what masked the missing
+    # verified_name parameter as a "number invalid" error previously.)
+    if meta_code == 100 and "parameter" in meta_msg.lower() and "required" in meta_msg.lower():
+        logger.error("Meta rejected a required parameter we should be sending: %s", meta_msg)
+        return (
+            "We couldn't complete this step due to a configuration issue on our end "
+            "(missing a required field). This isn't something you can fix by re-entering "
+            "the number — please contact support so we can look into it."
+        )
+
     mapped_status = _META_ERROR_STATUS.get(meta_code)
     if mapped_status and mapped_status in _META_ERROR_MESSAGE:
         return _META_ERROR_MESSAGE[mapped_status]
@@ -254,6 +270,14 @@ async def add_number(request: Request, db: AsyncSession = Depends(get_db)):
                 "cc":                   phone[:3] if len(phone) > 10 else "234",
                 "phone_number":         phone,
                 "display_name":         name,
+                # Meta requires verified_name on this endpoint — distinct
+                # parameter from display_name, even though both carry the
+                # same business name in our flow today. Its omission is what
+                # produced "(#100) The parameter verified_name is required."
+                # Subject to Meta's display-name policy (no emojis/promo
+                # text/all-caps); a name that violates it can still get a
+                # 400 here, but with a different, more specific error.
+                "verified_name":        name,
                 "migrate_phone_number": False,
             },
         )
@@ -381,7 +405,6 @@ async def verify_otp(request: Request, db: AsyncSession = Depends(get_db)):
 
     if client_id:
         await _clear_pending_otp(db, client_id)
-        await _set_client_status(db, client_id, STATUS_OTP_SUBMITTED)
     return {"ok": True}
 
 
