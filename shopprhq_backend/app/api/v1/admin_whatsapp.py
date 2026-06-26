@@ -298,12 +298,27 @@ async def add_number(request: Request, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=500, detail="META_WABA_ID not set")
 
     async with httpx.AsyncClient(timeout=30) as client:
+        # Meta's /phone_numbers endpoint wants `cc` and `phone_number` as
+        # two SEPARATE parts that it concatenates itself — `phone_number`
+        # must be the LOCAL number only, with the country code already
+        # stripped off. Previously `phone_number` was set to the full
+        # number (cc + local digits), so Meta concatenated cc + (cc+local)
+        # and silently registered a malformed, non-existent number — e.g.
+        # "234" + "2347030130455" => "2342347030130455". That number still
+        # passed our own length/format validation (all digits, plausible
+        # length), and add-number itself returned 200 OK, so this never
+        # surfaced until request-otp tried to actually deliver a code to
+        # it and got "Number unreachable" — which was Meta being
+        # completely literal: that number doesn't exist.
+        cc          = phone[:3] if len(phone) > 10 else "234"
+        local_part  = phone[len(cc):] if phone.startswith(cc) else phone
+
         res = await client.post(
             f"{GRAPH_URL}/{cfg['waba_id']}/phone_numbers",
             headers={"Authorization": f"Bearer {cfg['system_token']}"},
             json={
-                "cc":                   phone[:3] if len(phone) > 10 else "234",
-                "phone_number":         phone,
+                "cc":                   cc,
+                "phone_number":         local_part,
                 "display_name":         name,
                 # Meta requires verified_name on this endpoint — distinct
                 # parameter from display_name, even though both carry the
