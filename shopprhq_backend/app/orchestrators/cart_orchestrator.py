@@ -37,6 +37,19 @@ class CartOrchestrator:
             client_id=self.client_id,
             user_id=self.user_id,
         )
+        # WORKAROUND (requested by merchant): the cart total can read as ₦0.00
+        # on the very first item added to a brand-new cart due to a stale-read
+        # issue in the cart relationship cache (see cart_service._build_summary
+        # and the get_active_cart/_get_cart_readonly re-fetch path — the ORM
+        # session's identity map can return an already-loaded empty `items`
+        # collection right after cart creation, so the total computed for the
+        # first add can reflect a collection that hasn't picked up the new
+        # item yet). Proper fix would be to call db.expire(cart, ["items"]) or
+        # use populate_existing() before the post-add summary read. Until
+        # that's done, we suppress the (sometimes-wrong) total on the first
+        # item and only show a running total from the second item onward,
+        # where the value has consistently been observed to be correct.
+        is_first_item_in_cart = not cart or not cart.items
         if not cart:
             cart = await self.cart_service.create_cart(
                 merchant_id=self.merchant_id,
@@ -130,6 +143,14 @@ class CartOrchestrator:
         await self.memory.clear_choices()
         if last_added_name:
             await self.memory.set("last_added_product", last_added_name)
+
+        if is_first_item_in_cart:
+            # Workaround for the ₦0.00-on-first-item bug — just confirm the
+            # product name, no total. Total starts showing from the 2nd item.
+            return Humanizer.added_to_cart_no_total(
+                ", ".join(added_items),
+                style=self.style,
+            )
 
         return Humanizer.added_to_cart(
             ", ".join(added_items),

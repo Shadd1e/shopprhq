@@ -311,16 +311,48 @@ def _build_system_prompt(
     catalogue_section = ""
     if catalogue_context and catalogue_context.strip():
         catalogue_section = f"""
-STORE CATALOGUE (current availability):
+STORE CATALOGUE (current availability — this is the ONLY source of truth
+about what this store sells, has in stock, or charges):
 {catalogue_context}
+
+HARD RULE — STOCK & AVAILABILITY CLAIMS:
+- A product may be described as "available", "in stock", or "we have X"
+  ONLY if it appears verbatim (or as an unambiguous match) in the catalogue
+  above. If it is not in the list, it is NOT available — full stop.
+- If the customer names something not in the list, say you don't have it
+  and, if relevant, suggest the closest real item that IS in the list.
+  Do NOT say "we do have X" about anything absent from the catalogue, even
+  if it sounds like a common product most stores would carry, and even if
+  an earlier message in this conversation implied otherwise.
+- Never state or imply a specific size, variant, or packaging (e.g. "50cl
+  bottles and 33cl cans") unless that exact detail is in the catalogue text.
+- Never invent or guess a price. Only quote a price shown in the catalogue.
+- If you are not sure whether something is in stock, say you'll check
+  rather than answering as if you already know.
 
 Use this catalogue to:
 - Answer "what do you have?" questions by listing relevant in-stock items
 - Suggest alternatives when a requested item is unavailable
 - Detect variant groups (marked [variant]) — when asked for the group name,
   list all variants and ask which one they want
-- Answer price questions accurately
-- NEVER invent products, prices or descriptions not in this list
+- Answer price questions accurately, using only catalogue prices
+"""
+    else:
+        # FIX: previously, when catalogue_context was empty (e.g. cache miss,
+        # no products loaded, or a merchant with an empty/unsynced catalogue),
+        # the anti-hallucination instructions above were skipped entirely —
+        # there was no fallback rule, so the model was free to answer stock
+        # questions from general world knowledge (e.g. confidently claiming
+        # "we do have Coke!"). This explicit fallback closes that gap.
+        catalogue_section = """
+STORE CATALOGUE: not available right now.
+
+HARD RULE: you have NO reliable information about what this store actually
+stocks or charges. Do NOT claim any specific product is available, in
+stock, or priced at any amount — even common items you'd expect a store
+like this to carry. For any availability or price question, say you need
+to check and offer to connect them with the team, rather than answering
+as if you know the catalogue.
 """
 
     cart_section = ""
@@ -391,7 +423,12 @@ Return ONLY valid JSON (no markdown, no explanation):
 
 order_code: Extract ONLY if customer provides an alphanumeric order reference (e.g. "X7K4M2PQ").
 catalogue_answer: Fill ONLY for product_inquiry, availability_check, price_check, alternative_request.
-For price_check on a specific named product, end the answer with a natural offer to add it.
+catalogue_answer MUST be grounded only in the STORE CATALOGUE section above —
+never state a product is available, describe its variants/packaging, or
+quote a price unless that exact information appears in the catalogue text.
+If the catalogue doesn't cover what the customer asked about, say so instead
+of guessing. For price_check on a specific named product, end the answer
+with a natural offer to add it.
 JSON only."""
 
 

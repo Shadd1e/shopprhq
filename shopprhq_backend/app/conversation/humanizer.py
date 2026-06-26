@@ -347,12 +347,40 @@ class Humanizer:
     # ── Add to cart ───────────────────────────────────────────────────────────
 
     @classmethod
+    def added_to_cart_no_total(cls, items: str, style: str = "friendly_casual") -> str:
+        # Used for the FIRST item added to a new cart. Per merchant request,
+        # we don't show a price/total on this message — only the product
+        # name and a confirmation that it was added. Total starts appearing
+        # from the second item onward (see added_to_cart below).
+        base = cls._pick_styled({
+            "friendly_casual": [
+                f"*{items}* added to your cart!",
+                f"Got it — *{items}* is in your cart.",
+                f"Done! Added *{items}*.",
+                f"*{items}* — added. 👍",
+            ],
+            "professional": [
+                f"*{items}* has been added to your order.",
+                f"Confirmed — *{items}* is now in your cart.",
+            ],
+            "warm_enthusiastic": [
+                f"Awesome! *{items}* is in your cart! 🛒",
+                f"Great choice! *{items}* added! 😊",
+                f"Yes! *{items}* is in! 🎉",
+            ],
+        }, style)
+        nudge = "Say *checkout* when you're ready, or keep shopping! 🛒"
+        return f"{base}\n\n{nudge}"
+
+    @classmethod
     def added_to_cart(cls, items: str, item_count: int = 0, total=None,
                       style: str = "friendly_casual") -> str:
-        # UX-5: always compute total_str — even when total is 0 — so cart total
-        # is shown deterministically after every add, never left to variant chance.
-        _total_float = cls._ensure_float(total)
-        total_str = cls._format_currency(_total_float) if _total_float is not None else None
+        # FIX: _ensure_float() always returns a float and never None, so the
+        # old "if _total_float is not None" check below was dead code — it
+        # meant a genuine ₦0.00 was indistinguishable from "no total available"
+        # and always got rendered as "Cart total: ₦0.00". We now check the
+        # raw `total` argument for None *before* coercing it to a float.
+        total_str = cls._format_currency(total) if total is not None else None
         base = cls._pick_styled({
             "friendly_casual": [
                 f"*{items}* added to your cart!",

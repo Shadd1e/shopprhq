@@ -502,6 +502,22 @@ async def save_to_db(request: Request, db: AsyncSession = Depends(get_db)):
         logger.warning("store-live email failed (non-fatal): %s", e)
 
     try:
+        from app.services.email_service import send_whatsapp_activated_admin_email
+        from app.api.v1.workers.background_tasks import fire_and_forget
+        fire_and_forget(
+            send_whatsapp_activated_admin_email(
+                merchant_name=merchant.name if merchant else "—",
+                store_name=cl.name,
+                client_id=client_id,
+                whatsapp_number=whatsapp_number,
+                phone_number_id=phone_number_id,
+            ),
+            name="send_whatsapp_activated_admin_email",
+        )
+    except Exception as e:
+        logger.warning("admin activation email failed (non-fatal): %s", e)
+
+    try:
         from app.infrastructure.alerting.slack import alert
         from app.api.v1.workers.background_tasks import fire_and_forget
         fire_and_forget(

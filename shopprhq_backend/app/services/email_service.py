@@ -1308,3 +1308,108 @@ You're welcome to apply again in the future if your circumstances change. Thanks
 — The ShopprHQ Team
 """
     return await send_email(to_email, subject, html, text)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# WHATSAPP NUMBER ACTIVATED — internal ops alert
+# Fires from /admin/whatsapp-setup/save immediately after a number is saved
+# as active in the DB.  Recipient is the ops/admin email (ADMIN_NOTIFY_EMAIL).
+# ─────────────────────────────────────────────────────────────────────────────
+
+async def send_whatsapp_activated_admin_email(
+    merchant_name: str,
+    store_name: str,
+    client_id: str,
+    whatsapp_number: str,
+    phone_number_id: str,
+) -> bool:
+    """
+    Internal ops notification sent as soon as a WhatsApp number is saved and
+    marked active.  Goes to ADMIN_NOTIFY_EMAIL (env var).  Non-fatal if that
+    var is not set.
+    """
+    to_email = os.getenv("ADMIN_NOTIFY_EMAIL", "")
+    if not to_email:
+        logger.info("ADMIN_NOTIFY_EMAIL not set — skipping internal activation alert")
+        return False
+
+    subject = f"✅ WhatsApp number activated — {store_name}"
+    formatted_number = f"+{whatsapp_number}" if whatsapp_number else "—"
+
+    html = f"""<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#F5F4F0;font-family:'DM Sans',Arial,sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F5F4F0;padding:40px 20px">
+    <tr><td align="center">
+      <table width="520" cellpadding="0" cellspacing="0"
+        style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)">
+        <tr><td style="background:#111110;padding:28px 40px;text-align:center">
+          <div style="font-size:24px;font-weight:700;color:#fff;letter-spacing:-.02em">ShopprHQ</div>
+          <div style="font-size:11px;color:rgba(255,255,255,.4);margin-top:4px;
+            letter-spacing:.08em;text-transform:uppercase">Internal Ops Alert</div>
+        </td></tr>
+        <tr><td style="padding:36px 40px 32px">
+          <h1 style="margin:0 0 6px;font-size:20px;font-weight:700;color:#111">
+            WhatsApp number activated ✅
+          </h1>
+          <p style="margin:0 0 24px;font-size:14px;color:#777;line-height:1.6">
+            A store has just been connected and is now live on WhatsApp Business API.
+          </p>
+
+          <table width="100%" cellpadding="0" cellspacing="0"
+            style="background:#F5F4F0;border-radius:10px;padding:16px 20px;margin-bottom:20px;border-collapse:collapse">
+            <tr>
+              <td style="padding:6px 0;font-size:12px;color:#999;text-transform:uppercase;
+                font-weight:600;letter-spacing:.06em;width:140px">Merchant</td>
+              <td style="padding:6px 0;font-size:14px;font-weight:600;color:#111">{merchant_name}</td>
+            </tr>
+            <tr>
+              <td style="padding:6px 0;font-size:12px;color:#999;text-transform:uppercase;
+                font-weight:600;letter-spacing:.06em">Store</td>
+              <td style="padding:6px 0;font-size:14px;font-weight:600;color:#111">{store_name}</td>
+            </tr>
+            <tr>
+              <td style="padding:6px 0;font-size:12px;color:#999;text-transform:uppercase;
+                font-weight:600;letter-spacing:.06em">Store ID</td>
+              <td style="padding:6px 0;font-size:14px;color:#555;font-family:monospace">{client_id}</td>
+            </tr>
+            <tr>
+              <td style="padding:6px 0;font-size:12px;color:#999;text-transform:uppercase;
+                font-weight:600;letter-spacing:.06em">WhatsApp number</td>
+              <td style="padding:6px 0;font-size:18px;font-weight:800;color:#16A34A;
+                letter-spacing:.04em">{formatted_number}</td>
+            </tr>
+            <tr>
+              <td style="padding:6px 0;font-size:12px;color:#999;text-transform:uppercase;
+                font-weight:600;letter-spacing:.06em">Phone Number ID</td>
+              <td style="padding:6px 0;font-size:13px;color:#555;font-family:monospace">{phone_number_id}</td>
+            </tr>
+          </table>
+
+          <p style="margin:0;font-size:13px;color:#aaa;line-height:1.6">
+            No action needed — this is a confirmation that the onboarding flow completed
+            successfully. The merchant has also received their "store live" email.
+          </p>
+        </td></tr>
+        <tr><td style="padding:16px 40px;border-top:1px solid #eee;text-align:center">
+          <p style="margin:0;font-size:12px;color:#bbb">ShopprHQ by RACHWIN · Internal · Do not reply</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>"""
+
+    text = f"""WhatsApp number activated — {store_name}
+
+Merchant:        {merchant_name}
+Store:           {store_name}
+Store ID:        {client_id}
+WhatsApp number: {formatted_number}
+Phone Number ID: {phone_number_id}
+
+The store is now live. The merchant has received their "store live" email.
+No action required.
+"""
+    return await send_email(to_email, subject, html, text)
