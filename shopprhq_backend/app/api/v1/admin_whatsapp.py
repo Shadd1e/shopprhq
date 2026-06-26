@@ -116,55 +116,12 @@ def _parse_meta_error(data: dict):
     return code, msg
 
 
-def _parse_meta_user_error(data: dict):
-    """
-    Meta includes ready-made, end-user-safe error text on many errors via
-    error_user_title / error_user_msg — distinct from error.message, which
-    is aimed at developers (e.g. "Request code error" tells a user nothing,
-    while error_user_msg on the same response says
-    "Number unreachable. Check number or try an alternate verification
-    method."). Returns (title, msg) or (None, None) if Meta didn't include
-    either field on this particular error.
-    """
-    err = data.get("error", {})
-    return err.get("error_user_title"), err.get("error_user_msg")
-
-
 def _merchant_message_for_meta_error(data: dict) -> str:
-    meta_code, meta_msg = _parse_meta_error(data)
-    sub_code = data.get("error", {}).get("error_subcode", 0)
-
-    # Meta overloads error code 100 for several unrelated parameter
-    # problems (bad phone number, missing required field, etc.) — the
-    # generic "couldn't recognise this number" message is only right for
-    # the phone-number case. If the message text says something else is
-    # missing/wrong, surface that distinctly instead of misdiagnosing it
-    # as a number-format issue. (This is also what masked the missing
-    # verified_name parameter as a "number invalid" error previously.)
-    if meta_code == 100 and "parameter" in meta_msg.lower() and "required" in meta_msg.lower():
-        logger.error("Meta rejected a required parameter we should be sending: %s", meta_msg)
-        return (
-            "We couldn't complete this step due to a configuration issue on our end "
-            "(missing a required field). This isn't something you can fix by re-entering "
-            "the number — please contact support so we can look into it."
-        )
-
-    # request_code "number unreachable" — give the specific, actionable
-    # nudge (try the other delivery method) rather than the generic
-    # catch-all. Meta's own error_user_msg already says this in different
-    # words; this is the one subcode worth a tailored message because the
-    # fix (switch SMS<->VOICE) is something the admin can actually do
-    # right now, in this same form, with no support ticket needed.
-    if sub_code == 2388091:
-        return (
-            "Meta couldn't reach this number to send the code. "
-            "Try the other delivery method (SMS or Voice call) using the toggle above, "
-            "or confirm the number can currently receive texts/calls."
-        )
-
+    meta_code, _ = _parse_meta_error(data)
     mapped_status = _META_ERROR_STATUS.get(meta_code)
     if mapped_status and mapped_status in _META_ERROR_MESSAGE:
         return _META_ERROR_MESSAGE[mapped_status]
+    sub_code = data.get("error", {}).get("error_subcode", 0)
     if sub_code == 2388001:
         return (
             "This number is already verified on WhatsApp Business API. "
@@ -172,14 +129,6 @@ def _merchant_message_for_meta_error(data: dict) -> str:
         )
     if sub_code == 2388007:
         return "This number has been blocked from registration by Meta. Contact support."
-
-    # Fall back to Meta's own end-user-facing message before resorting to
-    # the fully generic "(code N)" text — Meta already wrote a usable
-    # sentence for most errors we haven't explicitly mapped above.
-    _, user_msg = _parse_meta_user_error(data)
-    if user_msg:
-        return user_msg
-
     return (
         f"We couldn't complete this step right now ({meta_code}). "
         "Please try again or contact support if this keeps happening."
@@ -298,36 +247,13 @@ async def add_number(request: Request, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=500, detail="META_WABA_ID not set")
 
     async with httpx.AsyncClient(timeout=30) as client:
-        # Meta's /phone_numbers endpoint wants `cc` and `phone_number` as
-        # two SEPARATE parts that it concatenates itself — `phone_number`
-        # must be the LOCAL number only, with the country code already
-        # stripped off. Previously `phone_number` was set to the full
-        # number (cc + local digits), so Meta concatenated cc + (cc+local)
-        # and silently registered a malformed, non-existent number — e.g.
-        # "234" + "2347030130455" => "2342347030130455". That number still
-        # passed our own length/format validation (all digits, plausible
-        # length), and add-number itself returned 200 OK, so this never
-        # surfaced until request-otp tried to actually deliver a code to
-        # it and got "Number unreachable" — which was Meta being
-        # completely literal: that number doesn't exist.
-        cc          = phone[:3] if len(phone) > 10 else "234"
-        local_part  = phone[len(cc):] if phone.startswith(cc) else phone
-
         res = await client.post(
             f"{GRAPH_URL}/{cfg['waba_id']}/phone_numbers",
             headers={"Authorization": f"Bearer {cfg['system_token']}"},
             json={
-                "cc":                   cc,
-                "phone_number":         local_part,
+                "cc":                   phone[:3] if len(phone) > 10 else "234",
+                "phone_number":         phone,
                 "display_name":         name,
-                # Meta requires verified_name on this endpoint — distinct
-                # parameter from display_name, even though both carry the
-                # same business name in our flow today. Its omission is what
-                # produced "(#100) The parameter verified_name is required."
-                # Subject to Meta's display-name policy (no emojis/promo
-                # text/all-caps); a name that violates it can still get a
-                # 400 here, but with a different, more specific error.
-                "verified_name":        name,
                 "migrate_phone_number": False,
             },
         )
@@ -455,6 +381,7 @@ async def verify_otp(request: Request, db: AsyncSession = Depends(get_db)):
 
     if client_id:
         await _clear_pending_otp(db, client_id)
+        await _set_client_status(db, client_id, STATUS_OTP_SUBMITTED)
     return {"ok": True}
 
 
@@ -472,7 +399,7 @@ async def activate(request: Request, db: AsyncSession = Depends(get_db)):
     if not phone_number_id:
         raise HTTPException(status_code=400, detail="phone_number_id required")
 
-    registration_pin = secrets.token_hex(3)
+    registration_pin = str(secrets.randbelow(900000) + 100000)
 
     async with httpx.AsyncClient(timeout=30) as client:
         reg_res = await client.post(
