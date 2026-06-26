@@ -1140,19 +1140,18 @@ async def send_approved_merchant_welcome_email(
     to_email: str,
     merchant_name: str,
     merchant_id: str,
-    initial_password: str,
+    set_password_url: str = "",
+    initial_password: str = "",  # kept for backward compat; ignored
 ) -> bool:
     """
-    Sent the moment admin approves an application. Deliberately does NOT say
-    "you're all set" — the account exists, but WhatsApp isn't connected yet,
-    and that distinction matters (the merchant still owes us a Meta
-    verification code, given personally over WhatsApp, before they're live).
+    Sent the moment admin approves an application.  Contains a single
+    "Set your password" link (valid 72 h) — no auto-generated password in the email.
+    Deliberately does NOT say "you're all set" — WhatsApp still needs connecting.
     """
     cfg        = _cfg()
     first_name = merchant_name.split()[0]
-    dashboard  = f"{cfg['app_url']}/dashboard"
     support_wa = cfg["support_wa"]
-    subject    = f"You're approved, {first_name}! Here's what happens next"
+    subject    = f"You're approved, {first_name}! Create your password to get started"
 
     support_line_html = (
         f"<strong>+{support_wa}</strong>" if support_wa
@@ -1174,50 +1173,40 @@ async def send_approved_merchant_welcome_email(
         </td></tr>
         <tr><td style="padding:40px 40px 32px">
           <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#111">
-            You're approved, {first_name}! 🎉
+            You're approved, {{first_name}}! 🎉
           </h1>
-          <p style="margin:0 0 20px;font-size:15px;color:#555;line-height:1.6">
-            Your ShopprHQ account is ready. <strong>Your store is not yet live on
-            WhatsApp</strong> — there are a couple of quick steps left, outlined below.
+          <p style="margin:0 0 24px;font-size:15px;color:#555;line-height:1.6">
+            Your ShopprHQ account is ready. Click the button below to create your
+            password and sign in. <strong>This link expires in 72 hours.</strong>
           </p>
 
-          <div style="background:#f9f9f7;border-radius:10px;padding:20px 24px;margin-bottom:24px">
-            <p style="margin:0 0 8px;font-size:12px;font-weight:700;color:#999;
-              text-transform:uppercase;letter-spacing:.06em">Your login credentials</p>
-            <p style="margin:0 0 6px;font-size:14px;color:#333">
-              <strong>Email:</strong> {to_email}
-            </p>
-            <p style="margin:0;font-size:14px;color:#333">
-              <strong>Password:</strong>
-              <code style="background:#eee;padding:2px 8px;border-radius:5px;font-size:13px">
-                {initial_password}
-              </code>
-            </p>
-          </div>
-
-          <p style="margin:0 0 20px;font-size:14px;color:#888;line-height:1.6">
-            ⚠️ Please change your password immediately after your first login.
-          </p>
-
-          <a href="{dashboard}"
+          <a href="{{set_password_url}}"
             style="display:block;background:#111;color:#fff;text-align:center;
               padding:14px 24px;border-radius:10px;font-weight:600;font-size:15px;
               text-decoration:none;margin-bottom:28px">
-            Sign in to ShopprHQ →
+            Set my password →
           </a>
+
+          <p style="margin:0 0 6px;font-size:13px;color:#999;line-height:1.6">
+            If the button doesn't work, copy and paste this link into your browser:
+          </p>
+          <p style="margin:0 0 28px;font-size:12px;color:#aaa;word-break:break-all">
+            {{set_password_url}}
+          </p>
 
           <p style="margin:0 0 10px;font-size:12px;font-weight:700;color:#999;
             text-transform:uppercase;letter-spacing:.06em">What happens next</p>
           <ol style="margin:0 0 24px;padding-left:20px;font-size:14px;color:#555;line-height:1.8">
-            <li>We'll message you personally on WhatsApp from {support_line_html} to get
+            <li>Set your password using the link above.</li>
+            <li>We'll message you personally on WhatsApp from {{support_line_html}} to get
               a quick verification code from Meta.</li>
             <li>We'll use that code to activate your number.</li>
             <li>You'll get a separate "you're live" email the moment it's connected.</li>
           </ol>
 
           <p style="margin:0;font-size:14px;color:#888;line-height:1.6">
-            That WhatsApp message is how we'll reach you for this step — not email —
-            so please reply when you see it.
+            That WhatsApp message is how we'll reach you for the activation step —
+            please reply when you see it.
           </p>
         </td></tr>
         <tr><td style="padding:16px 40px;border-top:1px solid #eee;text-align:center">
@@ -1232,22 +1221,19 @@ async def send_approved_merchant_welcome_email(
     support_line_text = f"+{support_wa}" if support_wa else "our team"
     text = f"""Hi {first_name},
 
-Your ShopprHQ account is ready. Your store is NOT yet live on WhatsApp — here's what's left:
+Your ShopprHQ account is ready. Create your password using the link below:
 
-Login details:
-  Email:    {to_email}
-  Password: {initial_password}
+  {set_password_url}
 
-Sign in at: {dashboard}
-
-Please change your password immediately after your first login.
+This link expires in 72 hours.
 
 What happens next:
-  1. We'll message you personally on WhatsApp from {support_line_text} for a quick Meta verification code.
-  2. We'll use that code to activate your number.
-  3. You'll get a separate "you're live" email once it's connected.
+  1. Set your password using the link above.
+  2. We'll message you on WhatsApp from {support_line_text} for a quick Meta verification code.
+  3. We'll use that code to activate your number.
+  4. You'll get a separate "you're live" email once it's connected.
 
-That WhatsApp message is how we'll reach you for this step, not email — please reply when you see it.
+That WhatsApp message is how we'll reach you for the activation step — please reply when you see it.
 
 — The ShopprHQ Team
 """
@@ -1306,110 +1292,5 @@ Thanks for your interest in ShopprHQ for {business_name}. After review, we're no
 You're welcome to apply again in the future if your circumstances change. Thanks for considering us.
 
 — The ShopprHQ Team
-"""
-    return await send_email(to_email, subject, html, text)
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# WHATSAPP NUMBER ACTIVATED — internal ops alert
-# Fires from /admin/whatsapp-setup/save immediately after a number is saved
-# as active in the DB.  Recipient is the ops/admin email (ADMIN_NOTIFY_EMAIL).
-# ─────────────────────────────────────────────────────────────────────────────
-
-async def send_whatsapp_activated_admin_email(
-    merchant_name: str,
-    store_name: str,
-    client_id: str,
-    whatsapp_number: str,
-    phone_number_id: str,
-) -> bool:
-    """
-    Internal ops notification sent as soon as a WhatsApp number is saved and
-    marked active.  Goes to ADMIN_NOTIFY_EMAIL (env var).  Non-fatal if that
-    var is not set.
-    """
-    to_email = os.getenv("ADMIN_NOTIFY_EMAIL", "")
-    if not to_email:
-        logger.info("ADMIN_NOTIFY_EMAIL not set — skipping internal activation alert")
-        return False
-
-    subject = f"✅ WhatsApp number activated — {store_name}"
-    formatted_number = f"+{whatsapp_number}" if whatsapp_number else "—"
-
-    html = f"""<!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#F5F4F0;font-family:'DM Sans',Arial,sans-serif">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F5F4F0;padding:40px 20px">
-    <tr><td align="center">
-      <table width="520" cellpadding="0" cellspacing="0"
-        style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)">
-        <tr><td style="background:#111110;padding:28px 40px;text-align:center">
-          <div style="font-size:24px;font-weight:700;color:#fff;letter-spacing:-.02em">ShopprHQ</div>
-          <div style="font-size:11px;color:rgba(255,255,255,.4);margin-top:4px;
-            letter-spacing:.08em;text-transform:uppercase">Internal Ops Alert</div>
-        </td></tr>
-        <tr><td style="padding:36px 40px 32px">
-          <h1 style="margin:0 0 6px;font-size:20px;font-weight:700;color:#111">
-            WhatsApp number activated ✅
-          </h1>
-          <p style="margin:0 0 24px;font-size:14px;color:#777;line-height:1.6">
-            A store has just been connected and is now live on WhatsApp Business API.
-          </p>
-
-          <table width="100%" cellpadding="0" cellspacing="0"
-            style="background:#F5F4F0;border-radius:10px;padding:16px 20px;margin-bottom:20px;border-collapse:collapse">
-            <tr>
-              <td style="padding:6px 0;font-size:12px;color:#999;text-transform:uppercase;
-                font-weight:600;letter-spacing:.06em;width:140px">Merchant</td>
-              <td style="padding:6px 0;font-size:14px;font-weight:600;color:#111">{merchant_name}</td>
-            </tr>
-            <tr>
-              <td style="padding:6px 0;font-size:12px;color:#999;text-transform:uppercase;
-                font-weight:600;letter-spacing:.06em">Store</td>
-              <td style="padding:6px 0;font-size:14px;font-weight:600;color:#111">{store_name}</td>
-            </tr>
-            <tr>
-              <td style="padding:6px 0;font-size:12px;color:#999;text-transform:uppercase;
-                font-weight:600;letter-spacing:.06em">Store ID</td>
-              <td style="padding:6px 0;font-size:14px;color:#555;font-family:monospace">{client_id}</td>
-            </tr>
-            <tr>
-              <td style="padding:6px 0;font-size:12px;color:#999;text-transform:uppercase;
-                font-weight:600;letter-spacing:.06em">WhatsApp number</td>
-              <td style="padding:6px 0;font-size:18px;font-weight:800;color:#16A34A;
-                letter-spacing:.04em">{formatted_number}</td>
-            </tr>
-            <tr>
-              <td style="padding:6px 0;font-size:12px;color:#999;text-transform:uppercase;
-                font-weight:600;letter-spacing:.06em">Phone Number ID</td>
-              <td style="padding:6px 0;font-size:13px;color:#555;font-family:monospace">{phone_number_id}</td>
-            </tr>
-          </table>
-
-          <p style="margin:0;font-size:13px;color:#aaa;line-height:1.6">
-            No action needed — this is a confirmation that the onboarding flow completed
-            successfully. The merchant has also received their "store live" email.
-          </p>
-        </td></tr>
-        <tr><td style="padding:16px 40px;border-top:1px solid #eee;text-align:center">
-          <p style="margin:0;font-size:12px;color:#bbb">ShopprHQ by RACHWIN · Internal · Do not reply</p>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>"""
-
-    text = f"""WhatsApp number activated — {store_name}
-
-Merchant:        {merchant_name}
-Store:           {store_name}
-Store ID:        {client_id}
-WhatsApp number: {formatted_number}
-Phone Number ID: {phone_number_id}
-
-The store is now live. The merchant has received their "store live" email.
-No action required.
 """
     return await send_email(to_email, subject, html, text)

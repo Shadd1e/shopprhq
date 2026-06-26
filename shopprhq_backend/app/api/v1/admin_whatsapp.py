@@ -399,7 +399,7 @@ async def activate(request: Request, db: AsyncSession = Depends(get_db)):
     if not phone_number_id:
         raise HTTPException(status_code=400, detail="phone_number_id required")
 
-    registration_pin = str(secrets.randbelow(900000) + 100000)
+    registration_pin = secrets.token_hex(3)
 
     async with httpx.AsyncClient(timeout=30) as client:
         reg_res = await client.post(
@@ -500,22 +500,6 @@ async def save_to_db(request: Request, db: AsyncSession = Depends(get_db)):
             )
     except Exception as e:
         logger.warning("store-live email failed (non-fatal): %s", e)
-
-    try:
-        from app.services.email_service import send_whatsapp_activated_admin_email
-        from app.api.v1.workers.background_tasks import fire_and_forget
-        fire_and_forget(
-            send_whatsapp_activated_admin_email(
-                merchant_name=merchant.name if merchant else "—",
-                store_name=cl.name,
-                client_id=client_id,
-                whatsapp_number=whatsapp_number,
-                phone_number_id=phone_number_id,
-            ),
-            name="send_whatsapp_activated_admin_email",
-        )
-    except Exception as e:
-        logger.warning("admin activation email failed (non-fatal): %s", e)
 
     try:
         from app.infrastructure.alerting.slack import alert
@@ -894,25 +878,22 @@ async def _create_merchant_account(
     name: str,
     email: str,
     whatsapp_number: "str | None",
-    initial_password: "str | None",
+    initial_password: "str | None" = None,  # kept for API compat; ignored — link flow used instead
 ) -> dict:
     import secrets
-    import string
+    from datetime import datetime, timezone, timedelta
 
-    if initial_password:
-        password = initial_password
-    else:
-        alphabet = string.ascii_letters + string.digits + "!@#$%"
-        password = "".join(secrets.choice(alphabet) for _ in range(16))
+    # Create the account with a random unusable placeholder password.
+    # The merchant will set their real password by clicking the link in the welcome email.
+    placeholder_password = secrets.token_urlsafe(32)
 
-    # Re-use existing MerchantService.create() so ID generation, auto-store, etc. stay consistent
     from app.services.merchant_service import MerchantService
     from app.schemas.merchant import MerchantCreate
 
     create_payload = MerchantCreate(
         name=name,
         email=email,
-        password=password,
+        password=placeholder_password,
         whatsapp_number=whatsapp_number,
     )
 
@@ -922,27 +903,34 @@ async def _create_merchant_account(
     if not merchant:
         return {"ok": False, "detail": "A merchant account with this email already exists."}
 
-    # Mark immediately as email-verified (admin has already vetted them).
-    # Also flag that the initial password must be changed on first login —
-    # the welcome email says to expect a prompt; this enforces it.
-    merchant.email_verified      = True
-    merchant.must_change_password = True
+    # Generate a set-password token valid for 72 hours.
+    # Stored in the existing email_verification_token column — no migration needed.
+    set_password_token = secrets.token_urlsafe(32)
+
+    merchant.email_verified                 = True   # admin has already vetted them
+    merchant.must_change_password           = True   # login blocked until password is set
+    merchant.email_verification_token       = set_password_token
+    merchant.email_verification_token_expiry = datetime.now(timezone.utc) + timedelta(hours=72)
     await db.commit()
     await db.refresh(merchant)
 
     merchant_id = merchant.id
     client_id   = getattr(merchant, "_auto_client_id", None)
 
-    # Send welcome email with credentials
+    # Build the set-password URL and send the welcome email (one email, no password in it)
     try:
         from app.services.email_service import send_approved_merchant_welcome_email
         from app.api.v1.workers.background_tasks import fire_and_forget
+        from app.core.config import get_settings
+        _app_url = get_settings().app_url.rstrip("/")
+        set_password_url = f"{_app_url}/dashboard?set_password={set_password_token}"
+
         fire_and_forget(
             send_approved_merchant_welcome_email(
                 to_email=merchant.email,
                 merchant_name=merchant.name,
                 merchant_id=merchant_id,
-                initial_password=password,
+                set_password_url=set_password_url,
             ),
             name="send_approved_merchant_welcome_email",
         )

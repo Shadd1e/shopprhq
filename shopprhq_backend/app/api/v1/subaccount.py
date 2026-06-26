@@ -88,6 +88,7 @@ async def register_subaccount(
             merchant_id=merchant_id,
             account_bank=payload.account_bank,
             account_number=payload.account_number,
+            account_name=payload.account_name,
             business_name=payload.business_name,
         )
         return subaccount

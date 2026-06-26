@@ -59,6 +59,7 @@ class PaystackSubaccountService:
         merchant_id: str,
         account_bank: str,
         account_number: str,
+        account_name: str,
         business_name: str,
     ) -> FlutterwaveSubaccount:
         payload = {
@@ -68,7 +69,7 @@ class PaystackSubaccountService:
             "percentage_charge": 1.0,
             "description": f"ShopprHQ store {client_id}",
             "primary_contact_email": f"{client_id}@shopprhq.app",
-            "primary_contact_name": business_name,
+            "primary_contact_name": account_name,  # real bank account holder name for Paystack verification
         }
         async with httpx.AsyncClient(timeout=20.0) as client:
             res = await client.post(

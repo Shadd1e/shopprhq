@@ -630,6 +630,60 @@ async def reset_password(request: Request, db: AsyncSession = Depends(get_db)):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# SET PASSWORD  (public — token-driven, used on first login after approval)
+#
+# Flow: admin approves → welcome email contains ?set_password=<token> link →
+#       merchant clicks → dashboard JS POSTs here with token + chosen password →
+#       token consumed, password set, must_change_password cleared → merchant logs in.
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.post("/set-password")
+async def set_password_via_token(request: Request, db: AsyncSession = Depends(get_db)):
+    """
+    Validates the set-password token from the approval email and sets the
+    merchant's password for the first time.  Token is single-use and expires
+    after 72 hours.
+    """
+    from datetime import datetime, timezone
+    from sqlalchemy import select as _sel
+    from app.models.merchant import Merchant as _M
+    from app.core.security import get_password_hash
+
+    body         = await request.json()
+    token        = str(body.get("token") or "").strip()
+    new_password = str(body.get("new_password") or "").strip()
+
+    if not token:
+        raise HTTPException(status_code=400, detail="Token is required.")
+    if len(new_password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters.")
+
+    res      = await db.execute(
+        _sel(_M).where(_M.email_verification_token == token)
+    )
+    merchant = res.scalar_one_or_none()
+
+    if not merchant:
+        raise HTTPException(status_code=400, detail="This link is invalid or has already been used.")
+
+    expiry = merchant.email_verification_token_expiry
+    if expiry and expiry < datetime.now(timezone.utc):
+        raise HTTPException(
+            status_code=400,
+            detail="This link has expired. Contact support to get a new one.",
+        )
+
+    merchant.password_hash                   = get_password_hash(new_password)
+    merchant.must_change_password            = False
+    merchant.failed_attempts                 = 0
+    merchant.email_verification_token        = None
+    merchant.email_verification_token_expiry = None
+    await db.commit()
+
+    return {"detail": "Password set. You can now sign in."}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # RESEND VERIFICATION  (auth required)
 # ─────────────────────────────────────────────────────────────────────────────
 

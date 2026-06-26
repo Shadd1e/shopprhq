@@ -5,9 +5,10 @@ from datetime import datetime
 
 
 class SubaccountRegisterRequest(BaseModel):
-    """Request body to register a Flutterwave subaccount for a store."""
-    account_bank: str = Field(..., description="Flutterwave bank code e.g. '044' for Access Bank")
+    """Request body to register a Paystack subaccount for a store."""
+    account_bank: str = Field(..., description="Paystack bank code e.g. '044' for Access Bank")
     account_number: str = Field(..., description="Store's bank account number")
+    account_name: str = Field(..., description="Real account holder name as returned by Paystack verify-account — used for Paystack verification matching")
     business_name: str = Field(..., description="Store trading name")
     split_value: Optional[str] = Field(
         None,
