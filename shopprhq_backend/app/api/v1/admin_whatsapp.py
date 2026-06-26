@@ -116,8 +116,23 @@ def _parse_meta_error(data: dict):
     return code, msg
 
 
+def _parse_meta_user_error(data: dict):
+    """
+    Meta includes ready-made, end-user-safe error text on many errors via
+    error_user_title / error_user_msg — distinct from error.message, which
+    is aimed at developers (e.g. "Request code error" tells a user nothing,
+    while error_user_msg on the same response says
+    "Number unreachable. Check number or try an alternate verification
+    method."). Returns (title, msg) or (None, None) if Meta didn't include
+    either field on this particular error.
+    """
+    err = data.get("error", {})
+    return err.get("error_user_title"), err.get("error_user_msg")
+
+
 def _merchant_message_for_meta_error(data: dict) -> str:
     meta_code, meta_msg = _parse_meta_error(data)
+    sub_code = data.get("error", {}).get("error_subcode", 0)
 
     # Meta overloads error code 100 for several unrelated parameter
     # problems (bad phone number, missing required field, etc.) — the
@@ -134,10 +149,22 @@ def _merchant_message_for_meta_error(data: dict) -> str:
             "the number — please contact support so we can look into it."
         )
 
+    # request_code "number unreachable" — give the specific, actionable
+    # nudge (try the other delivery method) rather than the generic
+    # catch-all. Meta's own error_user_msg already says this in different
+    # words; this is the one subcode worth a tailored message because the
+    # fix (switch SMS<->VOICE) is something the admin can actually do
+    # right now, in this same form, with no support ticket needed.
+    if sub_code == 2388091:
+        return (
+            "Meta couldn't reach this number to send the code. "
+            "Try the other delivery method (SMS or Voice call) using the toggle above, "
+            "or confirm the number can currently receive texts/calls."
+        )
+
     mapped_status = _META_ERROR_STATUS.get(meta_code)
     if mapped_status and mapped_status in _META_ERROR_MESSAGE:
         return _META_ERROR_MESSAGE[mapped_status]
-    sub_code = data.get("error", {}).get("error_subcode", 0)
     if sub_code == 2388001:
         return (
             "This number is already verified on WhatsApp Business API. "
@@ -145,6 +172,14 @@ def _merchant_message_for_meta_error(data: dict) -> str:
         )
     if sub_code == 2388007:
         return "This number has been blocked from registration by Meta. Contact support."
+
+    # Fall back to Meta's own end-user-facing message before resorting to
+    # the fully generic "(code N)" text — Meta already wrote a usable
+    # sentence for most errors we haven't explicitly mapped above.
+    _, user_msg = _parse_meta_user_error(data)
+    if user_msg:
+        return user_msg
+
     return (
         f"We couldn't complete this step right now ({meta_code}). "
         "Please try again or contact support if this keeps happening."
