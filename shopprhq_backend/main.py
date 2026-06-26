@@ -23,7 +23,6 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     logger.info("🚀 Starting ShopprHQ API")
 
-    # Assert required environment variables are set before accepting traffic
     _startup_env = os.getenv("ENVIRONMENT", "production").lower()
     if _startup_env != "local":
         _required = {
@@ -36,8 +35,6 @@ async def lifespan(app: FastAPI):
             logger.critical("Missing required environment variables: %s", _missing)
             import sys; sys.exit(1)
 
-        # ADMIN_SECRET guards the entire merchant onboarding dashboard — enforce
-        # a minimum length so a weak secret can never slip through to production.
         _admin_secret = os.getenv("ADMIN_SECRET", "")
         if not _admin_secret:
             logger.critical(
@@ -159,40 +156,110 @@ async def add_security_headers(request: Request, call_next):
 # --------------------------------------------------
 # Routers
 # --------------------------------------------------
-from app.api.v1.merchant import router as merchant_router
-from app.api.v1.client_whatsapp_credential import router as whatsapp_cred_router
-from app.api.v1.inventory import router as inventory_router
-from app.api.v1.orders_api import router as orders_router
-from app.api.v1.payment import router as payments_router
+
+# ── Core bot & payment infrastructure ─────────────────────────────────────────
 from app.api.v1.webhook import router as webhooks_router
-from app.api.v1.client_api import router as client_router
-from app.api.v1.product import router as product_router
+from app.api.v1.paystack import router as paystack_router
+from app.api.v1.payment import router as payments_router
 from app.api.v1.checkout import router as checkout_router
-from app.api.v1.debug import router as debug_router
-from app.api.v1.subaccount import router as subaccount_router
+
+# ── Merchant (identity, auth, onboarding wizard, apply) ───────────────────────
+from app.api.v1.merchant import router as merchant_router
+# auth.py: /auth/login — SUPERSEDED by /merchants/login in merchant.py.
+# merchant.py login is richer (must_change_password flag, longer lockout message).
+# Deliberately NOT mounted to avoid a duplicate unauthenticated login surface.
+
+# ── Merchant WhatsApp onboarding (admin + merchant-facing) ────────────────────
 from app.api.v1.admin_whatsapp import router as admin_whatsapp_router
 from app.api.v1.admin_whatsapp import merchant_router as onboarding_router
-from app.api.v1.paystack import router as paystack_router
+
+# ── Merchant credential management ────────────────────────────────────────────
+# admin.py (prefix /merchant-credentials) and client_whatsapp_credential.py
+# (prefix /whatsapp-credentials) expose overlapping CRUD on the same
+# ClientWhatsAppCredential table but under different prefixes and with
+# different auth patterns. admin.py is the older version; client_whatsapp_credential
+# is the current one (mounted as whatsapp_cred_router below).
+# admin.py is NOT mounted — its routes are all covered by whatsapp_cred_router.
+#
+# credential.py (prefix /whatsapp-routing) is a read-only subset of
+# client_whatsapp_credential. Also NOT mounted — use /whatsapp-credentials instead.
+from app.api.v1.client_whatsapp_credential import router as whatsapp_cred_router
+
+# ── Store / client management ──────────────────────────────────────────────────
+from app.api.v1.client_api import router as client_router
+from app.api.v1.subaccount import router as subaccount_router
+
+# ── Inventory & products ───────────────────────────────────────────────────────
+from app.api.v1.inventory import router as inventory_router
+from app.api.v1.product import router as product_router
+
+# ── Orders & fulfillment ───────────────────────────────────────────────────────
+from app.api.v1.orders_api import router as orders_router
+# order_fulfillment.py exposed POST /orders/confirm-pickup/{order_code} — a
+# webhook-style route called with a WhatsApp number to confirm cash pickup.
+# orders_api.py covers the dashboard confirm-cash flow (POST /{order_id}/confirm-cash).
+# confirm-pickup is a DIFFERENT operation (used by the bot/payment orchestrator
+# internally via OrderFulfillmentService.confirm_pickup()). It is NOT called
+# by the dashboard frontend. Mounting it would expose an unauthenticated endpoint
+# that can mark any order FULFILLED given just an order_code + phone number.
+# NOT mounted — the service method is called directly from payment_orchestrator.py.
+
+# ── Cart ───────────────────────────────────────────────────────────────────────
+# cart.py (prefix /cart) — CRUD on cart/cart-items used during the bot ordering
+# flow. The bot calls CartService directly through orchestrators, not via HTTP.
+# No dashboard or frontend page calls /cart/* — confirmed by template audit.
+# Mounting it would expose unauthenticated cart manipulation endpoints.
+# NOT mounted — internal use only via service layer.
+from app.api.v1.cart import router as cart_router  # imported for completeness; see below
+
+# ── Human agent escalation ────────────────────────────────────────────────────
+# human_agent.py (prefix /human-agent) — task queue for bot→human handoff.
+# HumanAgentService is called directly from the conversation orchestrator.
+# No frontend page or external caller uses these HTTP endpoints.
+# Mounting it would expose unauthenticated task creation/mutation.
+# NOT mounted — internal use only via service layer.
+from app.api.v1.human_agent import router as human_agent_router  # imported for completeness; see below
+
+# ── Admin & internal ops ───────────────────────────────────────────────────────
+from app.api.v1.debug import router as debug_router
 from app.api.v1.internal_cron import router as internal_cron_router
 
 API_V1_PREFIX = "/api/v1"
 
-app.include_router(webhooks_router, prefix=API_V1_PREFIX, tags=["Webhooks"])
-app.include_router(paystack_router, prefix="/api/v1")
-app.include_router(merchant_router, prefix=API_V1_PREFIX, tags=["Merchants"])
-app.include_router(whatsapp_cred_router, prefix=API_V1_PREFIX, tags=["WhatsApp Credentials"])
-app.include_router(inventory_router, prefix=API_V1_PREFIX, tags=["Inventory"])
-app.include_router(orders_router, prefix=API_V1_PREFIX, tags=["Orders"])
-app.include_router(payments_router, prefix=API_V1_PREFIX, tags=["Payments"])
-app.include_router(client_router, prefix=API_V1_PREFIX, tags=["Clients"])
-app.include_router(product_router, prefix=API_V1_PREFIX, tags=["Products"])
-app.include_router(checkout_router, prefix=API_V1_PREFIX, tags=["Checkout"])
-app.include_router(debug_router, prefix=API_V1_PREFIX, tags=["Debug"])
-app.include_router(subaccount_router, prefix=API_V1_PREFIX, tags=["Subaccounts"])
+# Webhook & payment (order matters — webhooks before everything else)
+app.include_router(webhooks_router,  prefix=API_V1_PREFIX, tags=["Webhooks"])
+app.include_router(paystack_router,  prefix=API_V1_PREFIX, tags=["Paystack"])
 
+# Merchant identity & onboarding
+app.include_router(merchant_router,  prefix=API_V1_PREFIX, tags=["Merchants"])
+
+# WhatsApp setup (admin dashboard + merchant self-serve; carry their own prefixes)
 app.include_router(admin_whatsapp_router)
 app.include_router(onboarding_router)
+
+# Credentials / routing
+app.include_router(whatsapp_cred_router, prefix=API_V1_PREFIX, tags=["WhatsApp Credentials"])
+
+# Store management
+app.include_router(client_router,    prefix=API_V1_PREFIX, tags=["Clients"])
+app.include_router(subaccount_router, prefix=API_V1_PREFIX, tags=["Subaccounts"])
+
+# Catalogue
+app.include_router(inventory_router, prefix=API_V1_PREFIX, tags=["Inventory"])
+app.include_router(product_router,   prefix=API_V1_PREFIX, tags=["Products"])
+
+# Orders & payments
+app.include_router(orders_router,    prefix=API_V1_PREFIX, tags=["Orders"])
+app.include_router(payments_router,  prefix=API_V1_PREFIX, tags=["Payments"])
+app.include_router(checkout_router,  prefix=API_V1_PREFIX, tags=["Checkout"])
+
+# Ops
+app.include_router(debug_router,         prefix=API_V1_PREFIX, tags=["Debug"])
 app.include_router(internal_cron_router)
+
+# NOTE: cart_router, human_agent_router, order_fulfillment confirm-pickup,
+# auth_router, admin_router, and credential_router are intentionally NOT mounted.
+# See per-router comments in the imports section above for the rationale.
 
 # --------------------------------------------------
 # Health & Root
@@ -241,7 +308,6 @@ async def store_dashboard_page():
     with open(_tpl, "r") as f:
         return HTMLResponse(content=f.read())
 
-# Serve store dashboard static assets (JS etc.)
 _store_dash_static = os.path.join(os.path.dirname(__file__), "templates", "store_dashboard")
 app.mount("/store-dashboard-static", StaticFiles(directory=_store_dash_static), name="store_dashboard")
 
@@ -266,10 +332,6 @@ app.mount("/static", StaticFiles(directory=_static_dir), name="static")
 async def payment_success(ref: str = ""):
     """
     Paystack redirect landing page after customer completes payment.
-    FIX: accepts ?ref=ORDER_CODE query param (passed via PAYSTACK_REDIRECT_URL
-    in checkout_service.py) so the customer sees their order reference.
-    FIX: WhatsApp button only renders when SHOPPRHQ_SUPPORT_WHATSAPP is set;
-    previously it rendered a broken wa.me/ link when the env var was absent.
     """
     wa_digits = "".join(
         c for c in os.getenv("SHOPPRHQ_SUPPORT_WHATSAPP", "") if c.isdigit()

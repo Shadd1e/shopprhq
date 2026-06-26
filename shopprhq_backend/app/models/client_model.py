@@ -1,7 +1,7 @@
 # app/models/client_model.py
 from sqlalchemy import (
     Column, String, DateTime, ForeignKey, func, text,
-    Boolean, Numeric, CheckConstraint,
+    Boolean, Numeric, CheckConstraint, Integer,
 )
 from sqlalchemy.orm import relationship
 from app.db.base import Base
@@ -43,6 +43,48 @@ class Client(Base):
 
     # Operator WhatsApp number for order/payment notifications
     operator_notify_phone = Column(String(20), nullable=True)
+
+    # ── WhatsApp onboarding state (admin_whatsapp.py) ──────────────────────────
+    # These three are referenced throughout admin_whatsapp.py (both the admin
+    # add-number/request-otp/verify-otp/activate/save pipeline and the
+    # merchant-facing submit-number/request-otp/submit-otp self-serve
+    # endpoints) via cl.onboarding_status = .... They WERE already added to
+    # the database by migration 0016_onboarding_columns — this model file was
+    # just never updated to declare them, which is why every read needed
+    # getattr(cl, "...", default) and every write would have raised
+    # AttributeError despite the column existing on the actual table.
+    # Width here (String(30)) matches 0016 exactly — do not shrink without a
+    # new migration, even though the longest current value
+    # ("number_submitted", 16 chars) would technically fit in less.
+    #
+    # Allowed values for onboarding_status (mirrors STATUS_* constants in
+    # admin_whatsapp.py / admin.py):
+    #   pending | number_submitted | added_to_waba | otp_requested |
+    #   otp_submitted | otp_failed | number_in_use | number_personal |
+    #   number_invalid | active
+    onboarding_status = Column(
+        String(30),
+        nullable=False,
+        server_default="pending",
+        index=True,
+        comment="WhatsApp onboarding state — see STATUS_* constants in admin_whatsapp.py",
+    )
+
+    # How many times the merchant has submitted/changed their WhatsApp number
+    # via the self-serve flow. Capped at _MAX_NUMBER_ATTEMPTS in admin_whatsapp.py.
+    number_submission_attempts = Column(
+        Integer,
+        nullable=False,
+        server_default="0",
+    )
+
+    # The OTP code the merchant most recently entered, staged here so the
+    # admin's /verify-otp step can pick it up and forward it to Meta. Cleared
+    # by _clear_pending_otp() after a verify attempt (success or failure).
+    pending_otp_code = Column(
+        String(6),
+        nullable=True,
+    )
 
     # ── Delivery settings ──────────────────────────────────────────────────────
     delivery_enabled = Column(

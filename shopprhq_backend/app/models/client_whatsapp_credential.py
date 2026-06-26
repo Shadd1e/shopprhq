@@ -61,6 +61,13 @@ class ClientWhatsAppCredential(Base):
     # Kept for backwards compat with existing code that checks .active.
     active = Column(Boolean, default=False, index=True)
 
+    # Set True once Meta's /verify_code call succeeds (admin_whatsapp.py
+    # verify_otp). Distinct from `active`, which additionally requires
+    # /register + webhook subscription to have completed. Referenced by
+    # Client.is_whatsapp_verified, which was reading this before it existed
+    # as a column — added now to match.
+    verified = Column(Boolean, default=False, index=True)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     # ── Relationship ───────────────────────────────────────────────────
@@ -96,6 +103,7 @@ class ClientWhatsAppCredential(Base):
         """Call after merchant submits correct OTP."""
         self.status = CREDENTIAL_STATUS_OTP_VERIFIED
         self.active = False
+        self.verified = True
 
     def mark_active(self) -> None:
         """

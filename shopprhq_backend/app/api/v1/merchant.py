@@ -363,9 +363,16 @@ async def get_me(request: Request, db: AsyncSession = Depends(get_db)):
 @router.get("/apply/resume/{resume_token}", status_code=200)
 async def apply_wizard_resume(resume_token: str, db: AsyncSession = Depends(get_db)):
     """
-    Used by the frontend to handle the "continue your application" link from
-    the reminder email. Returns {application_id, current_step} so the UI
-    can navigate to the right step.
+    Used by the frontend (lib/api.ts applyResume) both for the "continue your
+    application" reminder-email link AND every time get-started/page.tsx
+    mounts mid-wizard, to repopulate already-entered fields. Must return the
+    full ResumeState shape, not just {application_id, current_step} — the
+    earlier version only returned those two fields, which would silently
+    blank out every field the applicant had already filled in on resume.
+
+    has_cac_number / has_bvn / has_nin are booleans rather than echoing the
+    raw values back — those are sensitive once submitted, the UI only needs
+    to know whether to show "on file" vs. an empty input.
 
     Public — no additional auth beyond the resume_token itself (256-bit secret).
     """
@@ -392,8 +399,26 @@ async def apply_wizard_resume(resume_token: str, db: AsyncSession = Depends(get_
         )
 
     return {
-        "application_id": app.id,
-        "current_step":   app.current_step,
+        "current_step":           app.current_step,
+        "full_name":              app.full_name,
+        "email":                  app.email,
+        "phone_number":           app.phone_number,
+        "whatsapp_number":        app.whatsapp_number,
+        "business_name":          app.business_name,
+        "business_type":          app.business_type,
+        "city_state":             app.city_state,
+        "registration_status":    app.registration_status,
+        "num_branches":           app.num_branches,
+        "monthly_order_volume":   app.monthly_order_volume,
+        "uses_whatsapp_manual":   app.uses_whatsapp_manual,
+        "uses_delivery_service":  app.uses_delivery_service,
+        "heard_about_us":         app.heard_about_us,
+        "comments":               app.comments,
+        "verification_method":    app.verification_method if app.verification_method in ("bvn", "nin") else None,
+        "verification_status":    app.verification_status,
+        "has_cac_number":         bool(app.cac_number),
+        "has_bvn":                bool(app.bvn),
+        "has_nin":                bool(app.nin),
     }
 
 
@@ -700,30 +725,35 @@ async def change_email(request: Request, db: AsyncSession = Depends(get_db)):
 #   Accepts name + contact details, creates a "draft" MerchantApplication,
 #   returns {application_id, resume_token} so the frontend can continue.
 #
-# Step 2  POST /merchants/apply/step/2/{application_id}
-#   Business details. Requires the resume_token in the Authorization header
-#   (Bearer <resume_token>) to prove continuity.
+# Step 2  PATCH /merchants/apply/resume/{resume_token}/business
+#   Business details.
 #
-# Step 3  POST /merchants/apply/step/3/{application_id}
+# Step 3  PATCH /merchants/apply/resume/{resume_token}/verification
 #   Identity / business verification (CAC, BVN, or NIN).
 #   Calls verification_service — currently stubs to "pending_manual_review"
 #   if no IDENTITY_PROVIDER_API_KEY is set.
 #
-# Step 4  POST /merchants/apply/step/4/{application_id}
+# Step 4  POST /merchants/apply/resume/{resume_token}/submit
 #   Terms & indemnity acceptance. Finalises the application (status →
 #   "pending"), sends the applicant their confirmation email, and posts a
 #   Slack alert — identical side-effects to the legacy /apply endpoint.
 #
 # Resume GET /merchants/apply/resume/{resume_token}
-#   Returns {application_id, current_step} so the frontend can drop the
-#   user back at the right wizard screen after following the reminder link.
+#   Returns the full ResumeState (current_step + every field captured so
+#   far) so the frontend can both drop the user back at the right wizard
+#   screen AND repopulate already-entered fields after following the
+#   reminder link or refreshing mid-wizard.
 #
 # Auth scheme for steps 2-4:
 #   The resume_token is a 32-byte URL-safe secret generated at step 1 and
-#   stored against the application row.  It is NOT a JWT and is NOT the
+#   stored against the application row. It is NOT a JWT and is NOT the
 #   same as link_token (which backs the older add-WhatsApp-number page).
-#   It expires 7 days after creation.  The frontend must send it as:
-#       Authorization: Bearer <resume_token>
+#   It expires 7 days after creation. The frontend (lib/api.ts) sends it as
+#   a literal path segment on every step 2-4 call and does NOT send an
+#   Authorization header for these — resume_token in the URL is both the
+#   lookup key and the credential; see _load_draft. There is deliberately
+#   no application_id anywhere in these URLs either — resume_token alone
+#   is unique per application and is everything the frontend has on hand.
 #
 # This is deliberately separate from the merchant JWT auth used elsewhere
 # so that unauthenticated applicants (who have no account yet) can still
@@ -747,25 +777,33 @@ def _resume_token_expiry() -> datetime:
 
 
 async def _load_draft(
-    application_id: str,
     resume_token: str,
     db: AsyncSession,
 ):
     """
-    Fetch a draft MerchantApplication and validate its resume_token.
+    Fetch a draft MerchantApplication by its resume_token.
+
+    The frontend wizard (app/get-started/page.tsx via lib/api.ts) carries the
+    resume_token in the URL path on every step-2/3/4 call and never sends an
+    application_id or an Authorization header for these — resume_token alone
+    is the lookup key and the credential. It's generated with
+    _generate_resume_token() (see below) and is unique per application, so
+    looking it up directly is equivalent to the old "find by id, then check
+    token matches" approach but matches what's actually being sent on the
+    wire.
 
     Returns the application row, or raises HTTPException with an appropriate
-    status code.  Used by steps 2, 3, and 4.
+    status code. Used by steps 2, 3, and 4.
     """
     from app.models.merchant_application import MerchantApplication
 
     res = await db.execute(
-        select(MerchantApplication).where(MerchantApplication.id == application_id)
+        select(MerchantApplication).where(MerchantApplication.resume_token == resume_token)
     )
     app = res.scalar_one_or_none()
 
     if not app:
-        raise HTTPException(status_code=404, detail="Application not found.")
+        raise HTTPException(status_code=403, detail="Invalid or missing resume token.")
 
     # Only draft applications can be continued through the wizard.
     # A "pending" application has already been submitted via step 4.
@@ -775,9 +813,6 @@ async def _load_draft(
             detail="This application has already been submitted and can no longer be edited.",
         )
 
-    if not app.resume_token or app.resume_token != resume_token:
-        raise HTTPException(status_code=403, detail="Invalid or missing resume token.")
-
     if app.resume_token_expires_at and app.resume_token_expires_at < datetime.now(timezone.utc):
         raise HTTPException(
             status_code=410,
@@ -785,23 +820,6 @@ async def _load_draft(
         )
 
     return app
-
-
-def _extract_resume_token(request: Request) -> str:
-    """
-    Pull the Bearer token from the Authorization header.
-    Raises 401 if the header is absent or malformed.
-    """
-    auth = request.headers.get("Authorization", "")
-    if not auth.startswith("Bearer "):
-        raise HTTPException(
-            status_code=401,
-            detail="Authorization header with Bearer token required.",
-        )
-    token = auth[len("Bearer "):].strip()
-    if not token:
-        raise HTTPException(status_code=401, detail="Resume token is empty.")
-    return token
 
 
 # ── Step 1: contact details ───────────────────────────────────────────────────
@@ -925,9 +943,9 @@ async def apply_wizard_step_one(
 
 # ── Step 2: business details ──────────────────────────────────────────────────
 
-@router.post("/apply/step/2/{application_id}", status_code=200)
+@router.patch("/apply/resume/{resume_token}/business", status_code=200)
 async def apply_wizard_step_two(
-    application_id: str,
+    resume_token: str,
     payload: ApplyStepTwo,
     request: Request,
     db: AsyncSession = Depends(get_db),
@@ -935,10 +953,11 @@ async def apply_wizard_step_two(
     """
     Step 2: business details (name, type, city, registration status, etc.).
 
-    Requires Authorization: Bearer <resume_token>.
+    Matches lib/api.ts applyStepTwo: PATCH .../apply/resume/{resume_token}/business,
+    no Authorization header — resume_token in the path is both the lookup key
+    and the credential (see _load_draft).
     """
-    resume_token = _extract_resume_token(request)
-    app = await _load_draft(application_id, resume_token, db)
+    app = await _load_draft(resume_token, db)
 
     try:
         app.business_name       = payload.business_name
@@ -956,22 +975,22 @@ async def apply_wizard_step_two(
         await db.commit()
 
         return {
-            "application_id": application_id,
-            "current_step":   3,
+            "current_step":        3,
+            "registration_status": app.registration_status,
         }
 
     except HTTPException:
         raise
     except Exception:
-        logger.exception("Wizard step 2 failed for application %s", application_id)
+        logger.exception("Wizard step 2 failed for resume_token %s", resume_token)
         raise HTTPException(status_code=500, detail="Could not save business details. Please try again.")
 
 
 # ── Step 3: identity / business verification ──────────────────────────────────
 
-@router.post("/apply/step/3/{application_id}", status_code=200)
+@router.patch("/apply/resume/{resume_token}/verification", status_code=200)
 async def apply_wizard_step_three(
-    application_id: str,
+    resume_token: str,
     payload: ApplyStepThree,
     request: Request,
     db: AsyncSession = Depends(get_db),
@@ -987,10 +1006,10 @@ async def apply_wizard_step_three(
     "pending_manual_review" because no provider API key is configured.
     The application still advances so onboarding isn't blocked.
 
-    Requires Authorization: Bearer <resume_token>.
+    Matches lib/api.ts applyStepThree: PATCH .../apply/resume/{resume_token}/verification,
+    no Authorization header.
     """
-    resume_token = _extract_resume_token(request)
-    app = await _load_draft(application_id, resume_token, db)
+    app = await _load_draft(resume_token, db)
 
     # registration_status must have been set in step 2.
     if not app.registration_status:
@@ -1044,26 +1063,23 @@ async def apply_wizard_step_three(
         await db.commit()
 
         return {
-            "application_id":      application_id,
             "current_step":        4,
             "verification_status": result.status,
-            # Surface this so the frontend can show "your details are under review"
-            # messaging when the provider isn't configured yet.
-            "pending_manual_review": result.status == "pending_manual_review",
+            "transaction_limit":   app.transaction_limit,
         }
 
     except HTTPException:
         raise
     except Exception:
-        logger.exception("Wizard step 3 failed for application %s", application_id)
+        logger.exception("Wizard step 3 failed for resume_token %s", resume_token)
         raise HTTPException(status_code=500, detail="Verification step failed. Please try again.")
 
 
 # ── Step 4: terms acceptance — finalises the application ─────────────────────
 
-@router.post("/apply/step/4/{application_id}", status_code=200)
+@router.post("/apply/resume/{resume_token}/submit", status_code=200)
 async def apply_wizard_step_four(
-    application_id: str,
+    resume_token: str,
     payload: ApplyStepFour,
     request: Request,
     db: AsyncSession = Depends(get_db),
@@ -1076,10 +1092,12 @@ async def apply_wizard_step_four(
     - Sends the applicant a confirmation email (same as legacy /apply).
     - Posts a Slack alert to the team.
 
-    Requires Authorization: Bearer <resume_token>.
+    Matches lib/api.ts applyStepFour: POST .../apply/resume/{resume_token}/submit,
+    no Authorization header. Returns {message, application_id} per
+    StepFourPayload's response type.
     """
-    resume_token = _extract_resume_token(request)
-    app = await _load_draft(application_id, resume_token, db)
+    app = await _load_draft(resume_token, db)
+    application_id = app.id
 
     # Guard: steps 2 and 3 must have been completed.
     if not app.business_name or not app.registration_status:
@@ -1167,14 +1185,13 @@ async def apply_wizard_step_four(
             pass  # Slack alert failure must never block the response.
 
         return {
-            "application_id": application_id,
-            "status":         "pending",
             "message":        "Application received. We'll be in touch within 1–2 business days.",
+            "application_id": application_id,
         }
 
     except HTTPException:
         raise
     except Exception:
-        logger.exception("Wizard step 4 failed for application %s", application_id)
+        logger.exception("Wizard step 4 failed for resume_token %s", resume_token)
         raise HTTPException(status_code=500, detail="Could not submit application. Please try again.")
 

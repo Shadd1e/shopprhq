@@ -381,6 +381,7 @@ async def verify_otp(request: Request, db: AsyncSession = Depends(get_db)):
 
     if client_id:
         await _clear_pending_otp(db, client_id)
+        await _set_client_status(db, client_id, STATUS_OTP_SUBMITTED)
     return {"ok": True}
 
 
