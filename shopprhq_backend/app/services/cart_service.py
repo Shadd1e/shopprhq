@@ -77,6 +77,35 @@ class CartService:
         Get cart by ID with tenant safety (read-only).
         Eager loads items and their associated products.
         No lock, for returning fresh state after mutations.
+
+        ROOT-CAUSE FIX: this method is called right after a mutation
+        (e.g. add_item) specifically to return "fresh state" within the
+        same transaction. But without populate_existing(), SQLAlchemy's
+        identity map will happily hand back the SAME already-loaded Cart
+        object from an earlier read in this session/transaction — including
+        whatever `items` collection was cached on it at that time.
+
+        Concretely, on the very first item added to a brand-new cart:
+          1. create_cart() flushes the new Cart, then calls this method.
+             At that point items=[] in the DB, so SQLAlchemy loads and
+             caches cart.items = [] on the identity-mapped object.
+          2. add_item() adds the new CartItem row and flushes, then calls
+             this method again. The query re-runs, but SQLAlchemy sees the
+             Cart with this primary key is already in the identity map
+             with `items` already loaded -> it reuses the *stale* empty
+             list instead of re-querying it, even though selectinload is
+             specified.
+          3. _build_summary() then sums over that stale empty list and
+             reports a total of 0.0 -> the customer sees "Cart total: ₦0.00"
+             on their first item, even though the row really was inserted.
+          4. On the second add, the collection has since been populated at
+             least once, so this no longer reproduces -> totals are correct
+             from the 2nd item onward. This matches what was observed.
+
+        populate_existing() tells SQLAlchemy to overwrite already-loaded
+        attributes/relationships on identity-mapped objects with what the
+        query actually returns, instead of trusting the cached state. That
+        makes this method genuinely "fresh" as its docstring already claims.
         """
         result = await self.db.execute(
             select(Cart)
@@ -88,6 +117,7 @@ class CartService:
             .options(
                 selectinload(Cart.items).selectinload(CartItem.product)
             )
+            .execution_options(populate_existing=True)
         )
 
         return result.scalars().first()
@@ -106,6 +136,16 @@ class CartService:
         Eager loads items and their associated products for display.
         Returns None if no active cart exists.
         Tenant safety is enforced through WHERE clause.
+
+        ROOT-CAUSE FIX: this is called multiple times per request, both
+        before and after mutations, within the same transaction/session.
+        Without populate_existing(), a Cart object already sitting in the
+        session's identity map (e.g. loaded once with an empty `items`
+        collection right after creation) gets handed back unchanged on
+        later calls instead of being refreshed against the DB — even
+        though items were added to it in the meantime. See
+        _get_cart_readonly for the full explanation; the same fix applies
+        here for the same reason.
         """
         result = await self.db.execute(
             select(Cart)
@@ -119,6 +159,7 @@ class CartService:
                 selectinload(Cart.items).selectinload(CartItem.product)
             )
             .order_by(Cart.created_at.desc())
+            .execution_options(populate_existing=True)
         )
 
         return result.scalars().first()

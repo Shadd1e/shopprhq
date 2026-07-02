@@ -405,7 +405,7 @@ export default function HowItWorksPage() {
           </div>
         </div>
         <div className="max-w-6xl mx-auto mt-8 pt-6 border-t border-border">
-          <p className="text-[11px] text-ink-4 font-mono">© 2025 ShopprHQ</p>
+          <p className="text-[11px] text-ink-4 font-mono">© 2026 ShopprHQ</p>
         </div>
       </footer>
     </div>
