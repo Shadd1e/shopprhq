@@ -68,7 +68,7 @@ function ScribbleCTA() {
   return (
     <Link href="/get-started" className="group inline-block relative">
       <span className="relative z-10 font-bold text-base text-ink group-hover:text-wa transition-colors px-6 py-3 inline-block">
-        Get started →
+        Get started for free →
       </span>
       <svg
         className="absolute inset-0 w-full h-full pointer-events-none"
@@ -381,8 +381,8 @@ const WHY_CARDS = [
 const STATS = [
   { value: '₦0',   label: 'Setup fee' },
   { value: '60s',  label: 'To go live' },
-  { value: '24/7', label: 'On duty' },
-  { value: '<1%',  label: 'Per transaction' },
+  { value: '24/7', label: 'active time' },
+  { value: '<1%',  label: 'charge per transaction' },
 ]
 
 /* ── Page ── */
@@ -407,7 +407,7 @@ export default function HomePage() {
               </h1>
 
               <p className="text-ink-3 text-lg max-w-md mb-8 leading-relaxed">
-                From hello to completed sale. Every conversation, any hour, any volume — handled.
+                From the first hello to completed sale. 
               </p>
 
               <ScribbleCTA />
@@ -429,8 +429,8 @@ export default function HomePage() {
           <div className="mb-16 reveal">
             <p className="text-xs font-mono text-wa tracking-[.16em] uppercase mb-3">See it in action</p>
             <h2 className="font-display font-extrabold text-[clamp(1.8rem,4vw,3rem)] tracking-tight text-ink leading-tight max-w-lg">
-              Every message handled.<br />
-              <span className="text-ink-3">Every sale captured.</span>
+              Handle every conversation regardless of grammar issues.<br />
+              <span className="text-ink-3">with ShopprHQ.</span>
             </h2>
           </div>
 
@@ -494,7 +494,7 @@ export default function HomePage() {
           <div className="mb-16 reveal">
             <p className="text-xs font-mono text-wa tracking-[.16em] uppercase mb-3">What it does</p>
             <h2 className="font-display font-extrabold text-[clamp(1.8rem,4vw,3rem)] tracking-tight text-ink leading-tight">
-              Not software.<br />
+              More than just a software.<br />
               <span className="text-ink-3">A full-time salesperson.</span>
             </h2>
           </div>
@@ -528,7 +528,7 @@ export default function HomePage() {
           <div className="flex justify-center">
             <ScribbleCTA />
           </div>
-          <p className="text-xs text-ink-4 mt-5 font-mono">Zero setup fee · less than 1% per transaction · we only get paid when you do</p>
+          <p className="text-xs text-ink-4 mt-5 font-mono">Zero setup fee · less than 1% charge per transaction · we only get paid when you do</p>
         </div>
       </section>
 
@@ -543,7 +543,7 @@ export default function HomePage() {
           </div>
           <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs text-ink-3 font-mono">
             <Link href="/how-it-works" className="hover:text-ink transition-colors">How it works</Link>
-            <Link href="/get-started"    className="hover:text-ink transition-colors">Get started</Link>
+            <Link href="/get-started"    className="hover:text-ink transition-colors">Get started for free</Link>
             <a href="mailto:hello@shopprhq.com" className="hover:text-ink transition-colors">hello@shopprhq.com</a>
           </div>
         </div>
