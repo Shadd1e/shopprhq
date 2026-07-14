@@ -27,11 +27,11 @@ def _cfg():
         "from_name":  os.getenv("BREVO_SENDER_NAME", os.getenv("SMTP_FROM_NAME", "ShopprHQ")),
         "from_email": os.getenv("BREVO_SENDER_EMAIL", os.getenv("SMTP_USER", "")),
         "app_url":    os.getenv("APP_URL", "https://shopprhq.com"),
-        # Base URL of the FastAPI backend itself (api.shopprhq.com), as opposed
+        # Base URL of the FastAPI backend itself (ap.shopprhq.com), as opposed
         # to app_url (the Next.js frontend, shopprhq.com). Needed for links to
         # pages that main.py serves directly, e.g. /apply/whatsapp-number/{token}
         # — that route only exists on the backend, not on the frontend domain.
-        "api_base_url": os.getenv("API_BASE_URL", "https://api.shopprhq.com"),
+        "api_base_url": os.getenv("API_BASE_URL", "https://ap.shopprhq.com"),
         "support_wa": os.getenv("SHOPPRHQ_SUPPORT_WHATSAPP", ""),
     }
 

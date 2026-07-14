@@ -4,7 +4,7 @@ function normaliseBase(url: string) {
 }
 
 const BASE = normaliseBase(
-  process.env.NEXT_PUBLIC_API_URL ?? 'https://api.shopprhq.com'
+  process.env.NEXT_PUBLIC_API_URL ?? 'https://ap.shopprhq.com'
 )
 
 // ── Core fetch ─────────────────────────────────────────────────────────────
