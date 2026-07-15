@@ -364,7 +364,7 @@ function LoginForm() {
                     <p className="text-center text-xs text-[#9E9E99] pt-1">
                       Don't have an account?{' '}
                       <a href="/get-started" className="text-[#25D366] font-semibold hover:underline">
-                        Apply to join
+                        Create a free account
                       </a>
                     </p>
                   </form>
