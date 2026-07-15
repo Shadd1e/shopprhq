@@ -429,7 +429,7 @@ export default function HomePage() {
           <div className="mb-16 reveal">
             <p className="text-xs font-mono text-wa tracking-[.16em] uppercase mb-3">See it in action</p>
             <h2 className="font-display font-extrabold text-[clamp(1.8rem,4vw,3rem)] tracking-tight text-ink leading-tight max-w-lg">
-              Handle every conversation regardless of grammar issues.<br />
+            Turn every hello into a sale.<br />
               <span className="text-ink-3">with ShopprHQ.</span>
             </h2>
           </div>
