@@ -1,7 +1,8 @@
 import os
 import asyncio
 import logging
-from fastapi import FastAPI, Request
+from html import escape as _html_escape
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -70,12 +71,72 @@ async def lifespan(app: FastAPI):
     logger.info("🛑 Shutting down ShopprHQ API")
 
 # --------------------------------------------------
+# Max request body size (defends against giant-payload DoS;
+# Railway itself does not cap body size, only headers at 32KB)
+# --------------------------------------------------
+MAX_REQUEST_BODY_SIZE = int(os.getenv("MAX_REQUEST_BODY_SIZE", 1_000_000))  # 1MB default
+
+class MaxBodySizeMiddleware:
+    """
+    Raw ASGI middleware (not BaseHTTPMiddleware) so it sits outside everything
+    else and can reject before any body is buffered.
+
+    - Fast path: reject immediately if Content-Length header exceeds the limit.
+    - Slow path: some clients lie about / omit Content-Length (chunked
+      transfer-encoding), so we also count bytes as they stream in via
+      receive() and abort mid-stream if the running total goes over.
+    """
+    def __init__(self, app, max_size: int = MAX_REQUEST_BODY_SIZE):
+        self.app = app
+        self.max_size = max_size
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        headers = dict(scope.get("headers") or [])
+        content_length = headers.get(b"content-length")
+        if content_length is not None:
+            try:
+                if int(content_length) > self.max_size:
+                    response = JSONResponse(
+                        status_code=413,
+                        content={"detail": f"Request body too large (max {self.max_size} bytes)"},
+                    )
+                    await response(scope, receive, send)
+                    return
+            except ValueError:
+                pass  # malformed header — let downstream handle it
+
+        total = 0
+        limit = self.max_size
+
+        async def limited_receive():
+            nonlocal total
+            message = await receive()
+            if message["type"] == "http.request":
+                total += len(message.get("body", b""))
+                if total > limit:
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"Request body too large (max {limit} bytes)",
+                    )
+            return message
+
+        await self.app(scope, limited_receive, send)
+
+# --------------------------------------------------
 # App Initialization
 # --------------------------------------------------
 app = FastAPI(
     title="ShopprHQ API",
     lifespan=lifespan,
 )
+
+# Must be added before CORSMiddleware so it wraps outermost and rejects
+# oversized bodies before any other middleware or route touches them.
+app.add_middleware(MaxBodySizeMiddleware)
 
 # --------------------------------------------------
 # MIDDLEWARES
@@ -342,7 +403,7 @@ async def payment_success(ref: str = ""):
         else '<p style="color:#6b7280;font-size:14px;">You can close this page and return to your WhatsApp chat.</p>'
     )
     order_line = (
-        f'<p style="font-size:13px;color:#6b7280;margin-bottom:16px;">Order reference: <strong>{ref}</strong></p>'
+        f'<p style="font-size:13px;color:#6b7280;margin-bottom:16px;">Order reference: <strong>{_html_escape(ref, quote=True)}</strong></p>'
         if ref
         else ""
     )

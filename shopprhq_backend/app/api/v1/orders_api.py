@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.schemas.order import OrderRead, OrderStatus
 from app.services.order_service import OrderService
 from app.db.session import get_db
+from app.core.redis_client import rate_limiter
 
 router = APIRouter(prefix="/orders", tags=["Orders"])
 
@@ -24,7 +25,8 @@ def _require_merchant(request: Request) -> str:
 # 📊 REVENUE SUMMARY (STORE OR MERCHANT DASHBOARD)
 # — must be registered BEFORE /{order_id} to avoid routing clash
 # =====================================================
-@router.get("/revenue-summary")
+@router.get("/revenue-summary",
+    dependencies=[Depends(rate_limiter("orders-revenue-summary", max_requests=60, window_seconds=60))])
 async def revenue_summary(
     request: Request,
     merchant_id: str = Query(...),
@@ -136,7 +138,8 @@ async def create_order_route():
 # =====================================================
 # 📋 LIST ORDERS (TENANT-SCOPED) — registered BEFORE /{order_id}
 # =====================================================
-@router.get("/", response_model=List[OrderRead])
+@router.get("/", response_model=List[OrderRead],
+    dependencies=[Depends(rate_limiter("orders-list", max_requests=60, window_seconds=60))])
 async def list_orders_route(
     request: Request,
     merchant_id: str = Query(...),

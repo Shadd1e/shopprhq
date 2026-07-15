@@ -15,6 +15,7 @@ def _hash_phone(phone: str) -> str:
     return hashlib.sha256(phone.encode()).hexdigest()[:16]
 
 from app.core.config import settings
+from app.core.helpers import get_client_ip
 
 logger = logging.getLogger(__name__)
 
@@ -458,4 +459,94 @@ async def check_whatsapp_rate_limit(to_number: str) -> bool:
         return count <= WHATSAPP_RATE_LIMIT_MAX
     except Exception as e:
         logger.warning("check_whatsapp_rate_limit failed, allowing: %s", e)
+        return True
+
+
+# ==================================================
+# GENERAL-PURPOSE RATE LIMIT
+# A reusable fixed-window limiter for any endpoint that doesn't already
+# have its own dedicated limiter above. Same fail-open pattern as the
+# rest of this file — a Redis blip should never lock out real users.
+# ==================================================
+
+async def check_rate_limit(key: str, max_requests: int, window_seconds: int) -> bool:
+    """
+    Returns True if the request is allowed, False if `key` is over-limit
+    for the current fixed window.
+    """
+    try:
+        client = await redis_service.get_client()
+        rkey = f"ratelimit:{key}"
+        count = await client.incr(rkey)
+        if count == 1:
+            await client.expire(rkey, window_seconds)
+        return count <= max_requests
+    except Exception as e:
+        logger.warning("check_rate_limit failed for key=%s, allowing request: %s", key, e)
+        return True  # fail open
+
+
+def rate_limiter(prefix: str, max_requests: int, window_seconds: int):
+    """
+    FastAPI dependency factory. Drop this on any route to rate-limit it,
+    keyed by the authenticated merchant_id when present, falling back to
+    client IP for unauthenticated routes.
+
+    Usage:
+        @router.post("/some-route", dependencies=[Depends(
+            rate_limiter("some-route", max_requests=10, window_seconds=600)
+        )])
+    """
+    async def _dependency(request):
+        from fastapi import HTTPException, Request  # noqa: F401 — Request import kept for clarity
+
+        identifier = getattr(request.state, "merchant_id", None)
+        if not identifier:
+            identifier = get_client_ip(request)
+
+        allowed = await check_rate_limit(f"{prefix}:{identifier}", max_requests, window_seconds)
+        if not allowed:
+            raise HTTPException(
+                status_code=429,
+                detail="Too many requests. Please try again shortly.",
+            )
+
+    # Annotate after definition so FastAPI's dependency-injection introspection
+    # sees `request: Request` and injects the real object — an unannotated
+    # `request` parameter would otherwise be treated as a query parameter.
+    from fastapi import Request as _Request
+    _dependency.__annotations__["request"] = _Request
+
+    return _dependency
+
+
+# ==================================================
+# WEBHOOK SIGNATURE-MISMATCH ALERT COOLDOWN
+# A garbage POST to /webhook/whatsapp doesn't need a valid signature to
+# reach the handler — only to pass verification. Without this, anyone can
+# spam the endpoint with junk and trigger one Slack alert per request,
+# burying real alerts and risking Slack's own rate limits. This caps it
+# to at most one alert per cooldown window, regardless of how many
+# invalid requests arrive in that window.
+# ==================================================
+
+WEBHOOK_ALERT_COOLDOWN_TTL = 300  # 5 minutes
+
+
+async def should_send_webhook_alert() -> bool:
+    """
+    Returns True the first time this is called in a 5-minute window (and
+    sets the cooldown), False for every call after that until it expires.
+    Fails open — if Redis is unavailable, always alert (better a noisy
+    Slack channel than a missed real incident during an outage).
+    """
+    try:
+        client = await redis_service.get_client()
+        key = "webhook:sig_mismatch:cooldown"
+        # SET ... NX only succeeds if the key doesn't already exist —
+        # that's the "first one in the window" signal.
+        was_set = await client.set(key, "1", nx=True, ex=WEBHOOK_ALERT_COOLDOWN_TTL)
+        return bool(was_set)
+    except Exception as e:
+        logger.warning("should_send_webhook_alert failed, allowing alert: %s", e)
         return True

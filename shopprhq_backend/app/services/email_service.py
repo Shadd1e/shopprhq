@@ -14,6 +14,7 @@ Required env vars:
 import os
 import logging
 import httpx
+from html import escape as _html_escape
 
 logger = logging.getLogger(__name__)
 
@@ -1044,21 +1045,39 @@ async def send_team_application_alert(
         logger.warning("TEAM_EMAIL not configured — application alert skipped")
         return False
 
-    biz   = application.get("business_name", "—")
-    name  = application.get("full_name", "—")
-    email = application.get("email", "—")
-    phone = application.get("phone_number", "—")
-    wa    = application.get("whatsapp_number", "—")
-    btype = application.get("business_type", "—")
-    city  = application.get("city_state", "—")
-    branches = application.get("num_branches", "—")
-    volume   = application.get("monthly_order_volume", "—")
+    def _s(v) -> str:
+        """Escape a field for safe HTML interpolation. Applicant-controlled —
+        never trust it to be free of markup or injection attempts."""
+        return _html_escape(str(v), quote=True)
+
+    # Raw values — safe for the plaintext part of the email, and for the
+    # subject line once newlines are stripped (below).
+    biz_raw   = str(application.get("business_name", "—"))
+    name_raw  = str(application.get("full_name", "—"))
+    email_raw = str(application.get("email", "—"))
+    phone_raw = str(application.get("phone_number", "—"))
+    wa_raw    = str(application.get("whatsapp_number", "—"))
+    btype_raw = str(application.get("business_type", "—"))
+    city_raw  = str(application.get("city_state", "—"))
+    branches_raw = str(application.get("num_branches", "—"))
+    volume_raw   = str(application.get("monthly_order_volume", "—"))
     uses_wa  = "Yes" if application.get("uses_whatsapp_manual") else "No"
     uses_del = "Yes" if application.get("uses_delivery_service") else "No"
-    heard    = application.get("heard_about_us", "—")
-    comments = application.get("comments") or "—"
+    heard_raw    = str(application.get("heard_about_us", "—"))
+    comments_raw = str(application.get("comments") or "—")
 
-    subject = f"[ShopprHQ Application] {biz} — {name}"
+    # HTML-escaped versions — used only inside the HTML email body.
+    biz, name, email   = _s(biz_raw), _s(name_raw), _s(email_raw)
+    phone, wa          = _s(phone_raw), _s(wa_raw)
+    btype, city        = _s(btype_raw), _s(city_raw)
+    branches, volume   = _s(branches_raw), _s(volume_raw)
+    heard, comments    = _s(heard_raw), _s(comments_raw)
+
+    # Strip CR/LF from subject fields — applicant-controlled values must
+    # never be able to inject extra email headers via a raw subject line.
+    _subj_biz  = biz_raw.replace("\r", "").replace("\n", " ")
+    _subj_name = name_raw.replace("\r", "").replace("\n", " ")
+    subject = f"[ShopprHQ Application] {_subj_biz} — {_subj_name}"
 
     def _row(label, value):
         return f"""<tr>
@@ -1113,21 +1132,21 @@ async def send_team_application_alert(
 </body>
 </html>"""
 
-    text = f"""New Merchant Application — {biz}
+    text = f"""New Merchant Application — {biz_raw}
 
-Business: {biz}
-Type:     {btype}
-City:     {city}
-Name:     {name}
-Email:    {email}
-Phone:    {phone}
-WhatsApp: {wa}
-Branches: {branches}
-Volume:   {volume}
+Business: {biz_raw}
+Type:     {btype_raw}
+City:     {city_raw}
+Name:     {name_raw}
+Email:    {email_raw}
+Phone:    {phone_raw}
+WhatsApp: {wa_raw}
+Branches: {branches_raw}
+Volume:   {volume_raw}
 Manual WA orders: {uses_wa}
 Delivery service: {uses_del}
-Heard from:       {heard}
-Comments: {comments}
+Heard from:       {heard_raw}
+Comments: {comments_raw}
 """
     return await send_email(team_email, subject, html, text)
 

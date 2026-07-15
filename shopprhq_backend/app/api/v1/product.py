@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from app.models.product import Product
+from app.models.client_model import Client
 
 from app.schemas.product import ProductCreate, ProductRead, ProductUpdate, ProductSearchResult
 from app.services.product_service import ProductService
@@ -16,6 +17,7 @@ from app.services.fuzzy_match import FuzzyMatcher
 from app.db.deps import get_db
 from app.core.deps import get_tenant
 from app.core.tenant import TenantContext
+from app.core.redis_client import rate_limiter
 
 router = APIRouter(prefix="/products", tags=["Products"])
 
@@ -65,7 +67,8 @@ async def list_products(
 # ---------------------------
 # SEARCH PRODUCTS
 # ---------------------------
-@router.get("/search", response_model=List[ProductSearchResult])
+@router.get("/search", response_model=List[ProductSearchResult],
+    dependencies=[Depends(rate_limiter("product-search", max_requests=60, window_seconds=60))])
 async def search_products(
     query: str = Query(..., description="Search term for product name"),
     tenant: TenantContext = Depends(get_tenant),
@@ -120,6 +123,18 @@ async def create_product_admin(
     merchant_id = getattr(request.state, "merchant_id", None)
     if not merchant_id:
         raise HTTPException(status_code=401, detail="Authentication required")
+
+    # Verify the target store actually belongs to the authenticated merchant.
+    # Without this, any merchant could pass another merchant's client_id and
+    # create a product tagged with a mismatched merchant_id/client_id pair.
+    owner_check = await db.execute(
+        select(Client.id).where(
+            Client.id == client_id,
+            Client.merchant_id == merchant_id,
+        )
+    )
+    if owner_check.scalar_one_or_none() is None:
+        raise HTTPException(status_code=404, detail="Store not found")
 
     service = ProductService(db)
     product = await service.create(

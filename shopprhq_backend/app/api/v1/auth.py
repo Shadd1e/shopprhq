@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel, EmailStr
 from app.services.merchant_service import MerchantService
 from app.core.security import create_access_token
+from app.core.helpers import get_client_ip
 from app.db.session import get_db
 from sqlalchemy.ext.asyncio import AsyncSession
 import logging
@@ -19,7 +20,7 @@ async def login(data: LoginRequest, request: Request, db: AsyncSession = Depends
     Authenticate merchant and return access token.
     """
     from app.core.redis_client import check_admin_rate_limit
-    client_ip = request.client.host if request.client else "unknown"
+    client_ip = get_client_ip(request)
     rate_key = f"login:{client_ip}:{data.email}"
     if not await check_admin_rate_limit(rate_key):
         raise HTTPException(

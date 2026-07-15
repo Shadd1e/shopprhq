@@ -39,7 +39,15 @@ async def verify_bank_account(
     db: AsyncSession = Depends(get_db),
 ):
     """Verify a bank account number against Paystack."""
-    _require_merchant(request)
+    merchant_id = _require_merchant(request)
+
+    from app.core.redis_client import check_rate_limit
+    if not await check_rate_limit(f"bank-verify:{merchant_id}", max_requests=10, window_seconds=600):
+        raise HTTPException(
+            status_code=429,
+            detail="Too many verification attempts. Please wait a few minutes and try again.",
+        )
+
     body = await request.json()
     account_number = body.get("account_number", "").strip()
     bank_code = body.get("account_bank", "").strip()

@@ -47,13 +47,20 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
-# Crash at startup if the default secret key is used outside of local dev.
-# Only ENVIRONMENT=local bypasses this — never set that on Railway or any hosted env.
-if settings.SECRET_KEY == "change-me-in-production":
-    import os as _os
-    _env = _os.getenv("ENVIRONMENT", "production").lower()
-    if _env != "local":
+# Crash at startup if the default or a weak secret key is used outside of
+# local dev. Only ENVIRONMENT=local bypasses this — never set that on
+# Railway or any hosted env. SECRET_KEY signs every JWT this app issues, so
+# a short key is brute-forceable, same reasoning as the ADMIN_SECRET check.
+import os as _os
+_env = _os.getenv("ENVIRONMENT", "production").lower()
+if _env != "local":
+    if settings.SECRET_KEY == "change-me-in-production":
         raise RuntimeError(
             "SECRET_KEY is still the default value. "
             "Set a secure SECRET_KEY in Railway environment variables."
+        )
+    if len(settings.SECRET_KEY) < 32:
+        raise RuntimeError(
+            f"SECRET_KEY is too short ({len(settings.SECRET_KEY)} chars). Minimum is 32. "
+            "Generate one with: python3 -c \"import secrets; print(secrets.token_urlsafe(32))\""
         )

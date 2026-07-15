@@ -12,6 +12,7 @@ from app.schemas.merchant import (
 )
 from app.services.merchant_service import MerchantService
 from app.db.deps import get_db
+from app.core.helpers import get_client_ip
 
 router = APIRouter(prefix="/merchants", tags=["Merchants"])
 
@@ -103,12 +104,12 @@ async def apply_to_use(
     if payload.website:
         logger.warning(
             "Honeypot triggered on /merchants/apply from %s",
-            request.client.host if request.client else "unknown",
+            get_client_ip(request),
         )
         return {"message": "Application received. We'll be in touch within 1–2 business days."}
 
     from app.core.redis_client import check_apply_rate_limit
-    client_ip = request.client.host if request.client else "unknown"
+    client_ip = get_client_ip(request)
     if not await check_apply_rate_limit(client_ip):
         raise HTTPException(
             status_code=429,
@@ -484,7 +485,7 @@ async def login_merchant(payload: MerchantLogin, request: Request, db: AsyncSess
     from app.core.security import create_access_token
     from app.core.redis_client import check_login_rate_limit
 
-    client_ip = request.client.host if request.client else "unknown"
+    client_ip = get_client_ip(request)
     if not await check_login_rate_limit(client_ip, payload.email):
         raise HTTPException(
             status_code=429,
@@ -529,7 +530,7 @@ async def forgot_password(request: Request, db: AsyncSession = Depends(get_db)):
     if not email or "@" not in email:
         raise HTTPException(status_code=400, detail="A valid email address is required.")
 
-    client_ip = request.client.host if request.client else "unknown"
+    client_ip = get_client_ip(request)
     if not await check_login_rate_limit(client_ip, email):
         # Return the same generic message — don't confirm the email exists or reveal the limit
         return {"detail": "If that email is registered, a reset code has been sent."}
@@ -899,7 +900,7 @@ async def apply_wizard_step_one(
     if payload.website:
         logger.warning(
             "Honeypot triggered on /merchants/apply/start from %s",
-            request.client.host if request.client else "unknown",
+            get_client_ip(request),
         )
         # Return a plausible-looking success so the bot doesn't learn it was caught.
         return {
@@ -909,7 +910,7 @@ async def apply_wizard_step_one(
         }
 
     from app.core.redis_client import check_apply_rate_limit
-    client_ip = request.client.host if request.client else "unknown"
+    client_ip = get_client_ip(request)
     if not await check_apply_rate_limit(client_ip):
         raise HTTPException(
             status_code=429,
@@ -1165,7 +1166,7 @@ async def apply_wizard_step_four(
             detail="Identity verification (step 3) must be completed before submitting.",
         )
 
-    client_ip = request.client.host if request.client else "unknown"
+    client_ip = get_client_ip(request)
 
     try:
         app.terms_version     = payload.terms_version

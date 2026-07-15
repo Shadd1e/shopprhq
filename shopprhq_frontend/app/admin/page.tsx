@@ -30,6 +30,66 @@ interface StoreRecord {
   pending_otp_code:      string | null
 }
 
+type ApplicationStatus = 'draft' | 'pending' | 'approved' | 'rejected' | 'needs_attention' | 'abandoned'
+type VerificationStatus = 'not_started' | 'pending_manual_review' | 'verified' | 'failed'
+
+interface ApplicationRecord {
+  id:                    string
+  business_name:         string | null
+  business_type:         string | null
+  city_state:            string | null
+  full_name:             string
+  email:                 string
+  phone_number:          string
+  whatsapp_number:       string | null
+  num_branches:          number
+  monthly_order_volume:  string | null
+  uses_whatsapp_manual:  boolean
+  uses_delivery_service: boolean
+  heard_about_us:        string | null
+  comments:               string | null
+  status:                ApplicationStatus
+  last_error:            string | null
+  merchant_id:           string | null
+  created_at:            string | null
+  registration_status:   'registered' | 'unregistered' | null
+  verification_method:   'cac' | 'bvn' | 'nin' | null
+  verification_status:   VerificationStatus | null
+  transaction_limit:     number | null
+}
+
+const APP_STATUS_BADGE: Record<ApplicationStatus, string> = {
+  draft:            'bg-gray-100 text-gray-500',
+  pending:          'bg-blue-100 text-blue-700',
+  needs_attention:  'bg-red-100 text-red-700',
+  approved:         'bg-emerald-100 text-emerald-700',
+  rejected:         'bg-gray-200 text-gray-600',
+  abandoned:        'bg-gray-100 text-gray-400',
+}
+
+const APP_STATUS_LABEL: Record<ApplicationStatus, string> = {
+  draft:            'Draft',
+  pending:          'Pending review',
+  needs_attention:  '⚡ Needs attention',
+  approved:         '✓ Approved',
+  rejected:         'Rejected',
+  abandoned:        'Abandoned',
+}
+
+const VERIFICATION_BADGE: Record<VerificationStatus, string> = {
+  not_started:            'bg-gray-100 text-gray-500',
+  pending_manual_review:  'bg-amber-100 text-amber-700',
+  verified:                'bg-emerald-100 text-emerald-700',
+  failed:                  'bg-red-100 text-red-700',
+}
+
+const VERIFICATION_LABEL: Record<VerificationStatus, string> = {
+  not_started:            'Not started',
+  pending_manual_review:  '⚡ Manual review needed',
+  verified:                '✓ Verified',
+  failed:                  'Failed',
+}
+
 // ══════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════
@@ -573,6 +633,144 @@ function StoreList({ token }: { token: string }) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
+// APPLICATIONS  (the "Apply to Use" queue — merchant_applications table)
+// ══════════════════════════════════════════════════════════════════════════
+
+function ApplicationDetail({ app }: { app: ApplicationRecord }) {
+  return (
+    <div className="bg-gray-50 rounded-2xl p-4 text-sm space-y-1.5">
+      <p><span className="text-gray-500">Applicant:</span> <strong>{app.full_name}</strong> · {app.email}</p>
+      <p><span className="text-gray-500">Phone:</span> <code className="font-mono">{app.phone_number}</code>
+        {app.whatsapp_number && <> · <span className="text-gray-500">WhatsApp:</span> <code className="font-mono">+{app.whatsapp_number}</code></>}
+      </p>
+      {app.business_name && (
+        <p><span className="text-gray-500">Business:</span> {app.business_name}
+          {app.business_type && ` (${app.business_type})`}
+          {app.city_state && ` · ${app.city_state}`}
+        </p>
+      )}
+      <p className="flex flex-wrap items-center gap-2 pt-1">
+        <span className={cn('text-xs font-semibold px-2 py-0.5 rounded-full', APP_STATUS_BADGE[app.status])}>
+          {APP_STATUS_LABEL[app.status]}
+        </span>
+        {app.verification_status && (
+          <span className={cn('text-xs font-semibold px-2 py-0.5 rounded-full', VERIFICATION_BADGE[app.verification_status])}>
+            {VERIFICATION_LABEL[app.verification_status]}
+            {app.verification_method ? ` · ${app.verification_method.toUpperCase()}` : ''}
+          </span>
+        )}
+        {app.registration_status && (
+          <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+            {app.registration_status === 'registered' ? 'CAC registered' : 'Unregistered business'}
+          </span>
+        )}
+      </p>
+      {app.transaction_limit != null && (
+        <p className="text-xs text-gray-500">Transaction limit: ₦{app.transaction_limit.toLocaleString()}</p>
+      )}
+      {app.last_error && (
+        <p className="text-xs font-mono text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mt-1">
+          {app.last_error}
+        </p>
+      )}
+      {app.comments && (
+        <p className="text-xs text-gray-500 italic mt-1">"{app.comments}"</p>
+      )}
+      <p className="text-xs text-gray-400 pt-1">
+        {app.id} · submitted {app.created_at ? new Date(app.created_at).toLocaleString() : '—'}
+        {app.merchant_id && <> · linked to merchant <code>{app.merchant_id}</code></>}
+      </p>
+    </div>
+  )
+}
+
+function ApplicationsList({ token }: { token: string }) {
+  const [apps,    setApps]    = useState<ApplicationRecord[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error,   setError]   = useState('')
+  const [filter,  setFilter]  = useState<'all' | 'pending' | 'needs_attention' | 'approved'>('pending')
+  const [search,  setSearch]  = useState('')
+
+  const load = useCallback(async () => {
+    setLoading(true); setError('')
+    try {
+      const data = await adminReq<{ applications: ApplicationRecord[] }>('/applications', token)
+      setApps(data.applications)
+    } catch (err: any) {
+      setError(err.message)
+    } finally { setLoading(false) }
+  }, [token])
+
+  useEffect(() => { load() }, [load])
+
+  const filtered = apps.filter(a => {
+    if (filter === 'pending')         return a.status === 'pending'
+    if (filter === 'needs_attention') return a.status === 'needs_attention'
+    if (filter === 'approved')        return a.status === 'approved'
+    return true
+  }).filter(a =>
+    !search ||
+    (a.business_name ?? '').toLowerCase().includes(search.toLowerCase()) ||
+    a.full_name.toLowerCase().includes(search.toLowerCase()) ||
+    a.email.toLowerCase().includes(search.toLowerCase()) ||
+    a.phone_number.includes(search)
+  )
+
+  const needsAttentionCount = apps.filter(a => a.status === 'needs_attention').length
+
+  return (
+    <div>
+      <div className="flex flex-col sm:flex-row gap-3 mb-6">
+        <input
+          type="text"
+          placeholder="Search by business, name, email, or phone…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className={cn(INPUT, 'flex-1')}
+        />
+        <div className="flex gap-1 bg-gray-100 rounded-xl p-1 flex-wrap">
+          {([
+            { id: 'pending',         label: 'Pending' },
+            { id: 'needs_attention', label: `⚡ Needs attention${needsAttentionCount > 0 ? ` (${needsAttentionCount})` : ''}` },
+            { id: 'approved',        label: '✓ Approved' },
+            { id: 'all',             label: 'All' },
+          ] as const).map(f => (
+            <button key={f.id} onClick={() => setFilter(f.id)}
+              className={cn(
+                'px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap',
+                filter === f.id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900',
+              )}>
+              {f.label}
+            </button>
+          ))}
+        </div>
+        <button onClick={load}
+          className={cn(BTN, 'bg-white border border-gray-200 text-gray-600 hover:border-gray-400 shrink-0')}>
+          Refresh
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="space-y-3">
+          {[1, 2, 3].map(i => <div key={i} className="h-16 bg-gray-100 rounded-2xl animate-pulse" />)}
+        </div>
+      ) : error ? (
+        <div className="bg-red-50 border border-red-200 rounded-2xl px-5 py-4">
+          <p className="text-sm text-red-700">{error}</p>
+          <button onClick={load} className="mt-2 text-xs font-semibold text-red-700 underline">Retry</button>
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-16 text-gray-400 text-sm">No applications found.</div>
+      ) : (
+        <div className="space-y-3">
+          {filtered.map(a => <ApplicationDetail key={a.id} app={a} />)}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════════════════════════════════
 // LOGIN
 // ══════════════════════════════════════════════════════════════════════════
 
@@ -640,6 +838,7 @@ function AdminLogin({ onSuccess }: { onSuccess: (token: string) => void }) {
 export default function AdminPage() {
   const [token,   setToken]   = useState<string | null>(null)
   const [checked, setChecked] = useState(false)
+  const [tab,     setTab]     = useState<'stores' | 'applications'>('applications')
 
   useEffect(() => {
     const t = sessionStorage.getItem('_adm_tok')
@@ -662,7 +861,6 @@ export default function AdminPage() {
               <span className="text-white text-xs">S</span>
             </div>
             <span className="text-sm font-bold text-gray-900 tracking-tight">ShopprHQ Admin</span>
-            <span className="text-xs text-gray-400 font-medium hidden sm:block">WhatsApp Onboarding</span>
           </div>
           <button
             onClick={() => { sessionStorage.removeItem('_adm_tok'); setToken(null) }}
@@ -671,10 +869,24 @@ export default function AdminPage() {
             Sign out
           </button>
         </div>
+        <div className="max-w-4xl mx-auto px-5 flex gap-1 pb-2">
+          {([
+            { id: 'applications', label: 'Applications' },
+            { id: 'stores',       label: 'WhatsApp Onboarding' },
+          ] as const).map(t => (
+            <button key={t.id} onClick={() => setTab(t.id)}
+              className={cn(
+                'px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all',
+                tab === t.id ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100',
+              )}>
+              {t.label}
+            </button>
+          ))}
+        </div>
       </header>
 
       <main className="max-w-4xl mx-auto px-5 py-8">
-        <StoreList token={token} />
+        {tab === 'applications' ? <ApplicationsList token={token} /> : <StoreList token={token} />}
       </main>
     </div>
   )

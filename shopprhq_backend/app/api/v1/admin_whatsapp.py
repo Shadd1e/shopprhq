@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.db.deps import get_db
+from app.core.helpers import get_client_ip
 
 logger = logging.getLogger(__name__)
 
@@ -177,7 +178,7 @@ async def serve_admin_page():
 @router.post("/verify-password")
 async def verify_password(request: Request):
     from app.core.redis_client import check_admin_rate_limit, create_admin_session
-    client_ip = request.client.host if request.client else "unknown"
+    client_ip = get_client_ip(request)
     if not await check_admin_rate_limit(client_ip):
         raise HTTPException(status_code=429, detail="Too many attempts — try again in 5 minutes.")
     body = await request.json()
@@ -233,7 +234,7 @@ async def add_number(request: Request, db: AsyncSession = Depends(get_db)):
     name      = str(body.get("display_name", "")).strip()
     client_id = str(body.get("client_id", "")).strip()
     cfg       = _cfg()
-    client_ip = request.client.host if request.client else "unknown"
+    client_ip = get_client_ip(request)
     logger.info("AUDIT add_number — ip=%s phone=%s client_id=%s", client_ip, phone, client_id)
 
     if not phone or not name:
@@ -281,7 +282,7 @@ async def request_otp(request: Request, db: AsyncSession = Depends(get_db)):
     method          = str(body.get("method", "SMS")).strip().upper()
     client_id       = str(body.get("client_id", "")).strip()
     cfg             = _cfg()
-    client_ip       = request.client.host if request.client else "unknown"
+    client_ip       = get_client_ip(request)
     logger.info("AUDIT request_otp — ip=%s phone_number_id=%s client_id=%s", client_ip, phone_number_id, client_id)
 
     if not phone_number_id:
@@ -347,7 +348,7 @@ async def verify_otp(request: Request, db: AsyncSession = Depends(get_db)):
     phone_number_id = str(body.get("phone_number_id", "")).strip()
     client_id       = str(body.get("client_id", "")).strip()
     cfg             = _cfg()
-    client_ip       = request.client.host if request.client else "unknown"
+    client_ip       = get_client_ip(request)
     logger.info("AUDIT verify_otp — ip=%s phone_number_id=%s client_id=%s", client_ip, phone_number_id, client_id)
 
     if not phone_number_id:
@@ -393,7 +394,7 @@ async def activate(request: Request, db: AsyncSession = Depends(get_db)):
     body            = await request.json()
     phone_number_id = str(body.get("phone_number_id", "")).strip()
     cfg             = _cfg()
-    client_ip       = request.client.host if request.client else "unknown"
+    client_ip       = get_client_ip(request)
     logger.info("AUDIT activate — ip=%s phone_number_id=%s", client_ip, phone_number_id)
 
     if not phone_number_id:
@@ -434,7 +435,7 @@ async def save_to_db(request: Request, db: AsyncSession = Depends(get_db)):
     client_id       = str(body.get("client_id", "")).strip()
     phone_number_id = str(body.get("phone_number_id", "")).strip()
     whatsapp_number = _normalise_number(str(body.get("whatsapp_number", "")))
-    client_ip       = request.client.host if request.client else "unknown"
+    client_ip       = get_client_ip(request)
     logger.info("AUDIT save_to_db — ip=%s client_id=%s phone_number_id=%s", client_ip, client_id, phone_number_id)
 
     if not client_id or not phone_number_id:
@@ -719,6 +720,13 @@ async def merchant_request_otp(
     merchant_id = getattr(request.state, "merchant_id", None)
     if not merchant_id:
         raise HTTPException(status_code=401, detail="Authentication required")
+
+    from app.core.redis_client import check_rate_limit
+    if not await check_rate_limit(f"otp-request:{merchant_id}", max_requests=5, window_seconds=600):
+        raise HTTPException(
+            status_code=429,
+            detail="Too many verification code requests. Please wait a few minutes and try again.",
+        )
 
     body   = await request.json()
     method = str(body.get("method", "SMS")).strip().upper()
@@ -1053,6 +1061,10 @@ async def list_applications(request: Request, db: AsyncSession = Depends(get_db)
                 "last_error":            a.last_error,
                 "merchant_id":           a.merchant_id,
                 "created_at":            a.created_at.isoformat() if a.created_at else None,
+                "registration_status":   a.registration_status,
+                "verification_method":   a.verification_method,
+                "verification_status":   a.verification_status,
+                "transaction_limit":     float(a.transaction_limit) if a.transaction_limit is not None else None,
             }
             for a in apps
         ]

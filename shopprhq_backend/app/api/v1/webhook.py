@@ -93,16 +93,24 @@ async def receive_webhook(request: Request):
         logger.error("Webhook signature mismatch — rejecting request")
         try:
             import asyncio
+            from app.core.redis_client import should_send_webhook_alert
             from app.infrastructure.alerting.slack import alert
-            asyncio.create_task(alert(
-                title="Webhook Signature Mismatch",
-                detail="An inbound webhook failed signature verification.",
-                level="warning",
-                fields={
-                    "IP":        request.client.host if request.client else "unknown",
-                    "Signature": signature[:40] + "..." if len(signature) > 40 else signature or "none",
-                },
-            ))
+            # Every mismatch is logged above regardless — this only caps how
+            # often it also pages Slack, so a flood of junk requests can't
+            # drown out real alerts or blow through Slack's own rate limit.
+            if await should_send_webhook_alert():
+                asyncio.create_task(alert(
+                    title="Webhook Signature Mismatch",
+                    detail=(
+                        "An inbound webhook failed signature verification. "
+                        "Further mismatches in the next 5 minutes are logged but won't re-alert."
+                    ),
+                    level="warning",
+                    fields={
+                        "IP":        request.client.host if request.client else "unknown",
+                        "Signature": signature[:40] + "..." if len(signature) > 40 else signature or "none",
+                    },
+                ))
         except Exception:
             pass
         raise HTTPException(status_code=401, detail="Invalid signature")

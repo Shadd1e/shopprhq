@@ -8,6 +8,7 @@ from typing import Optional
 from app.db.deps import get_db
 from app.schemas.checkout import CheckoutRequestSchema, CheckoutResponseSchema
 from app.services.checkout_service import CheckoutService
+from app.core.redis_client import rate_limiter
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +19,7 @@ router = APIRouter(prefix="/checkout", tags=["Checkout"])
     "/{merchant_id}/{client_id}",
     response_model=CheckoutResponseSchema,
     status_code=status.HTTP_200_OK,
+    dependencies=[Depends(rate_limiter("checkout", max_requests=20, window_seconds=60))],
 )
 async def create_checkout(
     merchant_id: str,

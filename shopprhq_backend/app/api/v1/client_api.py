@@ -22,6 +22,7 @@ from app.schemas.client_whatsapp_credential import (
 from app.services.client_service import ClientService
 from app.services.merchant_service import MerchantService
 from app.core.security import create_client_access_token
+from app.core.helpers import get_client_ip
 from app.db.session import get_db
 import logging
 
@@ -67,7 +68,7 @@ async def store_login(
     """
     from app.core.redis_client import check_login_rate_limit
 
-    client_ip = request.client.host if request.client else "unknown"
+    client_ip = get_client_ip(request)
     if not await check_login_rate_limit(client_ip, payload.client_id):
         raise HTTPException(
             status_code=429,
