@@ -15,7 +15,7 @@ import logging
 import httpx
 
 from fastapi import APIRouter, Request, HTTPException, Depends
-from fastapi.responses import HTMLResponse
+from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -158,19 +158,15 @@ async def _require_admin(request: Request):
 
 
 # ── Serve admin HTML ──────────────────────────────────────────────────────────
+# RETIRED (this endpoint used to serve templates/admin_whatsapp.html directly).
+# The Next.js frontend's /admin page is now the single admin panel — same
+# backend endpoints, kept in sync, one URL to bookmark. This redirects any
+# old links/bookmarks there instead of serving the stale duplicate UI.
 
-@router.get("", response_class=HTMLResponse)
+@router.get("")
 async def serve_admin_page():
-    tpl = os.path.normpath(
-        os.path.join(
-            os.path.dirname(__file__), "..", "..", "..", "templates", "admin_whatsapp.html"
-        )
-    )
-    try:
-        with open(tpl) as f:
-            return HTMLResponse(content=f.read())
-    except FileNotFoundError:
-        raise HTTPException(status_code=404, detail="Template not found")
+    app_url = os.getenv("APP_URL", "https://shopprhq.com").rstrip("/")
+    return RedirectResponse(url=f"{app_url}/admin", status_code=308)
 
 
 # ── AUTH ──────────────────────────────────────────────────────────────────────

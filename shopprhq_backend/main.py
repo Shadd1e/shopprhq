@@ -1,9 +1,8 @@
 import os
 import asyncio
 import logging
-from html import escape as _html_escape
 from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -325,12 +324,17 @@ app.include_router(internal_cron_router)
 # --------------------------------------------------
 # Health & Root
 # --------------------------------------------------
-@app.get("/", response_class=HTMLResponse)
+
+# Frontend (Next.js) base URL — used by every route below that's been retired
+# in favor of its Next.js equivalent. Nothing in this backend links to these
+# routes anymore (emails/redirects all point at the frontend already); they
+# only exist so old bookmarks/links don't 404.
+APP_URL = os.getenv("APP_URL", "https://shopprhq.com").rstrip("/")
+
+@app.get("/")
 async def root():
-    """Landing page — home, registration, and T&C all in one."""
-    _tpl = os.path.join(os.path.dirname(__file__), "templates", "index.html")
-    with open(_tpl, "r") as f:
-        return HTMLResponse(content=f.read())
+    """Retired — the real landing page is the Next.js app at APP_URL."""
+    return RedirectResponse(url=APP_URL, status_code=308)
 
 @app.get("/health")
 async def health():
@@ -338,39 +342,29 @@ async def health():
 
 
 # ── Merchant dashboard ─────────────────────────────────────────────────────────
-# Must be registered BEFORE the StaticFiles mount so ?verified=1 query strings
-# survive (StaticFiles redirects /dashboard → /dashboard/ and strips them).
+# Retired — the real dashboard is the Next.js app's /dashboard page. Every
+# email that used to link here already points at APP_URL/dashboard, so this
+# route (and its old static file mount) is only kept to redirect stragglers.
 
-@app.get("/dashboard", response_class=HTMLResponse)
-async def dashboard_index():
-    _tpl = os.path.join(os.path.dirname(__file__), "templates", "dashboard", "dashboard_index.html")
-    with open(_tpl, "r") as f:
-        return HTMLResponse(content=f.read())
-
-_dashboard_static = os.path.join(os.path.dirname(__file__), "templates", "dashboard")
-app.mount("/dashboard", StaticFiles(directory=_dashboard_static, html=True), name="dashboard")
+@app.get("/dashboard")
+async def dashboard_index(request: Request):
+    qs = f"?{request.url.query}" if request.url.query else ""
+    return RedirectResponse(url=f"{APP_URL}/dashboard{qs}", status_code=308)
 
 
 # ── Store (client) pages ───────────────────────────────────────────────────────
-# Both routes must be registered before any StaticFiles mount that would catch them.
+# Retired — both live in the Next.js app now. Kept only to redirect old links.
 
-@app.get("/store-login", response_class=HTMLResponse)
-async def store_login_page():
-    """Standalone login page for store managers."""
-    _tpl = os.path.join(os.path.dirname(__file__), "templates", "store_login.html")
-    with open(_tpl, "r") as f:
-        return HTMLResponse(content=f.read())
+@app.get("/store-login")
+async def store_login_page(request: Request):
+    qs = f"?{request.url.query}" if request.url.query else ""
+    return RedirectResponse(url=f"{APP_URL}/store-login{qs}", status_code=308)
 
 
-@app.get("/store-dashboard", response_class=HTMLResponse)
-async def store_dashboard_page():
-    """Store-scoped dashboard — loads after client JWT login."""
-    _tpl = os.path.join(os.path.dirname(__file__), "templates", "store_dashboard", "index.html")
-    with open(_tpl, "r") as f:
-        return HTMLResponse(content=f.read())
-
-_store_dash_static = os.path.join(os.path.dirname(__file__), "templates", "store_dashboard")
-app.mount("/store-dashboard-static", StaticFiles(directory=_store_dash_static), name="store_dashboard")
+@app.get("/store-dashboard")
+async def store_dashboard_page(request: Request):
+    qs = f"?{request.url.query}" if request.url.query else ""
+    return RedirectResponse(url=f"{APP_URL}/store-dashboard{qs}", status_code=308)
 
 
 # ── Apply-flow follow-up page ───────────────────────────────────────────────────
@@ -389,76 +383,13 @@ _static_dir = os.path.join(os.path.dirname(__file__), "static")
 app.mount("/static", StaticFiles(directory=_static_dir), name="static")
 
 
-@app.get("/payment-success", response_class=HTMLResponse)
-async def payment_success(ref: str = ""):
+@app.get("/payment-success")
+async def payment_success(request: Request):
     """
-    Paystack redirect landing page after customer completes payment.
+    Retired — PAYSTACK_REDIRECT_URL is configured to send customers straight
+    to the Next.js app's /payment-success page, so this route isn't part of
+    the live checkout flow. Kept only to redirect any stale/cached links,
+    preserving query params (ref, wa, status) the frontend page reads.
     """
-    wa_digits = "".join(
-        c for c in os.getenv("SHOPPRHQ_SUPPORT_WHATSAPP", "") if c.isdigit()
-    )
-    wa_button = (
-        f'<a class="btn" href="https://wa.me/{wa_digits}">↩ Back to WhatsApp</a>'
-        if wa_digits
-        else '<p style="color:#6b7280;font-size:14px;">You can close this page and return to your WhatsApp chat.</p>'
-    )
-    order_line = (
-        f'<p style="font-size:13px;color:#6b7280;margin-bottom:16px;">Order reference: <strong>{_html_escape(ref, quote=True)}</strong></p>'
-        if ref
-        else ""
-    )
-
-    html = f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Payment Successful</title>
-  <style>
-    * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-    body {{
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: #f0fdf4;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      padding: 20px;
-    }}
-    .card {{
-      background: white;
-      border-radius: 16px;
-      padding: 40px 32px;
-      max-width: 400px;
-      width: 100%;
-      text-align: center;
-      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
-    }}
-    .icon {{ font-size: 64px; margin-bottom: 16px; }}
-    h1 {{ font-size: 24px; color: #16a34a; margin-bottom: 8px; }}
-    p {{ color: #6b7280; font-size: 15px; line-height: 1.6; margin-bottom: 24px; }}
-    .btn {{
-      display: inline-block;
-      background: #25D366;
-      color: white;
-      text-decoration: none;
-      padding: 14px 28px;
-      border-radius: 50px;
-      font-size: 16px;
-      font-weight: 600;
-    }}
-    .note {{ margin-top: 16px; font-size: 13px; color: #9ca3af; }}
-  </style>
-</head>
-<body>
-  <div class="card">
-    <div class="icon">✅</div>
-    <h1>Payment Successful!</h1>
-    <p>Your order has been confirmed. Head back to WhatsApp — we're sending your order details right now.</p>
-    {order_line}
-    {wa_button}
-    <p class="note">You can close this page after returning to your chat.</p>
-  </div>
-</body>
-</html>"""
-    return HTMLResponse(content=html)
+    qs = f"?{request.url.query}" if request.url.query else ""
+    return RedirectResponse(url=f"{APP_URL}/payment-success{qs}", status_code=308)

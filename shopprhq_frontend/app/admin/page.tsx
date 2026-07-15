@@ -636,7 +636,46 @@ function StoreList({ token }: { token: string }) {
 // APPLICATIONS  (the "Apply to Use" queue — merchant_applications table)
 // ══════════════════════════════════════════════════════════════════════════
 
-function ApplicationDetail({ app }: { app: ApplicationRecord }) {
+function ApplicationDetail({ app, token, onChanged }: {
+  app: ApplicationRecord
+  token: string
+  onChanged: () => void
+}) {
+  const [busy,    setBusy]    = useState<'approve' | 'reject' | null>(null)
+  const [error,   setError]   = useState('')
+  const [editing, setEditing] = useState(false)
+  const [name,    setName]    = useState(app.business_name ?? '')
+  const [email,   setEmail]   = useState(app.email)
+  const [wa,      setWa]      = useState(app.whatsapp_number ?? '')
+
+  const actionable = app.status === 'pending' || app.status === 'needs_attention'
+
+  async function handleApprove() {
+    setBusy('approve'); setError('')
+    try {
+      await adminReq(`/applications/${app.id}/approve`, token, {
+        method: 'POST',
+        body: JSON.stringify({ name, email, whatsapp_number: wa }),
+      })
+      onChanged()
+    } catch (err: any) {
+      setError(err.message)
+      setBusy(null)
+    }
+  }
+
+  async function handleReject() {
+    if (!confirm('Dismiss this application? The applicant will get a short decline email. This cannot be undone.')) return
+    setBusy('reject'); setError('')
+    try {
+      await adminReq(`/applications/${app.id}/reject`, token, { method: 'POST' })
+      onChanged()
+    } catch (err: any) {
+      setError(err.message)
+      setBusy(null)
+    }
+  }
+
   return (
     <div className="bg-gray-50 rounded-2xl p-4 text-sm space-y-1.5">
       <p><span className="text-gray-500">Applicant:</span> <strong>{app.full_name}</strong> · {app.email}</p>
@@ -680,6 +719,47 @@ function ApplicationDetail({ app }: { app: ApplicationRecord }) {
         {app.id} · submitted {app.created_at ? new Date(app.created_at).toLocaleString() : '—'}
         {app.merchant_id && <> · linked to merchant <code>{app.merchant_id}</code></>}
       </p>
+
+      {actionable && (
+        <div className="pt-2">
+          {editing ? (
+            <div className="bg-white border border-gray-200 rounded-xl p-3 space-y-2">
+              <p className="text-xs text-gray-500">
+                Review before creating the account — login credentials will be emailed to the address below.
+              </p>
+              <input value={name} onChange={e => setName(e.target.value)}
+                placeholder="Business name" className={cn(INPUT, 'text-sm')} />
+              <input value={email} onChange={e => setEmail(e.target.value)}
+                placeholder="Email" className={cn(INPUT, 'text-sm')} />
+              <input value={wa} onChange={e => setWa(e.target.value)}
+                placeholder="WhatsApp number (2348012345678)" className={cn(INPUT, 'text-sm')} />
+              {error && <p className="text-xs text-red-600">{error}</p>}
+              <div className="flex gap-2 pt-1">
+                <button onClick={() => setEditing(false)} disabled={busy !== null}
+                  className={cn(BTN, 'bg-white border border-gray-200 text-gray-600 text-xs py-2')}>
+                  Cancel
+                </button>
+                <button onClick={handleApprove} disabled={busy !== null}
+                  className={cn(BTN, 'bg-gray-900 text-white text-xs py-2')}>
+                  {busy === 'approve' ? 'Creating…' : 'Confirm & Approve'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <button onClick={() => setEditing(true)} disabled={busy !== null}
+                className={cn(BTN, 'bg-emerald-600 text-white text-xs py-2')}>
+                Approve & Continue Setup
+              </button>
+              <button onClick={handleReject} disabled={busy !== null}
+                className={cn(BTN, 'bg-white border border-gray-200 text-gray-600 text-xs py-2')}>
+                {busy === 'reject' ? 'Dismissing…' : 'Dismiss'}
+              </button>
+            </div>
+          )}
+          {!editing && error && <p className="text-xs text-red-600 mt-2">{error}</p>}
+        </div>
+      )}
     </div>
   )
 }
@@ -763,7 +843,7 @@ function ApplicationsList({ token }: { token: string }) {
         <div className="text-center py-16 text-gray-400 text-sm">No applications found.</div>
       ) : (
         <div className="space-y-3">
-          {filtered.map(a => <ApplicationDetail key={a.id} app={a} />)}
+          {filtered.map(a => <ApplicationDetail key={a.id} app={a} token={token} onChanged={load} />)}
         </div>
       )}
     </div>
