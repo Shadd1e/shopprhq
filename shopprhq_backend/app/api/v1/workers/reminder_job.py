@@ -91,11 +91,12 @@ async def send_draft_reminders(db) -> dict:
 
         reminder_number = draft.reminder_count + 1
         fire_and_forget(
-            send_application_reminder_email(
+            lambda draft=draft, reminder_number=reminder_number: send_application_reminder_email(
                 to_email=draft.email,
                 full_name=draft.full_name,
                 resume_url=_resume_url(draft.resume_token),
                 reminder_number=reminder_number,
+                current_step=draft.current_step,
             ),
             name=f"send_application_reminder_email_{draft.id}",
         )

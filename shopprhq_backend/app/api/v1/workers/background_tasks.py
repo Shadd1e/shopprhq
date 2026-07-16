@@ -46,29 +46,40 @@ async def _run_with_retry(coro_factory, name: str):
                 )
 
 
-def fire_and_forget(coro, *, name: str = "background_task"):
+def fire_and_forget(coro_or_factory, *, name: str = "background_task"):
     """
-    Schedule a coroutine as a fire-and-forget asyncio task with retry.
+    Schedule a fire-and-forget asyncio task, with exponential-backoff retry
+    (2s -> 4s -> 8s, 3 attempts total) when possible.
 
-    Usage (unchanged from before — existing call sites require no edits):
-        fire_and_forget(send_verification_email(...), name="send_verification_email")
+    Two calling conventions are supported:
 
-    The coroutine is wrapped so it can be retried: we capture it into a
-    factory lambda because a coroutine object can only be awaited once.
-    NOTE: the coro passed here is consumed on the first attempt; retries
-    use re-calling the original awaitable if it's a coroutine function.
-    For single-coro usage (all current call sites) this is sufficient
-    since we wrap it and retry the same object only once — subsequent
-    retries will raise StopIteration which we treat as a permanent failure.
-    For full retry support across all attempts, callers can pass a lambda:
+    1. Zero-arg factory (PREFERRED — gets real retries):
         fire_and_forget(lambda: send_verification_email(...), name="...")
-    """
-    async def _wrapper():
-        try:
-            await coro
-        except Exception as exc:
-            raise exc  # let _run_with_retry handle it
+       A lambda can be called again on each retry attempt, since each call
+       produces a fresh coroutine. This is the only way to get the retry
+       behavior described above.
 
-    # For single-coro fire-and-forget we do one attempt with clean error logging.
-    # To get full retries, call with a lambda factory (see docstring).
-    asyncio.create_task(_wrapper(), name=name)
+    2. Bare coroutine (legacy — single attempt only, no retry):
+        fire_and_forget(send_verification_email(...), name="...")
+       A coroutine object can only be awaited once, so if it fails there is
+       nothing to retry — this form gets one attempt with clean error
+       logging, same as before. Prefer form 1 for anything where a dropped
+       send actually matters (verification/welcome/reminder emails, etc).
+    """
+    if asyncio.iscoroutine(coro_or_factory):
+        coro = coro_or_factory
+
+        async def _once():
+            try:
+                await coro
+            except Exception:
+                logger.error(
+                    "Background task '%s' failed (single attempt — passed as a bare "
+                    "coroutine, so it can't be retried; pass a lambda for retries): ",
+                    name, exc_info=True,
+                )
+
+        asyncio.create_task(_once(), name=name)
+    else:
+        # It's a zero-arg callable factory — safe to call again on retry.
+        asyncio.create_task(_run_with_retry(coro_or_factory, name), name=name)

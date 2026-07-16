@@ -957,34 +957,75 @@ If you have any questions, just reply to this email.
 # Sent by the reminder job (app/api/v1/workers/reminder_job.py) on a 1hr /
 # 48hr / 7-day cadence to anyone who started the "Apply to Use" wizard but
 # hasn't finished. Stops after reminder_number 3 — the job itself enforces
-# that ceiling, this function just renders whichever copy matches the count.
+# that ceiling.
+#
+# Copy is driven by TWO things:
+#   - current_step: which step of the wizard they stopped at (2, 3, or 4),
+#     so the email tells them specifically what's left rather than a vague
+#     "finish your application".
+#   - reminder_number: how many times we've already nudged them (1st/2nd/3rd),
+#     which controls the urgency/tone and subject line.
 # ─────────────────────────────────────────────────────────────────────────────
+
+# What's left to do, keyed by MerchantApplication.current_step for an idle
+# draft. A draft can only be idle at step 2, 3, or 4 — step 1 (contact info)
+# is what *creates* the draft, and a completed step 4 flips status away from
+# "draft" entirely, so it's never idle at step 1 or "step 5".
+_STEP_COPY = {
+    2: {
+        "whats_left": "add your business details",
+        "detail": "You told us who you are — next we just need a few details "
+                   "about your business (name, type, and city).",
+    },
+    3: {
+        "whats_left": "verify your business or identity",
+        "detail": "Your business details are saved — next is a quick verification "
+                   "step (CAC, BVN, or NIN) so we can review your account.",
+    },
+    4: {
+        "whats_left": "accept the terms and submit",
+        "detail": "You're one step away — just review and accept the terms "
+                   "to submit your application.",
+    },
+}
+_DEFAULT_STEP_COPY = {
+    "whats_left": "finish your application",
+    "detail": "Your application is still saved right where you left it.",
+}
+
+
 async def send_application_reminder_email(
     to_email: str,
     full_name: str,
     resume_url: str,
     reminder_number: int,
+    current_step: int = None,
 ) -> bool:
     cfg        = _cfg()
     first_name = full_name.split()[0]
+    step_copy  = _STEP_COPY.get(current_step, _DEFAULT_STEP_COPY)
 
-    copy = {
+    tier = {
         1: {
             "subject": f"Pick up where you left off, {first_name}",
-            "lead": "You started applying to use ShopprHQ but didn't quite finish.",
+            "tone": f"You started applying to use ShopprHQ but didn't quite finish — "
+                    f"you just need to {step_copy['whats_left']}.",
         },
         2: {
             "subject": "Still want to set up your store on ShopprHQ?",
-            "lead": "Your application is still saved — it only takes a couple more minutes to finish.",
+            "tone": f"Your application is still saved. {step_copy['detail']}",
         },
         3: {
             "subject": "Last reminder: your ShopprHQ application is waiting",
-            "lead": "This is our final reminder — after this we'll stop following up, but your progress stays saved if you come back on your own.",
+            "tone": f"This is our final reminder — after this we'll stop following up, "
+                    f"but your progress stays saved if you come back on your own. "
+                    f"{step_copy['detail']}",
         },
     }.get(reminder_number, {
         "subject": "Continue your ShopprHQ application",
-        "lead": "Your application is still saved.",
+        "tone": f"Your application is still saved. {step_copy['detail']}",
     })
+    copy = {"subject": tier["subject"], "lead": tier["tone"]}
 
     html = f"""<!DOCTYPE html>
 <html>
@@ -1192,14 +1233,14 @@ async def send_approved_merchant_welcome_email(
         </td></tr>
         <tr><td style="padding:40px 40px 32px">
           <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#111">
-            You're approved, {{first_name}}! 🎉
+            You're approved, {first_name}! 🎉
           </h1>
           <p style="margin:0 0 24px;font-size:15px;color:#555;line-height:1.6">
             Your ShopprHQ account is ready. Click the button below to create your
             password and sign in. <strong>This link expires in 72 hours.</strong>
           </p>
 
-          <a href="{{set_password_url}}"
+          <a href="{set_password_url}"
             style="display:block;background:#111;color:#fff;text-align:center;
               padding:14px 24px;border-radius:10px;font-weight:600;font-size:15px;
               text-decoration:none;margin-bottom:28px">
@@ -1210,14 +1251,14 @@ async def send_approved_merchant_welcome_email(
             If the button doesn't work, copy and paste this link into your browser:
           </p>
           <p style="margin:0 0 28px;font-size:12px;color:#aaa;word-break:break-all">
-            {{set_password_url}}
+            {set_password_url}
           </p>
 
           <p style="margin:0 0 10px;font-size:12px;font-weight:700;color:#999;
             text-transform:uppercase;letter-spacing:.06em">What happens next</p>
           <ol style="margin:0 0 24px;padding-left:20px;font-size:14px;color:#555;line-height:1.8">
             <li>Set your password using the link above.</li>
-            <li>We'll message you personally on WhatsApp from {{support_line_html}} to get
+            <li>We'll message you personally on WhatsApp from {support_line_html} to get
               a quick verification code from Meta.</li>
             <li>We'll use that code to activate your number.</li>
             <li>You'll get a separate "you're live" email the moment it's connected.</li>

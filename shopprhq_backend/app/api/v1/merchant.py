@@ -162,7 +162,7 @@ async def apply_to_use(
         from app.api.v1.workers.background_tasks import fire_and_forget
 
         fire_and_forget(
-            send_application_received_email(
+            lambda: send_application_received_email(
                 to_email=payload.email,
                 applicant_name=payload.full_name,
                 business_name=payload.business_name,
@@ -174,7 +174,7 @@ async def apply_to_use(
 
         # Notify the team by email (requires TEAM_EMAIL env var to be set)
         fire_and_forget(
-            send_team_application_alert({
+            lambda: send_team_application_alert({
                 "full_name":            payload.full_name,
                 "business_name":        payload.business_name,
                 "email":                payload.email,
@@ -214,7 +214,13 @@ async def apply_to_use(
         except Exception:
             pass
 
-        return {"message": "Application received. We'll be in touch within 1–2 business days."}
+        return {
+            "message": (
+                "Application submitted! We've sent a confirmation to your email. "
+                "You'll also get a WhatsApp message from us to confirm your "
+                "onboarding and book a setup session."
+            )
+        }
 
     except HTTPException:
         raise
@@ -324,7 +330,7 @@ async def verify_email_code(request: Request, db: AsyncSession = Depends(get_db)
         if merchant:
             from app.services.email_service import send_welcome_email
             from app.api.v1.workers.background_tasks import fire_and_forget
-            fire_and_forget(send_welcome_email(
+            fire_and_forget(lambda: send_welcome_email(
                 to_email=merchant.email,
                 merchant_name=merchant.name,
                 merchant_id=merchant.id,
@@ -559,7 +565,7 @@ async def forgot_password(request: Request, db: AsyncSession = Depends(get_db)):
         try:
             from app.services.email_service import send_password_reset_email
             from app.api.v1.workers.background_tasks import fire_and_forget
-            fire_and_forget(send_password_reset_email(
+            fire_and_forget(lambda: send_password_reset_email(
                 to_email=email,
                 merchant_name=merchant.name,
                 code=code,
@@ -707,7 +713,7 @@ async def resend_verification(request: Request, db: AsyncSession = Depends(get_d
     try:
         from app.services.email_service import send_verification_email
         from app.api.v1.workers.background_tasks import fire_and_forget
-        fire_and_forget(send_verification_email(
+        fire_and_forget(lambda: send_verification_email(
             to_email=merchant.email,
             merchant_name=merchant.name,
             merchant_id=merchant.id,
@@ -760,7 +766,7 @@ async def change_email(request: Request, db: AsyncSession = Depends(get_db)):
     try:
         from app.services.email_service import send_verification_email
         from app.api.v1.workers.background_tasks import fire_and_forget
-        fire_and_forget(send_verification_email(
+        fire_and_forget(lambda: send_verification_email(
             to_email=merchant.email,
             merchant_name=merchant.name,
             merchant_id=merchant.id,
@@ -1186,7 +1192,7 @@ async def apply_wizard_step_four(
         from app.api.v1.workers.background_tasks import fire_and_forget
 
         fire_and_forget(
-            send_application_received_email(
+            lambda: send_application_received_email(
                 to_email=app.email,
                 applicant_name=app.full_name,
                 business_name=app.business_name or "",
@@ -1198,7 +1204,7 @@ async def apply_wizard_step_four(
 
         # ── Team alert (email) ────────────────────────────────────────────
         fire_and_forget(
-            send_team_application_alert({
+            lambda: send_team_application_alert({
                 "full_name":            app.full_name,
                 "business_name":        app.business_name or "",
                 "email":                app.email,
@@ -1240,7 +1246,11 @@ async def apply_wizard_step_four(
             pass  # Slack alert failure must never block the response.
 
         return {
-            "message":        "Application received. We'll be in touch within 1–2 business days.",
+            "message": (
+                "Application submitted! We've sent a confirmation to your email. "
+                "You'll also get a WhatsApp message from us to confirm your "
+                "onboarding and book a setup session."
+            ),
             "application_id": application_id,
         }
 

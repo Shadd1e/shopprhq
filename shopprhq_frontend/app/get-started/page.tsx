@@ -35,41 +35,22 @@ const RESUME_KEY = 'shopprhq_resume_token'
 
 const STEP_LABELS = ['You', 'Business', 'Verification', 'Terms']
 
-/* ── WhatsApp confirmation preview (used on final success screen) ── */
-function WAConfirmationPreview({ name, bizName }: { name: string; bizName: string }) {
-  const first = name.split(' ')[0] || 'there'
+/* ── "A rep will reach out" panel (used on final success screen + step-1 sidebar) ──
+   Deliberately NOT a fake chat-bubble preview: no automated WhatsApp message is sent
+   on registration, so showing one (even labeled "preview") reads as a promise the
+   product doesn't keep. This just states plainly what actually happens: a real
+   person messages the number provided. */
+function WhatsAppOutreachNotice({ compact = false }: { compact?: boolean }) {
   return (
-    <div style={{ width: 220 }} className="mx-auto">
-      <div className="rounded-[28px] bg-[#1a1a1a] p-[6px] shadow-xl">
-        <div className="rounded-[22px] overflow-hidden">
-          <div className="bg-[#0d1b0f] px-3 pt-2 pb-1 flex justify-between items-center">
-            <span className="text-white text-[8px] font-medium">9:41</span>
-            <div className="w-12 h-2 bg-[#333] rounded-full" />
-            <span className="text-white text-[7px]">●●●</span>
-          </div>
-          <div className="bg-[#075E54] px-3 py-2 flex items-center gap-2">
-            <span className="text-white/70 text-[9px]">←</span>
-            <div className="w-6 h-6 rounded-full bg-[#25D366]/40 flex items-center justify-center text-[7px] font-bold text-[#25D366]">SQ</div>
-            <div>
-              <p className="text-white text-[9px] font-semibold leading-none">ShopprHQ</p>
-              <p className="text-green-300 text-[7px]">Business Account</p>
-            </div>
-          </div>
-          <div className="bg-[#0d1b0f] p-3 min-h-[140px]">
-            <div className="bg-[#1e2e20] border border-white/5 rounded-xl rounded-bl-none px-2.5 py-2 text-[8px] text-white/80 leading-relaxed whitespace-pre-line max-w-[90%]">
-              {`Hi ${first} 👋\n\nWe've received your application for *${bizName || 'your business'}*.\n\nOur team will reach out to you here within 1–2 business days to kick off your setup.\n\nHave a question? Just reply.\n\n— ShopprHQ`}
-              <span className="block text-right text-[6px] text-white/25 mt-1">✓✓</span>
-            </div>
-          </div>
-          <div className="bg-[#111] px-2.5 py-1.5 flex items-center gap-1.5">
-            <div className="flex-1 bg-[#1e1e1e] rounded-full px-2 py-1 text-[7px] text-white/20">Message</div>
-            <div className="w-5 h-5 rounded-full bg-[#25D366] flex items-center justify-center text-white text-[8px]">↑</div>
-          </div>
-        </div>
+    <div className={`mx-auto ${compact ? 'max-w-[240px]' : 'max-w-[280px]'} text-center`}>
+      <div className="w-12 h-12 rounded-full bg-[#25D366]/10 flex items-center justify-center mx-auto mb-3">
+        <span className="text-xl">💬</span>
       </div>
-      <div className="mt-1.5 flex justify-center">
-        <div className="w-12 h-0.5 bg-black/15 rounded-full" />
-      </div>
+      <p className="text-sm font-semibold text-ink mb-1">A real person will message you</p>
+      <p className="text-xs text-ink-3 leading-relaxed">
+        A member of our team will personally reach out on the WhatsApp number you
+        provided to confirm your onboarding and help you book your setup session.
+      </p>
     </div>
   )
 }
@@ -328,7 +309,7 @@ export default function GetStartedPage() {
                 <span className="text-ink-3">We'll be in touch.</span>
               </h1>
               <p className="text-ink-3 text-base leading-relaxed mb-4 max-w-md">
-                We've received your application for <strong className="text-ink">{businessName}</strong>. Our team will reach out to you on WhatsApp within 1–2 business days to schedule your setup session.
+                We've received your application for <strong className="text-ink">{businessName}</strong>. We've sent a confirmation to your email, and a member of our team will reach out to you on WhatsApp within 1–2 business days to confirm your onboarding and book your setup session.
               </p>
               {transactionLimit != null && (
                 <p className="text-ink-3 text-sm leading-relaxed max-w-md mb-4">
@@ -342,12 +323,8 @@ export default function GetStartedPage() {
                 <a href="mailto:hello@shopprhq.com" className="text-ink underline underline-offset-2">hello@shopprhq.com</a>.
               </p>
             </div>
-            <div className="flex flex-col items-center gap-6 fade-in-up" style={{ animationDelay: '150ms' }}>
-              <p className="text-xs font-mono text-ink-4 uppercase tracking-widest">You'll receive this on WhatsApp</p>
-              <WAConfirmationPreview name={fullName} bizName={businessName} />
-              <p className="text-xs text-ink-4 text-center max-w-[220px] leading-relaxed">
-                This message is sent to the WhatsApp number you provided. Reply anytime.
-              </p>
+            <div className="flex flex-col items-center gap-4 fade-in-up" style={{ animationDelay: '150ms' }}>
+              <WhatsAppOutreachNotice />
             </div>
           </div>
         </section>
@@ -733,11 +710,8 @@ export default function GetStartedPage() {
               </div>
 
               <div className="bg-bg border border-border rounded-2xl p-6">
-                <p className="text-xs font-semibold text-ink uppercase tracking-wider font-mono mb-4">You'll receive this once approved</p>
-                <WAConfirmationPreview name={fullName || 'Ada'} bizName={businessName || 'your business'} />
-                <p className="text-xs text-ink-4 mt-4 text-center leading-relaxed">
-                  Sent automatically to your WhatsApp when your application is confirmed.
-                </p>
+                <p className="text-xs font-semibold text-ink uppercase tracking-wider font-mono mb-4">Once your application is approved</p>
+                <WhatsAppOutreachNotice compact />
               </div>
 
             </div>

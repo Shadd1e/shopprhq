@@ -319,7 +319,7 @@ async def request_otp(request: Request, db: AsyncSession = Depends(get_db)):
                 from app.services.email_service import send_otp_requested_email
                 from app.api.v1.workers.background_tasks import fire_and_forget
                 fire_and_forget(
-                    send_otp_requested_email(
+                    lambda cl=cl, mer=mer: send_otp_requested_email(
                         to_email=mer.email,
                         merchant_name=mer.name,
                         store_name=cl.name,
@@ -485,7 +485,7 @@ async def save_to_db(request: Request, db: AsyncSession = Depends(get_db)):
             from app.services.email_service import send_store_live_email
             from app.api.v1.workers.background_tasks import fire_and_forget
             fire_and_forget(
-                send_store_live_email(
+                lambda merchant=merchant: send_store_live_email(
                     to_email=merchant.email,
                     merchant_name=merchant.name,
                     store_name=cl.name,
@@ -930,7 +930,7 @@ async def _create_merchant_account(
         set_password_url = f"{_app_url}/dashboard?set_password={set_password_token}"
 
         fire_and_forget(
-            send_approved_merchant_welcome_email(
+            lambda: send_approved_merchant_welcome_email(
                 to_email=merchant.email,
                 merchant_name=merchant.name,
                 merchant_id=merchant_id,
@@ -1159,7 +1159,7 @@ async def reject_application(
         from app.services.email_service import send_application_declined_email
         from app.api.v1.workers.background_tasks import fire_and_forget
         fire_and_forget(
-            send_application_declined_email(
+            lambda: send_application_declined_email(
                 to_email=application.email,
                 applicant_name=application.full_name,
                 business_name=application.business_name,
