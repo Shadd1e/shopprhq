@@ -403,7 +403,7 @@ export default function HomePage() {
             <div className="fade-in-up">
               <h1 className="font-display font-extrabold text-[clamp(2.4rem,5.5vw,4.2rem)] tracking-tight leading-[1.0] text-ink mb-5">
                 The <RotatingWord /><br />
-                that pays Benny.
+                that pays you.
               </h1>
 
               <p className="text-ink-3 text-lg max-w-md mb-8 leading-relaxed">
