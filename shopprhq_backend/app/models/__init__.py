@@ -38,6 +38,9 @@ from app.models.deepseek_setting       import DeepSeekSetting
 from app.models.idempotence            import IdempotencyKey
 from app.models.flutterwave_subaccount import FlutterwaveSubaccount
 
+# ── Internal platform admin accounts (superadmins + workers) ─────────────────
+from app.models.admin_user import AdminUser
+
 # ── Public API of this package ────────────────────────────────────────────────
 __all__ = [
     "Base",
@@ -74,4 +77,7 @@ __all__ = [
     "DeepSeekSetting",
     "IdempotencyKey",
     "FlutterwaveSubaccount",
+
+    # Internal platform admin
+    "AdminUser",
 ]

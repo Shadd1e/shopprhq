@@ -21,6 +21,7 @@ from sqlalchemy import select
 
 from app.db.deps import get_db
 from app.core.helpers import get_client_ip
+from app.core.admin_auth import require_admin_permission
 
 logger = logging.getLogger(__name__)
 
@@ -149,13 +150,10 @@ def _cfg() -> dict:
 
 
 # ── Session guard ─────────────────────────────────────────────────────────────
-
-async def _require_admin(request: Request):
-    from app.core.redis_client import validate_admin_session
-    token = request.headers.get("X-Admin-Token", "")
-    if not token or not await validate_admin_session(token):
-        raise HTTPException(status_code=401, detail="Unauthorized")
-
+# Superseded by app.core.admin_auth.require_admin_permission, which accepts
+# EITHER this same X-Admin-Token shared-secret session (full access) OR a
+# real admin-account JWT checked against a specific permission. Routes below
+# call that instead of a bare secret check now.
 
 # ── Serve admin HTML ──────────────────────────────────────────────────────────
 # RETIRED (this endpoint used to serve templates/admin_whatsapp.html directly).
@@ -193,7 +191,7 @@ async def verify_password(request: Request):
 
 @router.get("/clients")
 async def list_clients(request: Request, db: AsyncSession = Depends(get_db)):
-    await _require_admin(request)
+    await require_admin_permission("view_clients")(request)
     from app.models.client_model import Client
     from app.models.merchant import Merchant
     result = await db.execute(
@@ -224,7 +222,7 @@ async def list_clients(request: Request, db: AsyncSession = Depends(get_db)):
 
 @router.post("/add-number")
 async def add_number(request: Request, db: AsyncSession = Depends(get_db)):
-    await _require_admin(request)
+    await require_admin_permission("manage_whatsapp_onboarding")(request)
     body      = await request.json()
     phone     = _normalise_number(str(body.get("phone", "")))
     name      = str(body.get("display_name", "")).strip()
@@ -272,7 +270,7 @@ async def add_number(request: Request, db: AsyncSession = Depends(get_db)):
 
 @router.post("/request-otp")
 async def request_otp(request: Request, db: AsyncSession = Depends(get_db)):
-    await _require_admin(request)
+    await require_admin_permission("manage_whatsapp_onboarding")(request)
     body            = await request.json()
     phone_number_id = str(body.get("phone_number_id", "")).strip()
     method          = str(body.get("method", "SMS")).strip().upper()
@@ -339,7 +337,7 @@ async def request_otp(request: Request, db: AsyncSession = Depends(get_db)):
 
 @router.post("/verify-otp")
 async def verify_otp(request: Request, db: AsyncSession = Depends(get_db)):
-    await _require_admin(request)
+    await require_admin_permission("manage_whatsapp_onboarding")(request)
     body            = await request.json()
     phone_number_id = str(body.get("phone_number_id", "")).strip()
     client_id       = str(body.get("client_id", "")).strip()
@@ -386,7 +384,7 @@ async def verify_otp(request: Request, db: AsyncSession = Depends(get_db)):
 
 @router.post("/activate")
 async def activate(request: Request, db: AsyncSession = Depends(get_db)):
-    await _require_admin(request)
+    await require_admin_permission("manage_whatsapp_onboarding")(request)
     body            = await request.json()
     phone_number_id = str(body.get("phone_number_id", "")).strip()
     cfg             = _cfg()
@@ -426,7 +424,7 @@ async def activate(request: Request, db: AsyncSession = Depends(get_db)):
 
 @router.post("/save")
 async def save_to_db(request: Request, db: AsyncSession = Depends(get_db)):
-    await _require_admin(request)
+    await require_admin_permission("manage_whatsapp_onboarding")(request)
     body            = await request.json()
     client_id       = str(body.get("client_id", "")).strip()
     phone_number_id = str(body.get("phone_number_id", "")).strip()
@@ -984,7 +982,7 @@ async def _create_merchant_account(
 async def approve_merchant(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    _: None = Depends(_require_admin),
+    _: None = Depends(require_admin_permission("manage_merchant_applications")),
 ):
     """
     Admin-only. Creates a merchant account from hand-typed details.
@@ -1029,7 +1027,7 @@ async def approve_merchant(
 
 @router.get("/applications", tags=["Admin — Merchant Approval"])
 async def list_applications(request: Request, db: AsyncSession = Depends(get_db)):
-    await _require_admin(request)
+    await require_admin_permission("manage_merchant_applications")(request)
     from app.models.merchant_application import MerchantApplication
 
     result = await db.execute(
@@ -1072,7 +1070,7 @@ async def approve_application(
     application_id: str,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    _: None = Depends(_require_admin),
+    _: None = Depends(require_admin_permission("manage_merchant_applications")),
 ):
     """
     Admin-only. Turns a pending (or needs_attention) application into a real
@@ -1135,7 +1133,7 @@ async def reject_application(
     application_id: str,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    _: None = Depends(_require_admin),
+    _: None = Depends(require_admin_permission("manage_merchant_applications")),
 ):
     """Admin-only. Dismisses a pending (or needs_attention) application without
     creating an account, and sends the applicant a brief decline email."""

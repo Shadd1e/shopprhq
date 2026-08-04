@@ -1,4 +1,5 @@
 import os
+import uuid
 import asyncio
 import logging
 from fastapi import FastAPI, Request, HTTPException
@@ -7,14 +8,47 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
+import sentry_sdk
+from sentry_sdk.integrations.fastapi import FastApiIntegration
+from sentry_sdk.integrations.starlette import StarletteIntegration
+from sentry_sdk.integrations.logging import LoggingIntegration
+
 from app.core.logging_config import setup_logging
 from app.core.tenant import TenantMiddleware
+from app.core.request_context import get_request_id, request_id_var
 
 # --------------------------------------------------
 # LOGGING (MUST BE FIRST)
 # --------------------------------------------------
 setup_logging()
 logger = logging.getLogger(__name__)
+
+# --------------------------------------------------
+# SENTRY (init before app is created)
+# --------------------------------------------------
+def _scrub_secrets(event, hint):
+    req = event.get("request", {})
+    headers = req.get("headers")
+    if headers:
+        for h in ("authorization", "x-admin-secret", "cookie"):
+            headers.pop(h, None)
+            headers.pop(h.title(), None)
+    return event
+
+
+sentry_sdk.init(
+    dsn=os.getenv("SENTRY_DSN"),
+    environment=os.getenv("ENVIRONMENT", "production"),
+    release=os.getenv("RAILWAY_GIT_COMMIT_SHA"),
+    integrations=[
+        StarletteIntegration(transaction_style="endpoint"),
+        FastApiIntegration(transaction_style="endpoint"),
+        LoggingIntegration(level=logging.INFO, event_level=logging.ERROR),
+    ],
+    traces_sample_rate=float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1")),
+    send_default_pii=False,
+    before_send=_scrub_secrets,
+)
 
 # --------------------------------------------------
 # Lifespan
@@ -125,6 +159,29 @@ class MaxBodySizeMiddleware:
 
         await self.app(scope, limited_receive, send)
 
+
+class SentryRequestContextMiddleware:
+    """
+    Ensures every request has a request_id (webhook.py already sets its own,
+    later, for webhook routes — this just guarantees one exists for
+    everything else) and tags the Sentry scope with it, so a Sentry issue
+    can be matched back to log lines via request_id.
+    """
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        if get_request_id() == "-":
+            request_id_var.set(str(uuid.uuid4())[:8])
+
+        with sentry_sdk.new_scope() as sentry_scope:
+            sentry_scope.set_tag("request_id", get_request_id())
+            await self.app(scope, receive, send)
+
 # --------------------------------------------------
 # App Initialization
 # --------------------------------------------------
@@ -136,6 +193,7 @@ app = FastAPI(
 # Must be added before CORSMiddleware so it wraps outermost and rejects
 # oversized bodies before any other middleware or route touches them.
 app.add_middleware(MaxBodySizeMiddleware)
+app.add_middleware(SentryRequestContextMiddleware)
 
 # --------------------------------------------------
 # MIDDLEWARES
@@ -176,6 +234,7 @@ async def global_exception_handler(request: Request, exc: Exception):
         "Unhandled exception: %s %s — %s",
         request.method, request.url.path, exc, exc_info=True,
     )
+    sentry_sdk.capture_exception(exc)
     try:
         from app.infrastructure.alerting.slack import alert
         asyncio.create_task(alert(
@@ -232,6 +291,15 @@ from app.api.v1.merchant import router as merchant_router
 # ── Merchant WhatsApp onboarding (admin + merchant-facing) ────────────────────
 from app.api.v1.admin_whatsapp import router as admin_whatsapp_router
 from app.api.v1.admin_whatsapp import merchant_router as onboarding_router
+
+# ── Admin accounts (superadmin + worker login, worker management) ─────────────
+# Carries its own prefix (/admin). Sits alongside admin_whatsapp_router's
+# ADMIN_SECRET/Redis-session login — that shared-secret flow still works
+# unchanged as a superadmin fallback. Real admin_users accounts (issued via
+# POST /admin/auth/login) are checked per-route against a permission list
+# by app.core.admin_auth.require_admin_permission, used inside
+# admin_whatsapp.py's routes instead of a blanket secret check.
+from app.api.v1.admin_auth import router as admin_auth_router
 
 # ── Merchant credential management ────────────────────────────────────────────
 # admin.py (prefix /merchant-credentials) and client_whatsapp_credential.py
@@ -296,6 +364,7 @@ app.include_router(merchant_router,  prefix=API_V1_PREFIX, tags=["Merchants"])
 # WhatsApp setup (admin dashboard + merchant self-serve; carry their own prefixes)
 app.include_router(admin_whatsapp_router)
 app.include_router(onboarding_router)
+app.include_router(admin_auth_router)
 
 # Credentials / routing
 app.include_router(whatsapp_cred_router, prefix=API_V1_PREFIX, tags=["WhatsApp Credentials"])
