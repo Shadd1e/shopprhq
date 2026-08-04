@@ -100,7 +100,7 @@ const BASE = `${process.env.NEXT_PUBLIC_API_URL ?? 'https://ap.shopprhq.com'}/ad
 // SHARED STYLES
 // ══════════════════════════════════════════════════════════════════════════
 
-const INPUT = cn(
+export const INPUT = cn(
   'w-full px-3.5 py-2.5 rounded-xl',
   'bg-white border border-gray-200',
   'text-sm text-gray-900 placeholder:text-gray-400',
@@ -108,7 +108,7 @@ const INPUT = cn(
   'focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10',
 )
 
-const BTN = cn(
+export const BTN = cn(
   'px-4 py-2 rounded-xl text-sm font-semibold transition-all',
   'disabled:opacity-50 disabled:cursor-not-allowed',
 )
@@ -141,7 +141,7 @@ const STATUS_LABEL: Record<OnboardingStatus, string> = {
 // API HELPERS
 // ══════════════════════════════════════════════════════════════════════════
 
-async function adminReq<T>(
+export async function adminReq<T>(
   path: string,
   token: string,
   opts: RequestInit = {},
@@ -150,7 +150,11 @@ async function adminReq<T>(
     ...opts,
     headers: {
       'Content-Type': 'application/json',
+      // Works with either an old shared-secret session token (validated via
+      // X-Admin-Token) or a real admin-account JWT (validated via Bearer) —
+      // the backend checks both and uses whichever matches.
       'X-Admin-Token': token,
+      'Authorization': `Bearer ${token}`,
       ...(opts.headers ?? {}),
     },
   })
@@ -497,7 +501,7 @@ function StepCard({ n, title, children, done, disabled, highlight }: {
 // STORE LIST
 // ══════════════════════════════════════════════════════════════════════════
 
-function StoreList({ token }: { token: string }) {
+export function StoreList({ token }: { token: string }) {
   const [stores,   setStores]   = useState<StoreRecord[]>([])
   const [loading,  setLoading]  = useState(true)
   const [error,    setError]    = useState('')
@@ -764,7 +768,7 @@ function ApplicationDetail({ app, token, onChanged }: {
   )
 }
 
-function ApplicationsList({ token }: { token: string }) {
+export function ApplicationsList({ token }: { token: string }) {
   const [apps,    setApps]    = useState<ApplicationRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [error,   setError]   = useState('')
