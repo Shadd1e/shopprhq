@@ -47,6 +47,13 @@ class WorkerCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     email: EmailStr
     permissions: List[str] = Field(default_factory=list)
+    admin_secret: str = Field(
+        ..., min_length=1,
+        description="Step-up confirmation — the same ADMIN_SECRET used for the "
+                    "legacy admin login. Re-entered here so creating a worker "
+                    "account isn't possible from a stolen superadmin session "
+                    "token alone.",
+    )
 
     @field_validator("permissions")
     @classmethod

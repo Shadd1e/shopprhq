@@ -13,6 +13,8 @@ that shared-secret flow keeps working as a superadmin fallback.
   PATCH  /admin/workers/{worker_id}        — superadmin only
   POST   /admin/workers/{worker_id}/reset-password  — superadmin only
 """
+import os
+import hmac
 import logging
 from fastapi import APIRouter, Request, HTTPException, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -113,6 +115,14 @@ async def create_worker(
     db: AsyncSession = Depends(get_db),
     ctx: AdminContext = Depends(require_superadmin),
 ):
+    # Step-up check — a valid superadmin JWT alone isn't enough to mint new
+    # admin accounts. Re-confirm with the shared ADMIN_SECRET, same as the
+    # legacy login, so a leaked/stolen bearer token can't be used on its own
+    # to create backdoor accounts.
+    admin_secret = os.getenv("ADMIN_SECRET", "")
+    if not admin_secret or not hmac.compare_digest(payload.admin_secret, admin_secret):
+        raise HTTPException(status_code=401, detail="Admin secret confirmation is incorrect")
+
     service = AdminUserService(db)
     try:
         worker, temp_password = await service.create_worker(
@@ -126,6 +136,38 @@ async def create_worker(
 
     await db.flush()
     logger.info("Worker created — id=%s email=%s by=%s", worker.id, worker.email, ctx.admin_id)
+
+    try:
+        from app.services.email_service import send_email
+        login_url = os.getenv("APP_URL", "https://shopprhq.com") + "/admin/accounts"
+        await send_email(
+            to_email=worker.email,
+            subject="Your ShopprHQ admin access",
+            html=(
+                f"<p>Hi {worker.name},</p>"
+                f"<p>A ShopprHQ superadmin created an admin account for you.</p>"
+                f"<p><b>Email:</b> {worker.email}<br>"
+                f"<b>Temporary password:</b> {temp_password}</p>"
+                f"<p>Sign in at <a href=\"{login_url}\">{login_url}</a> — "
+                f"you'll be asked to set your own password on first login.</p>"
+                f"<p>If you weren't expecting this, ignore this email.</p>"
+            ),
+            text=(
+                f"Hi {worker.name},\n\n"
+                f"A ShopprHQ superadmin created an admin account for you.\n"
+                f"Email: {worker.email}\n"
+                f"Temporary password: {temp_password}\n\n"
+                f"Sign in at {login_url} — you'll be asked to set your own "
+                f"password on first login.\n\n"
+                f"If you weren't expecting this, ignore this email."
+            ),
+        )
+    except Exception as email_err:
+        # Don't fail worker creation just because the email didn't go out —
+        # the temp password is still returned below so the superadmin can
+        # hand it over directly.
+        logger.error("Worker invite email failed for %s: %s", worker.email, email_err)
+
     return WorkerCreateResponse(
         id=worker.id,
         name=worker.name,

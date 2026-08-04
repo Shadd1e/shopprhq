@@ -1,5 +1,4 @@
 import os
-import uuid
 import asyncio
 import logging
 from fastapi import FastAPI, Request, HTTPException
@@ -8,47 +7,14 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
-import sentry_sdk
-from sentry_sdk.integrations.fastapi import FastApiIntegration
-from sentry_sdk.integrations.starlette import StarletteIntegration
-from sentry_sdk.integrations.logging import LoggingIntegration
-
 from app.core.logging_config import setup_logging
 from app.core.tenant import TenantMiddleware
-from app.core.request_context import get_request_id, request_id_var
 
 # --------------------------------------------------
 # LOGGING (MUST BE FIRST)
 # --------------------------------------------------
 setup_logging()
 logger = logging.getLogger(__name__)
-
-# --------------------------------------------------
-# SENTRY (init before app is created)
-# --------------------------------------------------
-def _scrub_secrets(event, hint):
-    req = event.get("request", {})
-    headers = req.get("headers")
-    if headers:
-        for h in ("authorization", "x-admin-secret", "cookie"):
-            headers.pop(h, None)
-            headers.pop(h.title(), None)
-    return event
-
-
-sentry_sdk.init(
-    dsn=os.getenv("SENTRY_DSN"),
-    environment=os.getenv("ENVIRONMENT", "production"),
-    release=os.getenv("RAILWAY_GIT_COMMIT_SHA"),
-    integrations=[
-        StarletteIntegration(transaction_style="endpoint"),
-        FastApiIntegration(transaction_style="endpoint"),
-        LoggingIntegration(level=logging.INFO, event_level=logging.ERROR),
-    ],
-    traces_sample_rate=float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1")),
-    send_default_pii=False,
-    before_send=_scrub_secrets,
-)
 
 # --------------------------------------------------
 # Lifespan
@@ -159,29 +125,6 @@ class MaxBodySizeMiddleware:
 
         await self.app(scope, limited_receive, send)
 
-
-class SentryRequestContextMiddleware:
-    """
-    Ensures every request has a request_id (webhook.py already sets its own,
-    later, for webhook routes — this just guarantees one exists for
-    everything else) and tags the Sentry scope with it, so a Sentry issue
-    can be matched back to log lines via request_id.
-    """
-    def __init__(self, app):
-        self.app = app
-
-    async def __call__(self, scope, receive, send):
-        if scope["type"] != "http":
-            await self.app(scope, receive, send)
-            return
-
-        if get_request_id() == "-":
-            request_id_var.set(str(uuid.uuid4())[:8])
-
-        with sentry_sdk.new_scope() as sentry_scope:
-            sentry_scope.set_tag("request_id", get_request_id())
-            await self.app(scope, receive, send)
-
 # --------------------------------------------------
 # App Initialization
 # --------------------------------------------------
@@ -193,7 +136,6 @@ app = FastAPI(
 # Must be added before CORSMiddleware so it wraps outermost and rejects
 # oversized bodies before any other middleware or route touches them.
 app.add_middleware(MaxBodySizeMiddleware)
-app.add_middleware(SentryRequestContextMiddleware)
 
 # --------------------------------------------------
 # MIDDLEWARES
@@ -234,7 +176,6 @@ async def global_exception_handler(request: Request, exc: Exception):
         "Unhandled exception: %s %s — %s",
         request.method, request.url.path, exc, exc_info=True,
     )
-    sentry_sdk.capture_exception(exc)
     try:
         from app.infrastructure.alerting.slack import alert
         asyncio.create_task(alert(
@@ -278,7 +219,7 @@ async def add_security_headers(request: Request, call_next):
 
 # ── Core bot & payment infrastructure ─────────────────────────────────────────
 from app.api.v1.webhook import router as webhooks_router
-from app.api.v1.paystack import router as paystack_router
+from app.api.v1.flutterwave import router as flutterwave_router
 from app.api.v1.payment import router as payments_router
 from app.api.v1.checkout import router as checkout_router
 
@@ -356,7 +297,7 @@ API_V1_PREFIX = "/api/v1"
 
 # Webhook & payment (order matters — webhooks before everything else)
 app.include_router(webhooks_router,  prefix=API_V1_PREFIX, tags=["Webhooks"])
-app.include_router(paystack_router,  prefix=API_V1_PREFIX, tags=["Paystack"])
+app.include_router(flutterwave_router, prefix=API_V1_PREFIX, tags=["Flutterwave"])
 
 # Merchant identity & onboarding
 app.include_router(merchant_router,  prefix=API_V1_PREFIX, tags=["Merchants"])
