@@ -219,7 +219,6 @@ async def add_security_headers(request: Request, call_next):
 
 # ── Core bot & payment infrastructure ─────────────────────────────────────────
 from app.api.v1.webhook import router as webhooks_router
-from app.api.v1.flutterwave import router as flutterwave_router
 from app.api.v1.payment import router as payments_router
 from app.api.v1.checkout import router as checkout_router
 
@@ -297,7 +296,6 @@ API_V1_PREFIX = "/api/v1"
 
 # Webhook & payment (order matters — webhooks before everything else)
 app.include_router(webhooks_router,  prefix=API_V1_PREFIX, tags=["Webhooks"])
-app.include_router(flutterwave_router, prefix=API_V1_PREFIX, tags=["Flutterwave"])
 
 # Merchant identity & onboarding
 app.include_router(merchant_router,  prefix=API_V1_PREFIX, tags=["Merchants"])
