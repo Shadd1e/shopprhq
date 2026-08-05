@@ -57,13 +57,19 @@ async def admin_login(
     if not await check_admin_rate_limit(client_ip):
         raise HTTPException(status_code=429, detail="Too many attempts — try again in 5 minutes.")
 
+    user_agent = request.headers.get("User-Agent", "unknown")
+
     service = AdminUserService(db)
-    admin = await service.authenticate(payload.email, payload.password)
+    admin = await service.authenticate(payload.email, payload.password, ip=client_ip, device=user_agent)
     if not admin:
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
+    await db.flush()
     token = create_admin_token(admin)
     logger.info("Admin login — id=%s email=%s ip=%s", admin.id, admin.email, client_ip)
+
+    await _send_login_notification(service, admin, ip=client_ip, device=user_agent)
+
     return AdminLoginResponse(
         access_token=token,
         admin_id=admin.id,
@@ -72,6 +78,57 @@ async def admin_login(
         permissions=admin.permissions or [],
         must_change_password=admin.must_change_password,
     )
+
+
+async def _send_login_notification(service: AdminUserService, admin, *, ip: str, device: str) -> None:
+    """
+    Superadmin login  -> emails that same superadmin only (self security alert).
+    Worker login      -> emails every active superadmin, with the worker's
+                          name, login time, IP, and device — time/device are
+                          also persisted on the row itself (last_login_ip /
+                          last_login_device) regardless of whether the email
+                          send succeeds.
+    """
+    from app.services.email_service import send_email
+    from app.api.v1.workers.background_tasks import fire_and_forget
+
+    when = admin.last_login_at.strftime("%Y-%m-%d %H:%M UTC") if admin.last_login_at else "just now"
+
+    if admin.is_superadmin:
+        recipients = [admin.email]
+        subject = "New login to your ShopprHQ admin account"
+        html = (
+            f"<p>Hi {admin.name},</p>"
+            f"<p>Your ShopprHQ superadmin account was just signed in to.</p>"
+            f"<p><b>Time:</b> {when}<br><b>IP:</b> {ip}<br><b>Device:</b> {device}</p>"
+            f"<p>If this wasn't you, rotate your password and the shared admin "
+            f"secret immediately.</p>"
+        )
+        text = (
+            f"Hi {admin.name},\n\nYour ShopprHQ superadmin account was just signed in to.\n"
+            f"Time: {when}\nIP: {ip}\nDevice: {device}\n\n"
+            f"If this wasn't you, rotate your password and the shared admin secret immediately."
+        )
+    else:
+        superadmins = await service.list_superadmins()
+        recipients = [s.email for s in superadmins]
+        if not recipients:
+            return
+        subject = f"Worker login: {admin.name}"
+        html = (
+            f"<p>{admin.name} ({admin.email}) just logged into the ShopprHQ admin panel.</p>"
+            f"<p><b>Time:</b> {when}<br><b>IP:</b> {ip}<br><b>Device:</b> {device}</p>"
+        )
+        text = (
+            f"{admin.name} ({admin.email}) just logged into the ShopprHQ admin panel.\n"
+            f"Time: {when}\nIP: {ip}\nDevice: {device}"
+        )
+
+    for to_email in recipients:
+        fire_and_forget(
+            lambda to_email=to_email: send_email(to_email=to_email, subject=subject, html=html, text=text),
+            name=f"admin_login_notification_{admin.id}",
+        )
 
 
 @router.post("/auth/change-password")

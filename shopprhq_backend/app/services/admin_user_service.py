@@ -36,7 +36,15 @@ class AdminUserService:
         result = await self.db.execute(select(AdminUser).order_by(AdminUser.created_at.desc()))
         return list(result.scalars().all())
 
-    async def authenticate(self, email: str, password: str) -> Optional[AdminUser]:
+    async def list_superadmins(self) -> List[AdminUser]:
+        result = await self.db.execute(
+            select(AdminUser).where(AdminUser.is_superadmin.is_(True), AdminUser.is_active.is_(True))
+        )
+        return list(result.scalars().all())
+
+    async def authenticate(
+        self, email: str, password: str, *, ip: Optional[str] = None, device: Optional[str] = None,
+    ) -> Optional[AdminUser]:
         admin = await self.get_by_email(email)
         if not admin or not admin.is_active:
             return None
@@ -46,6 +54,8 @@ class AdminUserService:
             admin.failed_attempts = 0
             from datetime import datetime, timezone
             admin.last_login_at = datetime.now(timezone.utc)
+            admin.last_login_ip = ip
+            admin.last_login_device = (device or "")[:500] or None
             return admin
         admin.failed_attempts += 1
         return None

@@ -53,7 +53,9 @@ class AdminUser(Base):
     failed_attempts = Column(Integer, default=0, nullable=False)
 
     created_by = Column(String(36), ForeignKey("admin_users.id", ondelete="SET NULL"), nullable=True)
-    last_login_at = Column(DateTime(timezone=True), nullable=True)
+    last_login_at     = Column(DateTime(timezone=True), nullable=True)
+    last_login_ip     = Column(String(64), nullable=True)
+    last_login_device = Column(String(500), nullable=True, comment="Raw User-Agent header from the login request.")
     created_at    = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     def __repr__(self):
