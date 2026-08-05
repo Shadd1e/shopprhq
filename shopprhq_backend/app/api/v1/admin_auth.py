@@ -3,18 +3,19 @@
 Real admin accounts: login for superadmins/workers, and worker management.
 
 Sits alongside app/api/v1/admin_whatsapp.py's ADMIN_SECRET login
-(POST /admin/whatsapp-setup/verify-password) rather than replacing it —
-that shared-secret flow keeps working as a superadmin fallback.
+(POST /admin/whatsapp-setup/verify-password), which can be fully killed via
+LEGACY_ADMIN_LOGIN_ENABLED=false (see app.core.admin_auth) once real
+accounts are in use — nothing here depends on that shared secret.
 
   POST   /admin/auth/login                 — any admin account
   POST   /admin/auth/change-password       — any logged-in admin
   GET    /admin/workers                    — superadmin only
-  POST   /admin/workers                    — superadmin only
+  POST   /admin/workers                    — real superadmin account only
+                                              (not the legacy shared session)
   PATCH  /admin/workers/{worker_id}        — superadmin only
   POST   /admin/workers/{worker_id}/reset-password  — superadmin only
 """
 import os
-import hmac
 import logging
 from fastapi import APIRouter, Request, HTTPException, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.deps import get_db
 from app.core.helpers import get_client_ip
 from app.core.redis_client import check_admin_rate_limit
+from app.core.security import verify_password
 from app.core.admin_auth import (
     create_admin_token,
     require_admin,
@@ -172,15 +174,25 @@ async def create_worker(
     db: AsyncSession = Depends(get_db),
     ctx: AdminContext = Depends(require_superadmin),
 ):
-    # Step-up check — a valid superadmin JWT alone isn't enough to mint new
-    # admin accounts. Re-confirm with the shared ADMIN_SECRET, same as the
-    # legacy login, so a leaked/stolen bearer token can't be used on its own
-    # to create backdoor accounts.
-    admin_secret = os.getenv("ADMIN_SECRET", "")
-    if not admin_secret or not hmac.compare_digest(payload.admin_secret, admin_secret):
-        raise HTTPException(status_code=401, detail="Admin secret confirmation is incorrect")
+    # Requires a real superadmin account — the legacy shared-secret session
+    # (ctx.admin_id is None in that case) can no longer create workers at
+    # all. Log in with a real account to do this.
+    if not ctx.admin_id:
+        raise HTTPException(
+            status_code=403,
+            detail="Sign in with your own admin account (not the shared secret) to create workers.",
+        )
 
     service = AdminUserService(db)
+
+    # Step-up check — a valid superadmin JWT alone isn't enough to mint new
+    # admin accounts. Re-confirm with the requesting superadmin's OWN
+    # password, so a leaked/stolen bearer token alone can't be used to
+    # create backdoor accounts.
+    requester = await service.get(ctx.admin_id)
+    if not requester or not verify_password(payload.confirm_password, requester.password_hash):
+        raise HTTPException(status_code=401, detail="Your password confirmation is incorrect")
+
     try:
         worker, temp_password = await service.create_worker(
             name=payload.name,

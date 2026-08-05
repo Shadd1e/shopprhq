@@ -173,6 +173,14 @@ async def serve_admin_page():
 async def verify_password(request: Request):
     from app.core.redis_client import check_admin_rate_limit, create_admin_session
     client_ip = get_client_ip(request)
+
+    if os.getenv("LEGACY_ADMIN_LOGIN_ENABLED", "true").lower() == "false":
+        logger.warning("Blocked legacy admin-secret login attempt — ip=%s", client_ip)
+        raise HTTPException(
+            status_code=403,
+            detail="The shared-secret admin login is disabled. Sign in with your own admin account instead.",
+        )
+
     if not await check_admin_rate_limit(client_ip):
         raise HTTPException(status_code=429, detail="Too many attempts — try again in 5 minutes.")
     body = await request.json()

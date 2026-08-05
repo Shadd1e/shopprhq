@@ -17,6 +17,7 @@ Two ways to satisfy an admin route now:
      POST /admin/auth/login. Superadmins get full access; workers are
      checked against their stored `permissions` list.
 """
+import os
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -78,16 +79,21 @@ def decode_admin_token(token: str) -> Optional[dict]:
 # ================================================================
 
 async def _resolve_admin_context(request: Request) -> Optional[AdminContext]:
-    # 1. Legacy shared-secret session (full access)
-    legacy_token = request.headers.get("X-Admin-Token")
-    if legacy_token and await validate_admin_session(legacy_token):
-        return AdminContext(
-            admin_id=None,
-            name="superadmin (shared secret)",
-            is_superadmin=True,
-            permissions=[],
-            via="legacy_secret",
-        )
+    # 1. Legacy shared-secret session (full access) — gated behind
+    # LEGACY_ADMIN_LOGIN_ENABLED so it can be killed instantly. Checked here,
+    # not just at the login endpoint, so an already-issued session token
+    # (still valid in Redis) also stops working the moment this flips —
+    # not just new logins.
+    if os.getenv("LEGACY_ADMIN_LOGIN_ENABLED", "true").lower() != "false":
+        legacy_token = request.headers.get("X-Admin-Token")
+        if legacy_token and await validate_admin_session(legacy_token):
+            return AdminContext(
+                admin_id=None,
+                name="superadmin (shared secret)",
+                is_superadmin=True,
+                permissions=[],
+                via="legacy_secret",
+            )
 
     # 2. Real account JWT
     auth_header = request.headers.get("Authorization", "")

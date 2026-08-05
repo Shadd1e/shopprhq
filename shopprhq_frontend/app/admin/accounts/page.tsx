@@ -223,7 +223,7 @@ function CreateWorkerForm({ session, onCreated }: { session: Session; onCreated:
   const [name,        setName]        = useState('')
   const [email,        setEmail]        = useState('')
   const [permissions,  setPermissions]  = useState<PermissionKey[]>([])
-  const [adminSecret,  setAdminSecret]  = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [loading,      setLoading]      = useState(false)
   const [error,        setError]        = useState('')
   const [result,       setResult]       = useState<{ email: string; password: string } | null>(null)
@@ -239,11 +239,11 @@ function CreateWorkerForm({ session, onCreated }: { session: Session; onCreated:
       const data = await authReq<{ email: string; temporary_password: string }>(
         '/workers', session.token, {
           method: 'POST',
-          body: JSON.stringify({ name, email, permissions, admin_secret: adminSecret }),
+          body: JSON.stringify({ name, email, permissions, confirm_password: confirmPassword }),
         }
       )
       setResult({ email: data.email, password: data.temporary_password })
-      setName(''); setEmail(''); setPermissions([]); setAdminSecret('')
+      setName(''); setEmail(''); setPermissions([]); setConfirmPassword('')
       onCreated()
     } catch (err: any) {
       setError(err.message ?? 'Could not create worker')
@@ -282,14 +282,14 @@ function CreateWorkerForm({ session, onCreated }: { session: Session; onCreated:
         <div>
           <input
             type="password"
-            placeholder="Admin secret (step-up confirmation)"
-            value={adminSecret}
-            onChange={e => setAdminSecret(e.target.value)}
+            placeholder="Your password (step-up confirmation)"
+            value={confirmPassword}
+            onChange={e => setConfirmPassword(e.target.value)}
             className={INPUT}
           />
           <p className="text-xs text-gray-400 mt-1">
-            Same password as the legacy admin login — re-entered here so a stolen session
-            token alone can't be used to create backdoor accounts.
+            Your own account password — re-entered here so a stolen session token alone
+            can't be used to create backdoor accounts.
           </p>
         </div>
 
@@ -309,7 +309,7 @@ function CreateWorkerForm({ session, onCreated }: { session: Session; onCreated:
 
         <button
           type="submit"
-          disabled={loading || !name || !email || !adminSecret || permissions.length === 0}
+          disabled={loading || !name || !email || !confirmPassword || permissions.length === 0}
           className={cn(BTN, 'bg-gray-900 text-white hover:bg-gray-700')}
         >
           {loading ? 'Creating…' : 'Create worker'}
