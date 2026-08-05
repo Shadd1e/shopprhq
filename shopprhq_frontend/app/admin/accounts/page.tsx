@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { cn } from '@/lib/utils'
-import { StoreList, ApplicationsList, adminReq, INPUT, BTN } from '../page'
+import { StoreList, ApplicationsList, adminReq, INPUT, BTN } from '../_shared'
 
 // ══════════════════════════════════════════════════════════════════════════
 // CONFIG
