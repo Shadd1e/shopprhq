@@ -420,18 +420,46 @@ function HistoryView({ orders, token, merchantId, onClose, onOrderClick }: {
 // OVERVIEW TAB
 // ══════════════════════════════════════════════════════════════════════════
 
-function OverviewTab({ orders, products, profile, loading, onOrderClick }: {
+function Delta({ pct }: { pct: number | null }) {
+  if (pct === null) return <span className="text-[11px] text-ink-4">No orders yesterday</span>
+  const up = pct >= 0
+  return (
+    <span className={cn('text-[11px] font-semibold', up ? 'text-green-600' : 'text-red-500')}>
+      {up ? '↑' : '↓'} {Math.abs(Math.round(pct))}% vs yesterday
+    </span>
+  )
+}
+
+function OverviewTab({ orders, products, profile, loading, onOrderClick, revData, onGoToTab, onConfirm, actionLoading }: {
   orders: Order[]; products: Product[]; profile: MerchantProfile | null
   loading: boolean; onOrderClick: (id: string) => void
+  revData: RevenueSummary | null; onGoToTab: (t: Tab) => void
+  onConfirm: (id: string) => void; actionLoading: string | null
 }) {
-  const today        = new Date().toDateString()
-  const todayOrders  = orders.filter(o => o.created_at && new Date(o.created_at).toDateString() === today)
-  const todayRevenue = todayOrders.filter(o => ['PAID','FULFILLED'].includes(o.status))
-                         .reduce((s, o) => s + o.total_amount, 0)
-  const pending      = orders.filter(o => o.status === 'AWAITING_PICKUP').length
+  const today         = new Date().toDateString()
+  const yesterday      = new Date(Date.now() - 86400000).toDateString()
+  const todayOrders    = orders.filter(o => o.created_at && new Date(o.created_at).toDateString() === today)
+  const yesterdayOrders = orders.filter(o => o.created_at && new Date(o.created_at).toDateString() === yesterday)
+  const todayRevenue     = todayOrders.filter(o => ['PAID','FULFILLED'].includes(o.status))
+                             .reduce((s, o) => s + o.total_amount, 0)
+  const yesterdayRevenue = yesterdayOrders.filter(o => ['PAID','FULFILLED'].includes(o.status))
+                             .reduce((s, o) => s + o.total_amount, 0)
+  const orderDelta   = yesterdayOrders.length > 0 ? ((todayOrders.length - yesterdayOrders.length) / yesterdayOrders.length) * 100 : null
+  const revenueDelta = yesterdayRevenue > 0 ? ((todayRevenue - yesterdayRevenue) / yesterdayRevenue) * 100 : null
+
+  const pendingOrders = orders.filter(o => o.status === 'AWAITING_PICKUP')
+                          .sort((a, b) => new Date(a.created_at ?? 0).getTime() - new Date(b.created_at ?? 0).getTime())
+  const lowStock = products.filter(p => {
+    const qty = p.inventory?.quantity ?? 0
+    const thresh = p.inventory?.low_stock_threshold
+    return qty === 0 || (thresh != null && qty <= thresh)
+  })
+
   const recentOrders = [...orders].sort((a, b) =>
     new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime()
   ).slice(0, 5)
+
+  const needsAttention = pendingOrders.length + lowStock.length
 
   return (
     <div className="space-y-5">
@@ -446,12 +474,13 @@ function OverviewTab({ orders, products, profile, loading, onOrderClick }: {
         <p className="text-sm text-ink-4 mt-1">Here's today's snapshot of your store.</p>
       </div>
 
-      {/* Stats — today only */}
+      {/* Stats — today only, with a same-day-yesterday comparison so a number
+          means something on its own instead of requiring mental math. */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: "Today's Orders",  value: loading ? null : todayOrders.length.toString() },
-          { label: "Today's Revenue", value: loading ? null : fmt(todayRevenue) },
-          { label: 'Pending',         value: loading ? null : pending.toString() },
+          { label: "Today's Orders",  value: loading ? null : todayOrders.length.toString(), delta: orderDelta },
+          { label: "Today's Revenue", value: loading ? null : fmt(todayRevenue), delta: revenueDelta },
+          { label: 'Pending',         value: loading ? null : pendingOrders.length.toString() },
           { label: 'Items',           value: loading ? null : products.length.toString() },
         ].map((s) => (
           <div key={s.label} className="bg-white border border-border rounded-2xl p-5">
@@ -462,9 +491,86 @@ function OverviewTab({ orders, products, profile, loading, onOrderClick }: {
               ? <div className="skeleton h-8 w-16 rounded-lg" />
               : <p className="font-display font-extrabold text-2xl text-ink tracking-tight">{s.value}</p>
             }
+            {!loading && 'delta' in s && <div className="mt-1"><Delta pct={s.delta as number | null} /></div>}
           </div>
         ))}
       </div>
+
+      {/* Needs attention — pending confirmations + low/out-of-stock items, both
+          previously only visible by switching tabs. Surfaced here so a merchant
+          who only glances at Overview still catches them same-day. */}
+      {!loading && needsAttention > 0 && (
+        <div className="grid md:grid-cols-2 gap-4">
+          {pendingOrders.length > 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-3xl overflow-hidden">
+              <div className="px-5 py-3.5 border-b border-amber-200 flex items-center justify-between">
+                <p className="text-sm font-semibold text-amber-900">
+                  {pendingOrders.length} order{pendingOrders.length > 1 ? 's' : ''} awaiting confirmation
+                </p>
+                <button onClick={() => onGoToTab('orders')}
+                  className="text-xs font-semibold text-amber-800 hover:underline shrink-0">
+                  View all
+                </button>
+              </div>
+              <div className="divide-y divide-amber-200/60">
+                {pendingOrders.slice(0, 3).map(o => (
+                  <div key={o.id} className="px-5 py-3 flex items-center gap-3">
+                    <span className="font-mono text-xs font-semibold text-ink bg-white border border-amber-200
+                      px-2 py-0.5 rounded-lg shrink-0">{o.order_code}</span>
+                    <span className="text-sm text-ink-3 truncate flex-1 min-w-0">{o.customer_name || o.user_id}</span>
+                    <span className="text-sm font-semibold text-ink shrink-0">{fmt(o.total_amount)}</span>
+                    {o.payment_method === 'cash' ? (
+                      <button onClick={() => onConfirm(o.id)} disabled={!!actionLoading}
+                        className="text-xs font-semibold text-white bg-wa px-2.5 py-1.5 rounded-lg
+                          hover:bg-wa-dark transition-colors disabled:opacity-50 shrink-0">
+                        {actionLoading === o.id + 'confirm' ? '…' : 'Confirm'}
+                      </button>
+                    ) : (
+                      <button onClick={() => onOrderClick(o.id)}
+                        className="text-xs font-semibold text-amber-800 border border-amber-300 px-2.5 py-1.5
+                          rounded-lg hover:bg-amber-100 transition-colors shrink-0">
+                        View
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {lowStock.length > 0 && (
+            <div className="bg-red-50 border border-red-200 rounded-3xl overflow-hidden">
+              <div className="px-5 py-3.5 border-b border-red-200 flex items-center justify-between">
+                <p className="text-sm font-semibold text-red-900">
+                  {lowStock.length} item{lowStock.length > 1 ? 's' : ''} low or out of stock
+                </p>
+                <button onClick={() => onGoToTab('inventory')}
+                  className="text-xs font-semibold text-red-800 hover:underline shrink-0">
+                  Restock
+                </button>
+              </div>
+              <div className="divide-y divide-red-200/60">
+                {lowStock.slice(0, 3).map(p => {
+                  const qty = p.inventory?.quantity ?? 0
+                  return (
+                    <div key={p.id} className="px-5 py-3 flex items-center gap-3">
+                      <span className="text-sm text-ink-3 truncate flex-1 min-w-0">{p.name}</span>
+                      <span className={cn('text-xs font-semibold px-2 py-0.5 rounded-full border shrink-0',
+                        qty === 0 ? 'bg-white text-red-700 border-red-300' : 'bg-white text-amber-700 border-amber-300')}>
+                        {qty === 0 ? 'Out of stock' : `${qty} left`}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Weekly trend — the same chart used to be reachable only through the
+          History overlay behind the profile menu. Most merchants never found it. */}
+      {!loading && revData && revData.daily.length > 0 && <RevenueBarChart data={revData} />}
 
       {/* Recent orders */}
       <div className="bg-white border border-border rounded-3xl overflow-hidden">
@@ -2352,6 +2458,7 @@ function DashboardView({ token, onLogout }: { token: string; onLogout: () => voi
   const [loadError,     setLoadError]     = useState('')
   const [merchantId,    setMerchantId]    = useState('')
   const [historyOpen,   setHistoryOpen]   = useState(false)
+  const [overviewRev,   setOverviewRev]   = useState<RevenueSummary | null>(null)
   const [detail,        setDetail]        = useState<OrderDetail | null>(null)
   const [detailOpen,    setDetailOpen]    = useState(false)
   const [detailLoading, setDetailLoading] = useState(false)
@@ -2406,6 +2513,11 @@ function DashboardView({ token, onLogout }: { token: string; onLogout: () => voi
         } catch {}
       }
       setProducts(allProds)
+
+      // Small weekly summary for the Overview tab's trend chart — separate from
+      // the full History overlay's own period switcher so a slow request there
+      // never blocks the main dashboard from loading.
+      getRevenueSummary(token, mId, undefined, 'weekly').then(setOverviewRev).catch(() => {})
     } catch (err: any) {
       if (err?.status === 401) onLogout()
       else setLoadError(err?.detail ?? 'Could not load dashboard data. Check your connection and refresh.')
@@ -2511,7 +2623,9 @@ function DashboardView({ token, onLogout }: { token: string; onLogout: () => voi
         {/* Tab content */}
         {tab === 'overview' && (
           <OverviewTab orders={orders} products={products} profile={profile}
-            loading={loading} onOrderClick={openOrderDetail} />
+            loading={loading} onOrderClick={openOrderDetail}
+            revData={overviewRev} onGoToTab={setTab}
+            onConfirm={handleConfirm} actionLoading={actionLoading} />
         )}
         {tab === 'inventory' && (
           <InventoryTab

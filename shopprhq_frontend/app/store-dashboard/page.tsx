@@ -369,10 +369,10 @@ function OrdersTab({ info, storeName }: { info: StoreInfo; storeName: string }) 
   const pendingCount   = orders.filter(o => ['AWAITING_PICKUP','PENDING_PAYMENT','CREATED'].includes(o.status)).length
   const fulfilledCount = orders.filter(o => o.status === 'FULFILLED').length
 
-  const stats = [
+  const stats: { label: string; value: string | null; filter?: OrderFilter; highlight?: boolean }[] = [
     { label: 'Today',     value: loading ? null : String(todayCount) },
-    { label: 'Pending',   value: loading ? null : String(pendingCount) },
-    { label: 'Fulfilled', value: loading ? null : String(fulfilledCount) },
+    { label: 'Pending',   value: loading ? null : String(pendingCount), filter: 'pending', highlight: pendingCount > 0 },
+    { label: 'Fulfilled', value: loading ? null : String(fulfilledCount), filter: 'fulfilled' },
   ]
 
   const FILTERS: { id: OrderFilter; label: string }[] = [
@@ -385,18 +385,28 @@ function OrdersTab({ info, storeName }: { info: StoreInfo; storeName: string }) 
   return (
     <div className="space-y-5">
 
-      {/* Stats */}
+      {/* Stats — Pending and Fulfilled now jump straight to that filter instead
+          of just being a number you then had to go find the tab for. */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {stats.map(s => (
-          <div key={s.label} className="bg-white border border-border rounded-2xl p-5">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-4 mb-2">
+          <button key={s.label} type="button"
+            onClick={() => s.filter && setFilter(s.filter)}
+            disabled={!s.filter}
+            className={cn(
+              'text-left bg-white border rounded-2xl p-5 transition-colors',
+              s.filter ? 'cursor-pointer hover:border-ink-4' : 'cursor-default',
+              s.highlight ? 'border-amber-300 bg-amber-50' : 'border-border',
+            )}>
+            <p className={cn('text-[11px] font-semibold uppercase tracking-wider mb-2',
+              s.highlight ? 'text-amber-700' : 'text-ink-4')}>
               {s.label}
             </p>
             {s.value === null
               ? <div className="skeleton h-8 w-16 rounded-lg" />
-              : <p className="font-display font-extrabold text-2xl text-ink">{s.value}</p>
+              : <p className={cn('font-display font-extrabold text-2xl',
+                  s.highlight ? 'text-amber-900' : 'text-ink')}>{s.value}</p>
             }
-          </div>
+          </button>
         ))}
       </div>
 
