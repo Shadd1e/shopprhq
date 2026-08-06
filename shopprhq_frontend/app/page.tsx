@@ -314,66 +314,79 @@ const INDUSTRIES = [
 ]
 
 /* ── Why cards ── */
+/* Each card leads with the miss (what happens without ShopprHQ), then names the fix. */
 const WHY_CARDS = [
   {
     emoji: '🌙',
-    title: 'Always on',
-    body: 'Takes orders at 2am, on public holidays, while you sleep. It never clocks out.',
+    miss: 'Someone messages your shop at 2am',
+    title: 'And gets silence',
+    body: 'That order goes to whichever shop replies first tomorrow morning. ShopprHQ answers, closes the sale, and never clocks out.',
   },
   {
     emoji: '💬',
-    title: 'Handles the repetition',
-    body: '"How much?" "Do you have this in blue?" "What\'s your delivery fee?" — answered instantly, every time.',
+    miss: '"How much?" "Do you have this in blue?"',
+    title: 'Asked ten times a day',
+    body: "Every repeat question is a minute you're not spending on the business. It answers instantly, every time, so you don't have to.",
   },
   {
     emoji: '💳',
-    title: 'Collects payment',
-    body: 'Sends a payment link in the chat. Customer pays by card, order confirmed automatically. No account numbers.',
+    miss: 'You send your account number and hope',
+    title: 'And chase payment after',
+    body: 'A payment link lands in the chat instead. Customer pays by card, order confirms itself — no more "please send proof of payment."',
   },
   {
     emoji: '📊',
-    title: 'One dashboard',
-    body: 'Every order, every branch, every naira — visible in real time. No spreadsheets.',
+    miss: 'Orders scattered across chats and notebooks',
+    title: 'And nothing adds up',
+    body: 'Every order, every branch, every naira — one dashboard, visible in real time. No spreadsheets to reconcile at midnight.',
   },
   {
     emoji: '⚡',
-    title: 'Concurrent carts',
-    body: 'Handles 50 customers at the same time, each in their own conversation. No queue, no waiting.',
+    miss: 'Two customers message at once',
+    title: 'One of them waits',
+    body: 'You can only type so fast. It handles 50 conversations at the same time, each one moving forward, no queue.',
   },
   {
     emoji: '🔤',
-    title: 'Understands typos',
-    body: '"jelo rice", "tomatoe stew", "chiken" — it figures out what they mean and keeps the order moving.',
+    miss: '"jelo rice", "tomatoe stew", "chiken"',
+    title: 'Misread, order stalls',
+    body: 'A typo shouldn\'t cost you a sale. It figures out what they mean and keeps the order moving without a back-and-forth.',
   },
   {
     emoji: '🛍️',
-    title: 'Cross-sells naturally',
-    body: 'Orders jollof rice? It asks if they want a drink with that. Buys a dress? It mentions the matching bag.',
+    miss: 'A drink, a bag, an add-on',
+    title: 'Never even offered',
+    body: 'Orders jollof rice? It asks if they want a drink with that. Small upsells you\'d forget to make, made on every order.',
   },
   {
     emoji: '🚚',
-    title: 'Delivery toggle',
-    body: 'Switch delivery on or off per store, any time. You control the radius, fee, and availability from the dashboard.',
+    miss: 'Delivery questions you answer by hand',
+    title: 'Every single time',
+    body: 'Set your radius, fee, and availability once. Switch delivery on or off per store, any time, from the dashboard.',
   },
   {
     emoji: '📦',
-    title: 'Smart inventory',
-    body: 'Tracks what\'s in stock as orders come in. You get notified when items run low — before customers ask for something you don\'t have.',
+    miss: 'You find out you\'re out of stock',
+    title: 'After they\'ve already ordered',
+    body: 'Inventory updates as orders come in, and you\'re notified when something runs low — before a customer asks for it.',
   },
   {
     emoji: '🗂️',
-    title: 'Catalog management',
-    body: 'Add items, update prices, hide sold-out products — all from the dashboard. Changes go live on WhatsApp instantly.',
+    miss: 'Prices and stock go stale',
+    title: 'Across every old post',
+    body: 'Add items, update prices, hide sold-out products from one dashboard. Changes go live on WhatsApp instantly.',
   },
   {
     emoji: '🏪',
-    title: 'Multi-branch support',
-    body: 'Each branch gets its own WhatsApp number, its own catalog, and its own order stream — all under one account.',
+    miss: 'One WhatsApp, every branch',
+    title: 'All jumbled together',
+    body: 'Each branch gets its own number, its own catalog, and its own order stream — all under one account.',
   },
   {
     emoji: '📋',
-    title: 'Order history',
-    body: 'Every order is logged with the customer\'s name, number, and what they bought. Repeat orders take seconds.',
+    miss: 'A regular messages again',
+    title: 'And starts from zero',
+    body: 'Every order is logged with the customer\'s name, number, and what they bought. Repeat orders take seconds, not another conversation.',
   },
 ]
 
@@ -492,10 +505,10 @@ export default function HomePage() {
       <section id="why" className="py-24 px-5 bg-bg">
         <div className="max-w-6xl mx-auto">
           <div className="mb-16 reveal">
-            <p className="text-xs font-mono text-wa tracking-[.16em] uppercase mb-3">What it does</p>
+            <p className="text-xs font-mono text-wa tracking-[.16em] uppercase mb-3">What you're missing</p>
             <h2 className="font-display font-extrabold text-[clamp(1.8rem,4vw,3rem)] tracking-tight text-ink leading-tight">
-              More than just a software.<br />
-              <span className="text-ink-3">A full-time salesperson.</span>
+              This is happening in your DMs<br />
+              <span className="text-ink-3">right now, without you.</span>
             </h2>
           </div>
 
@@ -507,6 +520,7 @@ export default function HomePage() {
                 style={{ transitionDelay: `${i * 40}ms` }}
               >
                 <div className="text-2xl mb-4">{card.emoji}</div>
+                <p className="text-xs font-semibold text-ink-4 uppercase tracking-wide mb-1.5">{card.miss}</p>
                 <h3 className="font-display font-bold text-base text-ink mb-2">{card.title}</h3>
                 <p className="text-sm text-ink-3 leading-relaxed">{card.body}</p>
               </div>

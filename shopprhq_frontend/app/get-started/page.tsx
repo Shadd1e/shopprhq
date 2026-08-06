@@ -55,26 +55,48 @@ function WhatsAppOutreachNotice({ compact = false }: { compact?: boolean }) {
   )
 }
 
+/* Warm, encouraging one-liner per step — shown above the stepper so it reads
+   like a person talking to you, not a form counting your progress. */
+const STEP_ENCOURAGEMENT = [
+  "Let's get to know you — just the basics.",
+  'Nice one — now tell us a bit about the business.',
+  "Almost there, just need to verify a few details.",
+  "Last step! You're one tap from being live.",
+]
+
 function Stepper({ step }: { step: number }) {
+  const pct = Math.round((step / STEP_LABELS.length) * 100)
   return (
-    <div className="flex items-center gap-2 mb-10">
-      {STEP_LABELS.map((label, i) => {
-        const n = i + 1
-        const active = n === step
-        const done = n < step
-        return (
-          <div key={label} className="flex items-center gap-2 flex-1">
-            <div className="flex items-center gap-2 shrink-0">
-              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors
-                ${done ? 'bg-wa text-white' : active ? 'bg-ink text-white' : 'bg-bg border border-border text-ink-4'}`}>
-                {done ? '✓' : n}
+    <div className="mb-10">
+      <div className="flex items-baseline justify-between mb-2">
+        <p className="text-sm text-ink-2 font-medium">{STEP_ENCOURAGEMENT[step - 1]}</p>
+        <p className="text-xs font-mono text-wa font-bold shrink-0 ml-3">{pct}% done</p>
+      </div>
+      <div className="h-1.5 rounded-full bg-border overflow-hidden mb-5">
+        <div
+          className="h-full bg-wa rounded-full transition-all duration-500 ease-out"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <div className="flex items-center gap-2">
+        {STEP_LABELS.map((label, i) => {
+          const n = i + 1
+          const active = n === step
+          const done = n < step
+          return (
+            <div key={label} className="flex items-center gap-2 flex-1">
+              <div className="flex items-center gap-2 shrink-0">
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors
+                  ${done ? 'bg-wa text-white' : active ? 'bg-ink text-white' : 'bg-bg border border-border text-ink-4'}`}>
+                  {done ? '✓' : n}
+                </div>
+                <span className={`text-xs font-semibold hidden sm:inline ${active ? 'text-ink' : 'text-ink-4'}`}>{label}</span>
               </div>
-              <span className={`text-xs font-semibold hidden sm:inline ${active ? 'text-ink' : 'text-ink-4'}`}>{label}</span>
+              {n < STEP_LABELS.length && <div className={`h-px flex-1 ${done ? 'bg-wa' : 'bg-border'}`} />}
             </div>
-            {n < STEP_LABELS.length && <div className={`h-px flex-1 ${done ? 'bg-wa' : 'bg-border'}`} />}
-          </div>
-        )
-      })}
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -357,10 +379,10 @@ export default function GetStartedPage() {
             <div>
               <p className="text-xs font-mono text-wa tracking-[.16em] uppercase mb-4">Get started</p>
               <h1 className="font-display font-extrabold text-[clamp(2.2rem,5vw,3.8rem)] tracking-tight leading-[1.0] text-ink mb-4">
-                Tell us about<br />your business.
+                Let's get you started<br />for <span className="text-wa">₦0</span> today.
               </h1>
               <p className="text-ink-3 text-base leading-relaxed mb-8 max-w-md">
-                Four short steps. Your progress is saved automatically, so you can finish later if you get interrupted.
+                No setup fee, nothing to pay up front. Four short, friendly steps — we save your progress automatically, so if life happens you can always pick up right where you left off.
               </p>
 
               <Stepper step={step} />
